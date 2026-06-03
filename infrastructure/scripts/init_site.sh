@@ -20,7 +20,12 @@ if ! bench --site "${FRAPPE_SITE_NAME}" list-apps | grep -qx "bedo_erp"; then
   bench --site "${FRAPPE_SITE_NAME}" install-app bedo_erp
 fi
 
-for alias in localhost 127.0.0.1; do
+SITE_ALIASES="localhost 127.0.0.1 ${FRAPPE_SITE_ALIASES:-}"
+
+for alias in ${SITE_ALIASES}; do
+  if [ -z "${alias}" ] || [ "${alias}" = "${FRAPPE_SITE_NAME}" ]; then
+    continue
+  fi
   if [ ! -e "${FRAPPE_BENCH_PATH}/sites/${alias}" ]; then
     ln -s "${FRAPPE_SITE_NAME}" "${FRAPPE_BENCH_PATH}/sites/${alias}"
   fi

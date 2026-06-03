@@ -44,6 +44,7 @@ services:
       FRAPPE_BENCH_PATH: ${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}
       BEDO_APP_PATH: ${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_erp}
       FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME:-bedo.localhost}
+      FRAPPE_SITE_ALIASES: ${FRAPPE_SITE_ALIASES:-}
       FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:-change-this-site-admin-password}
       MARIADB_HOST: mariadb
       MARIADB_PORT: 3306
