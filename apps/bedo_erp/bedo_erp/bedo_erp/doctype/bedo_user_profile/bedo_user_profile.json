@@ -1,0 +1,149 @@
+{
+  "actions": [],
+  "allow_import": 1,
+  "autoname": "field:user",
+  "creation": "2026-06-03 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "user",
+    "full_name",
+    "email",
+    "employee_code",
+    "department",
+    "job_title",
+    "auth_source",
+    "ldap_username",
+    "ldap_dn",
+    "is_created_from_ldap",
+    "is_active_in_bedo_erp",
+    "last_successful_login",
+    "last_failed_login"
+  ],
+  "fields": [
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "User",
+      "options": "User",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "full_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Full Name"
+    },
+    {
+      "fieldname": "email",
+      "fieldtype": "Data",
+      "in_standard_filter": 1,
+      "label": "Email"
+    },
+    {
+      "fieldname": "employee_code",
+      "fieldtype": "Data",
+      "in_standard_filter": 1,
+      "label": "Employee Code"
+    },
+    {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Department",
+      "options": "BEDO Department"
+    },
+    {
+      "fieldname": "job_title",
+      "fieldtype": "Data",
+      "label": "Job Title"
+    },
+    {
+      "fieldname": "auth_source",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Auth Source",
+      "options": "Local\nLDAP"
+    },
+    {
+      "fieldname": "ldap_username",
+      "fieldtype": "Data",
+      "label": "LDAP Username"
+    },
+    {
+      "fieldname": "ldap_dn",
+      "fieldtype": "Data",
+      "label": "LDAP DN"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_created_from_ldap",
+      "fieldtype": "Check",
+      "label": "Is Created From LDAP"
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active_in_bedo_erp",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Is Active In BEDO ERP"
+    },
+    {
+      "fieldname": "last_successful_login",
+      "fieldtype": "Datetime",
+      "label": "Last Successful Login",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_failed_login",
+      "fieldtype": "Datetime",
+      "label": "Last Failed Login",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-06-03 00:00:00.000000",
+  "module": "BEDO ERP",
+  "name": "BEDO User Profile",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "BEDO System Admin",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "BEDO GM"
+    },
+    {
+      "read": 1,
+      "role": "BEDO Department Manager"
+    },
+    {
+      "read": 1,
+      "role": "BEDO Engineer"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "category": "Modules",
+    "charts": [],
+    "content": "[{\"id\":\"bedo-admin-dashboard-placeholder\",\"type\":\"header\",\"data\":{\"text\":\"BEDO Admin Dashboard Placeholder - UI owned by Zeinab\",\"col\":12}}]",
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "shield",
+    "is_hidden": 0,
+    "label": "BEDO Admin Dashboard",
+    "links": [],
+    "module": "BEDO ERP",
+    "name": "BEDO Admin Dashboard",
+    "number_cards": [],
+    "public": 1,
+    "quick_lists": [],
+    "roles": [],
+    "sequence_id": 50.0,
+    "shortcuts": [],
+    "title": "BEDO Admin Dashboard"
+  }
+]

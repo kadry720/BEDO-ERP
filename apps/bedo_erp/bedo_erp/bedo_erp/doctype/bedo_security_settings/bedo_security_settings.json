@@ -1,0 +1,101 @@
+{
+  "actions": [],
+  "creation": "2026-06-03 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "enable_ldap_login",
+    "allow_local_login_for_system_admin",
+    "allow_local_login_for_normal_users",
+    "default_role_after_ldap_login",
+    "max_failed_login_attempts",
+    "lockout_duration_minutes",
+    "session_timeout_minutes",
+    "require_active_bedo_profile",
+    "enable_audit_logging"
+  ],
+  "fields": [
+    {
+      "default": "0",
+      "fieldname": "enable_ldap_login",
+      "fieldtype": "Check",
+      "label": "Enable LDAP Login"
+    },
+    {
+      "default": "1",
+      "fieldname": "allow_local_login_for_system_admin",
+      "fieldtype": "Check",
+      "label": "Allow Local Login For System Admin"
+    },
+    {
+      "default": "0",
+      "fieldname": "allow_local_login_for_normal_users",
+      "fieldtype": "Check",
+      "label": "Allow Local Login For Normal Users"
+    },
+    {
+      "fieldname": "default_role_after_ldap_login",
+      "fieldtype": "Link",
+      "label": "Default Role After LDAP Login",
+      "options": "Role"
+    },
+    {
+      "default": "5",
+      "fieldname": "max_failed_login_attempts",
+      "fieldtype": "Int",
+      "label": "Max Failed Login Attempts"
+    },
+    {
+      "default": "15",
+      "fieldname": "lockout_duration_minutes",
+      "fieldtype": "Int",
+      "label": "Lockout Duration Minutes"
+    },
+    {
+      "default": "120",
+      "fieldname": "session_timeout_minutes",
+      "fieldtype": "Int",
+      "label": "Session Timeout Minutes"
+    },
+    {
+      "default": "1",
+      "fieldname": "require_active_bedo_profile",
+      "fieldtype": "Check",
+      "label": "Require Active BEDO Profile"
+    },
+    {
+      "default": "1",
+      "fieldname": "enable_audit_logging",
+      "fieldtype": "Check",
+      "label": "Enable Audit Logging"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "issingle": 1,
+  "links": [],
+  "modified": "2026-06-03 00:00:00.000000",
+  "module": "BEDO ERP",
+  "name": "BEDO Security Settings",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "BEDO System Admin",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "BEDO GM"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

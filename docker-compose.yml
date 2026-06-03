@@ -1,0 +1,63 @@
+services:
+  mariadb:
+    image: mariadb:10.6
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-this-root-password}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:-frappe}
+      MYSQL_USER: ${MARIADB_USER:-frappe}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-change-this-db-password}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  redis-cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  redis-queue:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  redis-socketio:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"
+
+  frappe:
+    image: frappe/bench:latest
+    depends_on:
+      - mariadb
+      - redis-cache
+      - redis-queue
+      - redis-socketio
+    working_dir: /workspace/BEDO-ERP
+    command: sleep infinity
+    environment:
+      FRAPPE_BRANCH: ${FRAPPE_BRANCH:-version-15}
+      FRAPPE_BENCH_PATH: ${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}
+      BEDO_APP_PATH: ${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_erp}
+      FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME:-bedo.localhost}
+      FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:-change-this-site-admin-password}
+      MARIADB_HOST: mariadb
+      MARIADB_PORT: 3306
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-this-root-password}
+      REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
+      REDIS_QUEUE_URL: ${REDIS_QUEUE_URL:-redis://redis-queue:6379}
+      REDIS_SOCKETIO_URL: ${REDIS_SOCKETIO_URL:-redis://redis-socketio:6379}
+    volumes:
+      - .:/workspace/BEDO-ERP
+      - bench-data:/workspace/frappe-bench
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+
+volumes:
+  mariadb-data:
+  bench-data:

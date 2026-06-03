@@ -1,0 +1,58 @@
+[
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO System Admin",
+    "role_name": "BEDO System Admin"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO GM",
+    "role_name": "BEDO GM"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO SRS Manager",
+    "role_name": "BEDO SRS Manager"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO ARD Manager",
+    "role_name": "BEDO ARD Manager"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO Department Manager",
+    "role_name": "BEDO Department Manager"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO Engineer",
+    "role_name": "BEDO Engineer"
+  },
+  {
+    "desk_access": 1,
+    "disabled": 0,
+    "doctype": "Role",
+    "is_custom": 1,
+    "name": "BEDO Viewer",
+    "role_name": "BEDO Viewer"
+  }
+]

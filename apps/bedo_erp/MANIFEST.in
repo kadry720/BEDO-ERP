@@ -1,0 +1,7 @@
+include license.txt
+recursive-include bedo_erp *.json
+recursive-include bedo_erp *.py
+recursive-include bedo_erp *.js
+recursive-include bedo_erp *.html
+recursive-include bedo_erp *.css
+recursive-include bedo_erp *.md

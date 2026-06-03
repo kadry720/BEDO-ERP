@@ -1,0 +1,19 @@
+{
+  "content": null,
+  "creation": "2026-06-03 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "Page",
+  "icon": "shield",
+  "idx": 0,
+  "modified": "2026-06-03 00:00:00.000000",
+  "module": "BEDO ERP",
+  "name": "bedo-admin-dashboard",
+  "owner": "Administrator",
+  "page_name": "bedo-admin-dashboard",
+  "roles": [],
+  "script": null,
+  "standard": "Yes",
+  "style": null,
+  "system_page": 0,
+  "title": "BEDO Admin Dashboard"
+}

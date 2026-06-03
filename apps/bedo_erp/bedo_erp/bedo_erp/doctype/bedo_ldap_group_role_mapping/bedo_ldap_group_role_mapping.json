@@ -1,0 +1,79 @@
+{
+  "actions": [],
+  "allow_import": 1,
+  "autoname": "format:{ldap_group_name}-{frappe_role}",
+  "creation": "2026-06-03 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "ldap_group_name",
+    "ldap_group_dn",
+    "frappe_role",
+    "priority",
+    "is_active"
+  ],
+  "fields": [
+    {
+      "fieldname": "ldap_group_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "LDAP Group Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "ldap_group_dn",
+      "fieldtype": "Data",
+      "label": "LDAP Group DN"
+    },
+    {
+      "fieldname": "frappe_role",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Frappe Role",
+      "options": "Role",
+      "reqd": 1
+    },
+    {
+      "fieldname": "priority",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Priority"
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Is Active"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-06-03 00:00:00.000000",
+  "module": "BEDO ERP",
+  "name": "BEDO LDAP Group Role Mapping",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "BEDO System Admin",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "BEDO GM"
+    }
+  ],
+  "sort_field": "priority",
+  "sort_order": "ASC",
+  "states": []
+}
