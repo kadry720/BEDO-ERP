@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/Button";
 import type { AdminBootstrap, AdminUser, SecurityEvent } from "@/features/admin/types";
 
-const tabs = ["Users", "Roles", "Role Profiles", "Department Access", "Module Access / Permissions", "Security Logs"];
+const tabs = ["Users", "Security Logs"];
 
 export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: AdminBootstrap; securityEvents: SecurityEvent[] }) {
   const [activeTab, setActiveTab] = useState(tabs[0]);
@@ -225,21 +225,6 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
         </div>
       )}
 
-      {activeTab === "Roles" && <MetadataPanel title="Roles" items={bootstrap.roles} />}
-      {activeTab === "Role Profiles" && <MetadataPanel title="Role Profiles" items={["Platform", "Department", "Team"]} />}
-      {activeTab === "Department Access" && (
-        <MetadataPanel title="Department Access" items={bootstrap.departments.map((department) => `${department.key} - ${department.name}`)} />
-      )}
-      {activeTab === "Module Access / Permissions" && (
-        <MetadataPanel
-          title="Module Access / Permissions"
-          items={[
-            "Controls route/module visibility",
-            "Controls /admin/users access",
-            `Controls Frappe Desk technical access through ${bootstrap.technical_desk_roles.join(", ")}`
-          ]}
-        />
-      )}
       {activeTab === "Security Logs" && <SecurityLogs events={securityEvents} />}
     </section>
   );
@@ -270,21 +255,6 @@ function SecurityLogs({ events }: { events: SecurityEvent[] }) {
             ))}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-function MetadataPanel({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-md border border-gray-200 bg-white p-5 shadow-panel">
-      <h2 className="text-lg font-bold text-ink">{title}</h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => (
-          <div key={item} className="rounded-md border border-gray-200 bg-panel px-4 py-3 text-sm font-medium text-gray-700">
-            {item}
-          </div>
-        ))}
       </div>
     </div>
   );
