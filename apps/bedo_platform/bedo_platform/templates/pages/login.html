@@ -1,0 +1,40 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<link rel="stylesheet" href="/assets/bedo_platform/css/bedo_platform.css">
+<div class="bedo-login-shell">
+  <h1>BEDO Platform</h1>
+  <form id="bedo-login-form">
+    <input name="username" autocomplete="username" placeholder="Username" required>
+    <input name="password" autocomplete="current-password" placeholder="Password" type="password" required>
+    <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+  </form>
+  <p id="bedo-login-message" class="text-muted small"></p>
+</div>
+<script>
+  document.getElementById("bedo-login-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const message = document.getElementById("bedo-login-message");
+    message.textContent = "";
+    frappe.call({
+      method: "bedo_platform.api.auth.login",
+      args: {
+        username: form.username.value,
+        password: form.password.value,
+      },
+      callback: function (response) {
+        const data = response.message || {};
+        if (data.success) {
+          window.location.href = data.route || "/app";
+          return;
+        }
+        message.textContent = data.message || "Invalid username or password.";
+      },
+      error: function () {
+        message.textContent = "Invalid username or password.";
+      },
+    });
+  });
+</script>
+{% endblock %}

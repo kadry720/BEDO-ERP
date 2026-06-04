@@ -1,0 +1,110 @@
+.bedo-dashboard-shell,
+.bedo-admin-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.bedo-page-heading {
+  margin-bottom: 16px;
+}
+
+.bedo-page-heading h2 {
+  font-size: 26px;
+  font-weight: 650;
+  margin: 0 0 6px;
+}
+
+.bedo-page-heading p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.bedo-dashboard-panel,
+.bedo-admin-form,
+.bedo-users-list {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 18px;
+  background: var(--card-bg);
+}
+
+.bedo-placeholder,
+.bedo-loading,
+.bedo-empty {
+  color: var(--text-muted);
+}
+
+.bedo-dashboard-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bedo-dashboard-link {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.bedo-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.bedo-form-grid input,
+.bedo-form-grid select {
+  min-height: 38px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--control-bg);
+}
+
+.bedo-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bedo-user-table th,
+.bedo-user-table td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.bedo-users-list {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.bedo-login-shell {
+  max-width: 380px;
+  margin: 8vh auto;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.bedo-login-shell h1 {
+  font-size: 24px;
+  margin: 0 0 18px;
+}
+
+.bedo-login-shell input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+}

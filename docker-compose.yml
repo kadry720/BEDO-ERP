@@ -42,7 +42,8 @@ services:
     environment:
       FRAPPE_BRANCH: ${FRAPPE_BRANCH:-version-15}
       FRAPPE_BENCH_PATH: ${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}
-      BEDO_APP_PATH: ${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_erp}
+      BEDO_APP_NAME: ${BEDO_APP_NAME:-bedo_platform}
+      BEDO_APP_PATH: ${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_platform}
       FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME:-bedo.localhost}
       FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:-change-this-site-admin-password}
       MARIADB_HOST: mariadb

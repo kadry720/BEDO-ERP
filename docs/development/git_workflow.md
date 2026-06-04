@@ -1,13 +1,13 @@
 # Git Workflow
 
-Work on feature branches and keep commits scoped to the active task.
+Work on review branches and keep commits scoped to the active task. Do not commit directly to `main`.
 
 ```bash
-git checkout -b feature/phase-1-auth-foundation
+git checkout -b codex/frappe-foundation
 git status
 git add .
-git commit -m "Build Phase 1 auth foundation"
-git push -u origin feature/phase-1-auth-foundation
+git commit -m "Build BEDO platform foundation"
+git push -u origin codex/frappe-foundation
 ```
 
-Do not force push. Inspect existing files before replacing or removing them.
+Split unrelated work into separate `codex/*` branches. Open draft pull requests and wait for review before merging. Do not force push shared branches. Inspect existing files before replacing or removing them.

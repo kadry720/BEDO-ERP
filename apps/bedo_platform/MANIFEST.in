@@ -1,0 +1,6 @@
+recursive-include bedo_platform *.json
+recursive-include bedo_platform *.py
+recursive-include bedo_platform *.js
+recursive-include bedo_platform *.css
+recursive-include bedo_platform *.html
+include license.txt
