@@ -10,7 +10,7 @@
   "name": "operations-dashboard",
   "owner": "Administrator",
   "page_name": "operations-dashboard",
-  "roles": [{"role": "BEDO Employee"}],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

@@ -10,7 +10,7 @@
   "name": "access-not-configured",
   "owner": "Administrator",
   "page_name": "access-not-configured",
-  "roles": [],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

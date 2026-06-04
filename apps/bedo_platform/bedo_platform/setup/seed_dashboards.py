@@ -50,10 +50,23 @@ def _upsert_module_access(dashboard: dict[str, str]) -> None:
         doc.insert(ignore_permissions=True)
 
 
+def _ensure_page_desk_access(dashboard: dict[str, str]) -> None:
+    import frappe
+
+    page_name = dashboard["page_name"]
+    if not frappe.db.exists("Page", page_name):
+        return
+    doc = frappe.get_doc("Page", page_name)
+    doc.set("roles", [{"role": "Desk User"}])
+    doc.flags.ignore_permissions = True
+    doc.save(ignore_permissions=True)
+
+
 def execute() -> None:
     import frappe
 
     for dashboard in DASHBOARDS:
+        _ensure_page_desk_access(dashboard)
         _upsert_workspace(dashboard)
         _upsert_module_access(dashboard)
     frappe.db.commit()

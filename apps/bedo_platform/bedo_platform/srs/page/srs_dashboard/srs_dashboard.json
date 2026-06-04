@@ -10,7 +10,7 @@
   "name": "srs-dashboard",
   "owner": "Administrator",
   "page_name": "srs-dashboard",
-  "roles": [{"role": "BEDO Employee"}],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

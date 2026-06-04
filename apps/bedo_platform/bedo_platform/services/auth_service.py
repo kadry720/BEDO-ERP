@@ -99,6 +99,23 @@ def login(username: str, password: str) -> dict[str, Any]:
         log_security_event("login_failure", username=username, status="Failure", message="Rate limit exceeded")
         return {"success": False, "message": "Too many login attempts. Try again later."}
 
+    if username.lower() in {"administrator", "admin"}:
+        try:
+            frappe.local.login_manager.authenticate(user="Administrator", pwd=password)
+            frappe.local.login_manager.post_login()
+            clear_failed_attempts(username)
+            log_security_event("login_success", username="Administrator", user="Administrator", status="Success")
+            return {"success": True, "route": "/app"}
+        except Exception:
+            record_failed_attempt(username)
+            log_security_event(
+                "login_failure",
+                username="Administrator",
+                status="Failure",
+                message="Invalid administrator credentials",
+            )
+            return {"success": False, "message": "Invalid username or password."}
+
     try:
         ldap_user = ldap_service.authenticate(username, password)
     except Exception:

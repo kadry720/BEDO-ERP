@@ -10,7 +10,7 @@
   "name": "ard-validation-dashboard",
   "owner": "Administrator",
   "page_name": "ard-validation-dashboard",
-  "roles": [{"role": "BEDO Employee"}],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

@@ -10,12 +10,7 @@
   "name": "bedo-admin-users",
   "owner": "Administrator",
   "page_name": "bedo-admin-users",
-  "roles": [
-    {"role": "BEDO User Administrator"},
-    {"role": "BEDO System Administrator"},
-    {"role": "GM Support Office User"},
-    {"role": "General Manager"}
-  ],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

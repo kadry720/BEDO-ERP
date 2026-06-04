@@ -1,13 +1,14 @@
 window.bedo_platform = window.bedo_platform || {};
 
 window.bedo_platform.render_admin_users_page = function (wrapper) {
+  const escape = frappe.utils.escape_html;
   const page = frappe.ui.make_app_page({
     parent: wrapper,
     title: "BEDO Admin Users",
     single_column: true,
   });
   const body = $(page.body);
-  body.html('<div class="bedo-admin-shell"><div class="bedo-loading">Loading...</div></div>');
+  body.html('<div class="bedo-admin-shell"><div class="bedo-loading">Loading users...</div></div>');
 
   const renderUsers = function (users) {
     if (!users.length) {
@@ -25,13 +26,13 @@ window.bedo_platform.render_admin_users_page = function (wrapper) {
             .map(
               (user) => `
                 <tr>
-                  <td>${frappe.utils.escape_html(user.username || user.user || "")}</td>
-                  <td>${frappe.utils.escape_html([user.first_name, user.last_name].filter(Boolean).join(" "))}</td>
-                  <td>${frappe.utils.escape_html(user.email || "")}</td>
-                  <td>${frappe.utils.escape_html(user.phone_number || "")}</td>
-                  <td>${frappe.utils.escape_html(user.primary_department || "")}</td>
-                  <td>${frappe.utils.escape_html((user.roles || []).join(", "))}</td>
-                  <td>${user.enabled ? "Enabled" : "Disabled"}</td>
+                  <td><strong>${escape(user.username || user.user || "")}</strong></td>
+                  <td>${escape([user.first_name, user.last_name].filter(Boolean).join(" "))}</td>
+                  <td>${escape(user.email || "")}</td>
+                  <td>${escape(user.phone_number || "")}</td>
+                  <td><span class="bedo-status-pill">${escape(user.primary_department || "Unassigned")}</span></td>
+                  <td>${escape((user.roles || []).join(", "))}</td>
+                  <td><span class="bedo-account-state ${user.enabled ? "is-enabled" : "is-disabled"}">${user.enabled ? "Enabled" : "Disabled"}</span></td>
                 </tr>`
             )
             .join("")}
@@ -43,31 +44,57 @@ window.bedo_platform.render_admin_users_page = function (wrapper) {
     const roles = data.roles || [];
     const departments = (data.departments || []).filter((department) => department.dashboard_route);
     const departmentOptions = departments
-      .map((department) => `<option value="${department.key}">${frappe.utils.escape_html(department.name)}</option>`)
+      .map((department) => `<option value="${department.key}">${escape(department.name)}</option>`)
       .join("");
     const roleOptions = roles
-      .map((role) => `<option value="${frappe.utils.escape_html(role)}">${frappe.utils.escape_html(role)}</option>`)
+      .map((role) => `<option value="${escape(role)}">${escape(role)}</option>`)
       .join("");
 
     body.html(`
       <section class="bedo-admin-shell">
+        <header class="bedo-dashboard-hero">
+          <div>
+            <span class="bedo-kicker">Administration</span>
+            <h2>BEDO Admin Users</h2>
+            <p>User provisioning, access assignment, and account status.</p>
+          </div>
+          <div class="bedo-hero-status">
+            <span>Total users</span>
+            <strong>${(data.users || []).length}</strong>
+          </div>
+        </header>
+
         <form class="bedo-admin-form">
+          <div class="bedo-panel-header">
+            <div>
+              <span class="bedo-kicker">LDAP user</span>
+              <h3>Create user</h3>
+            </div>
+          </div>
           <div class="bedo-form-grid">
-            <input name="username" autocomplete="off" placeholder="Username" required />
-            <input name="password" autocomplete="new-password" placeholder="LDAP password" type="password" required />
-            <input name="first_name" placeholder="First name" required />
-            <input name="last_name" placeholder="Last name" required />
-            <input name="email" placeholder="Email" type="email" required />
-            <input name="phone_number" placeholder="Phone number" required />
-            <select name="primary_department" required>
-              <option value="">Primary department</option>
-              ${departmentOptions}
-            </select>
-            <select name="roles" multiple required>${roleOptions}</select>
+            <label><span>Username</span><input name="username" autocomplete="off" required /></label>
+            <label><span>LDAP password</span><input name="password" autocomplete="new-password" type="password" required /></label>
+            <label><span>First name</span><input name="first_name" required /></label>
+            <label><span>Last name</span><input name="last_name" required /></label>
+            <label><span>Email</span><input name="email" type="email" required /></label>
+            <label><span>Phone number</span><input name="phone_number" required /></label>
+            <label><span>Primary department</span><select name="primary_department" required>
+                <option value="">Select department</option>
+                ${departmentOptions}
+              </select></label>
+            <label class="bedo-field-wide"><span>Roles</span><select name="roles" multiple required>${roleOptions}</select></label>
           </div>
           <button class="btn btn-primary" type="submit">Add user</button>
         </form>
-        <div class="bedo-users-list">${renderUsers(data.users || [])}</div>
+        <div class="bedo-users-list">
+          <div class="bedo-panel-header">
+            <div>
+              <span class="bedo-kicker">Directory</span>
+              <h3>Current users</h3>
+            </div>
+          </div>
+          ${renderUsers(data.users || [])}
+        </div>
       </section>
     `);
 

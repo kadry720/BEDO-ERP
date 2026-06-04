@@ -10,7 +10,7 @@
   "name": "gm-support-dashboard",
   "owner": "Administrator",
   "page_name": "gm-support-dashboard",
-  "roles": [{"role": "BEDO Employee"}],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,

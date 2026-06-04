@@ -10,7 +10,7 @@
   "name": "qc-dashboard",
   "owner": "Administrator",
   "page_name": "qc-dashboard",
-  "roles": [{"role": "BEDO Employee"}],
+  "roles": [{"role": "Desk User"}],
   "script": null,
   "standard": "Yes",
   "style": null,
