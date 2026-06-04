@@ -7,39 +7,31 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
   const params = searchParams ? await searchParams : {};
 
   return (
-    <main className="grid min-h-screen grid-cols-1 bg-white lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="flex min-h-[45vh] flex-col justify-between bg-ink px-8 py-10 text-white lg:min-h-screen">
-        <div>
-          <div className="text-xl font-bold">BEDO</div>
-          <div className="mt-2 text-sm font-semibold uppercase text-gray-300">Industrial Process Governance</div>
-        </div>
-        <div className="max-w-xl">
-          <h1 className="text-4xl font-bold tracking-normal">Operational control without Desk clutter.</h1>
-          <p className="mt-5 text-base leading-7 text-gray-300">
-            A focused enterprise shell for role-based dashboards, user administration, and future workflow execution.
-          </p>
-        </div>
-      </section>
-      <section className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-ink">Sign in</h2>
-            <p className="mt-2 text-sm text-muted">Use your LDAP username and password.</p>
+    <main className="min-h-screen bg-ink text-white">
+      <header className="border-b border-orange-400 bg-ember px-8 py-5">
+        <div className="text-xl font-bold">BEDO</div>
+        <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-orange-50">Industrial Process Governance</div>
+      </header>
+      <section className="flex min-h-[calc(100vh-84px)] items-center justify-center px-6 py-12">
+        <div className="w-full max-w-xl rounded-md border border-gray-200 bg-white p-8 text-ink shadow-panel">
+          <div className="mb-8 text-center">
+            <h2 className="text-4xl font-bold tracking-normal text-ink">Sign in</h2>
+            <p className="mt-3 text-base text-muted">Use your LDAP username and password.</p>
           </div>
-          <form className="space-y-5" action="/api/auth/login" method="post">
+          <form className="space-y-6" action="/api/auth/login" method="post">
             <label className="block">
-              <span className="text-sm font-semibold text-ink">Username</span>
+              <span className="text-base font-semibold text-ink">Username</span>
               <input
-                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-3 text-sm"
+                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-4 py-4 text-base"
                 name="username"
                 autoComplete="username"
                 required
               />
             </label>
             <label className="block">
-              <span className="text-sm font-semibold text-ink">Password</span>
+              <span className="text-base font-semibold text-ink">Password</span>
               <input
-                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-3 text-sm"
+                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-4 py-4 text-base"
                 name="password"
                 type="password"
                 autoComplete="current-password"
@@ -52,7 +44,7 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
               </div>
             )}
             <button
-              className="focus-ring inline-flex min-h-10 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel"
+              className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-ink px-4 text-base font-semibold text-white transition hover:bg-steel"
               type="submit"
             >
               Sign in

@@ -6,8 +6,9 @@ type Profile = {
   user: string;
   username: string;
   first_name: string;
-  middle_name: string;
   last_name: string;
+  email: string;
+  phone_number: string;
 };
 
 export default async function Page() {

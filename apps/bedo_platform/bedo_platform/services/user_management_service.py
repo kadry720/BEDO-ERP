@@ -187,6 +187,8 @@ def list_users_for_admin(actor: str | None = None) -> list[dict[str, Any]]:
     )
     result = []
     for row in rows:
+        if row.name == "Administrator":
+            continue
         roles = frappe.get_roles(row.name)
         primary_department = frappe.db.get_value(
             "BEDO User Role Assignment",

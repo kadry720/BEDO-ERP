@@ -30,11 +30,7 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
         </nav>
       </aside>
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-between border-b border-gray-200 bg-white px-5">
-          <div>
-            <div className="text-xs font-semibold uppercase text-muted">BEDO Platform</div>
-            <div className="text-sm font-semibold text-ink">Headless Frappe Backend</div>
-          </div>
+        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-end border-b border-gray-200 bg-white px-5">
           <div className="flex items-center gap-3">
             <Link href="/profile" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-100">
               <UserCircle className="h-4 w-4" />

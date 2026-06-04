@@ -2,6 +2,7 @@
 const nextConfig = {
   poweredByHeader: false,
   typedRoutes: false,
+  devIndicators: false,
   allowedDevOrigins: ["172.20.88.65", "127.0.0.1", "localhost"]
 };
 

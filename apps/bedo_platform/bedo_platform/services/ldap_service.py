@@ -33,6 +33,9 @@ class LDAPAdapter(Protocol):
     def provision_user(self, user: LDAPUser, password: str) -> bool:
         ...
 
+    def change_password(self, username: str, password: str) -> bool:
+        ...
+
 
 def _get_config_value(key: str, default: str = "") -> str:
     try:
@@ -61,17 +64,38 @@ def get_ldap_config() -> LDAPConfig:
 
 
 class MockLDAPAdapter:
+    def _cached_password(self, username: str) -> str:
+        try:
+            import frappe
+
+            return str(frappe.cache().get_value(f"bedo_mock_ldap_password:{username}") or "")
+        except Exception:
+            return ""
+
     def authenticate(self, username: str, password: str) -> LDAPUser | None:
         if not username or not password:
             return None
         env_key = f"BEDO_MOCK_LDAP_PASSWORD_{username.upper().replace('.', '_').replace('-', '_')}"
         expected = os.environ.get(env_key)
+        expected = self._cached_password(username) or expected
         if expected and expected == password:
             return LDAPUser(username=username, email=f"{username}@bedo.local")
         return None
 
     def provision_user(self, user: LDAPUser, password: str) -> bool:
+        self.change_password(user.username, password)
         return bool(user.username and password)
+
+    def change_password(self, username: str, password: str) -> bool:
+        if not username or not password:
+            return False
+        try:
+            import frappe
+
+            frappe.cache().set_value(f"bedo_mock_ldap_password:{username}", password, expires_in_sec=60 * 60 * 24 * 365)
+        except Exception:
+            return False
+        return True
 
 
 class LDAP3Adapter:
@@ -126,6 +150,9 @@ class LDAP3Adapter:
     def provision_user(self, user: LDAPUser, password: str) -> bool:
         raise NotImplementedError("Production LDAP provisioning must be wired to the organization's LDAP adapter.")
 
+    def change_password(self, username: str, password: str) -> bool:
+        raise NotImplementedError("Production LDAP password changes must be wired to the organization's LDAP adapter.")
+
 
 def get_adapter() -> LDAPAdapter:
     adapter_name = _get_config_value("BEDO_LDAP_ADAPTER", "").lower()
@@ -143,3 +170,7 @@ def authenticate(username: str, password: str) -> LDAPUser | None:
 
 def provision_user(user: LDAPUser, password: str) -> bool:
     return get_adapter().provision_user(user, password)
+
+
+def change_password(username: str, password: str) -> bool:
+    return get_adapter().change_password(username, password)
