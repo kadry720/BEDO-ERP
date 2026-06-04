@@ -1,0 +1,19 @@
+{
+  "content": null,
+  "creation": "2026-06-04 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "Page",
+  "icon": "user",
+  "idx": 0,
+  "modified": "2026-06-04 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "bedo-profile",
+  "owner": "Administrator",
+  "page_name": "bedo-profile",
+  "roles": [{"role": "Desk User"}],
+  "script": null,
+  "standard": "Yes",
+  "style": null,
+  "system_page": 0,
+  "title": "My Profile"
+}

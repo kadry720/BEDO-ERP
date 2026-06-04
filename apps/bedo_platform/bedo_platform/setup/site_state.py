@@ -19,4 +19,21 @@ def mark_setup_complete() -> None:
 
     set_global_default("setup_complete", "1")
     set_global_default("desktop:home_page", "workspace")
+    hide_unused_workspaces()
     frappe.clear_cache()
+
+
+def hide_unused_workspaces() -> None:
+    import frappe
+
+    if not frappe.db.table_exists("Workspace"):
+        return
+
+    for workspace in ["Website", "Tools", "Integrations", "Build"]:
+        if not frappe.db.exists("Workspace", workspace):
+            continue
+        doc = frappe.get_doc("Workspace", workspace)
+        doc.is_hidden = 1
+        doc.public = 0
+        doc.flags.ignore_permissions = True
+        doc.save(ignore_permissions=True)

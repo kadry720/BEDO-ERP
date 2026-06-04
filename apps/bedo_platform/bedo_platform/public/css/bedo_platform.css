@@ -273,6 +273,79 @@
   overflow-x: auto;
 }
 
+.bedo-user-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.bedo-user-card {
+  border: 1px solid var(--bedo-line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--bedo-soft);
+}
+
+.bedo-user-card-top {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.bedo-user-card-top strong,
+.bedo-user-card-top span {
+  display: block;
+}
+
+.bedo-user-card-top span {
+  color: var(--bedo-muted);
+  font-size: 12px;
+}
+
+.bedo-user-avatar {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--bedo-teal);
+  font-weight: 700;
+}
+
+.bedo-user-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--bedo-muted);
+  font-size: 12px;
+}
+
+.bedo-role-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bedo-role-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid #d6dde8;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #ffffff;
+  color: var(--bedo-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bedo-role-chip.is-empty {
+  color: var(--bedo-muted);
+}
+
 .bedo-login-page {
   min-height: calc(100vh - 110px);
   display: grid;
@@ -322,13 +395,200 @@
   color: var(--bedo-ink);
 }
 
+.bedo-users-workspace,
+.bedo-profile-shell {
+  padding: 24px 28px;
+  color: var(--bedo-ink);
+}
+
+.bedo-users-hero,
+.bedo-profile-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  border: 1px solid var(--bedo-line);
+  border-radius: 8px;
+  padding: 22px 24px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(24, 32, 42, 0.06);
+}
+
+.bedo-users-hero h2,
+.bedo-profile-hero h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.bedo-users-hero p,
+.bedo-profile-hero p,
+.bedo-admin-card p {
+  margin: 8px 0 0;
+  color: var(--bedo-muted);
+  font-size: 14px;
+}
+
+.bedo-admin-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.bedo-admin-card {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid var(--bedo-line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+  color: var(--bedo-ink);
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(24, 32, 42, 0.04);
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.bedo-admin-card:hover {
+  border-color: var(--bedo-teal);
+  box-shadow: 0 12px 24px rgba(31, 111, 120, 0.12);
+  color: var(--bedo-ink);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.bedo-admin-card.is-primary {
+  border-color: #b8d8d4;
+  background: #f2f8f7;
+}
+
+.bedo-card-kicker {
+  color: var(--bedo-gold);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bedo-admin-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 17px;
+}
+
+.bedo-admin-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bedo-admin-section,
+.bedo-profile-panel {
+  border: 1px solid var(--bedo-line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(24, 32, 42, 0.04);
+}
+
+.bedo-admin-link-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.bedo-admin-link-grid a {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--bedo-soft);
+  color: var(--bedo-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.bedo-admin-link-grid a:hover {
+  border-color: var(--bedo-line);
+  background: #ffffff;
+  color: var(--bedo-teal);
+  text-decoration: none;
+}
+
+.bedo-profile-shell {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.bedo-profile-hero {
+  justify-content: flex-start;
+  margin-bottom: 16px;
+}
+
+.bedo-profile-avatar {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eef7f4;
+  color: var(--bedo-teal);
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.bedo-profile-panel + .bedo-profile-panel {
+  margin-top: 14px;
+}
+
+.bedo-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+body.bedo-user-form-clean .form-sidebar .form-sidebar-items,
+body.bedo-user-form-clean .form-sidebar .liked-by,
+body.bedo-user-form-clean .form-sidebar .comments,
+body.bedo-user-form-clean .form-sidebar .followed-by,
+body.bedo-user-form-clean .form-sidebar .form-assignments,
+body.bedo-user-form-clean .form-sidebar .form-attachments,
+body.bedo-user-form-clean .form-sidebar .form-tags,
+body.bedo-user-form-clean .form-sidebar .form-shared,
+body.bedo-user-form-clean .form-sidebar .document-follow,
+body.bedo-user-form-clean .new-timeline,
+body.bedo-user-form-clean .comment-box,
+body.bedo-user-form-clean .timeline,
+body.bedo-user-form-clean [data-fieldname="email"],
+body.bedo-user-form-clean [data-fieldname="language"],
+body.bedo-user-form-clean [data-fieldname="time_zone"],
+body.bedo-user-form-clean [data-fieldname="enabled"] {
+  display: none !important;
+}
+
+[aria-label="Help Dropdown"],
+[aria-controls="toolbar-help"] {
+  display: none !important;
+}
+
 @media (max-width: 800px) {
   .bedo-dashboard-hero,
-  .bedo-login-page {
+  .bedo-login-page,
+  .bedo-admin-overview,
+  .bedo-admin-sections {
     grid-template-columns: 1fr;
   }
 
   .bedo-dashboard-hero {
+    flex-direction: column;
+  }
+
+  .bedo-users-hero,
+  .bedo-profile-hero {
+    align-items: flex-start;
     flex-direction: column;
   }
 

@@ -43,10 +43,20 @@ on_session_creation = "bedo_platform.services.auth_service.enforce_ldap_only_ses
 on_logout = "bedo_platform.services.auth_service.record_logout"
 
 app_include_js = [
-    "/assets/bedo_platform/js/dashboard_page.js",
-    "/assets/bedo_platform/js/admin_users.js",
+    "/assets/bedo_platform/js/dashboard_page.js?v=20260604-2",
+    "/assets/bedo_platform/js/admin_users.js?v=20260604-2",
+    "/assets/bedo_platform/js/profile.js?v=20260604-2",
+    "/assets/bedo_platform/js/desk_customizations.js?v=20260604-2",
 ]
-app_include_css = ["/assets/bedo_platform/css/bedo_platform.css"]
+app_include_css = ["/assets/bedo_platform/css/bedo_platform.css?v=20260604-2"]
 
 website_route_rules = [{"from_route": "/login", "to_route": "login"}]
 auth_hooks = ["bedo_platform.services.auth_service.ldap_request_auth_hook"]
+
+permission_query_conditions = {
+    "User": "bedo_platform.permissions.user_query_conditions",
+}
+
+has_permission = {
+    "User": "bedo_platform.permissions.user_has_permission",
+}

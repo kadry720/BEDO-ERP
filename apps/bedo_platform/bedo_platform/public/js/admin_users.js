@@ -15,29 +15,33 @@ window.bedo_platform.render_admin_users_page = function (wrapper) {
       return '<div class="bedo-empty">No users found.</div>';
     }
     return `
-      <table class="bedo-user-table">
-        <thead>
-          <tr>
-            <th>Username</th><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Roles</th><th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${users
-            .map(
-              (user) => `
-                <tr>
-                  <td><strong>${escape(user.username || user.user || "")}</strong></td>
-                  <td>${escape([user.first_name, user.last_name].filter(Boolean).join(" "))}</td>
-                  <td>${escape(user.email || "")}</td>
-                  <td>${escape(user.phone_number || "")}</td>
-                  <td><span class="bedo-status-pill">${escape(user.primary_department || "Unassigned")}</span></td>
-                  <td>${escape((user.roles || []).join(", "))}</td>
-                  <td><span class="bedo-account-state ${user.enabled ? "is-enabled" : "is-disabled"}">${user.enabled ? "Enabled" : "Disabled"}</span></td>
-                </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>`;
+      <div class="bedo-user-card-grid">
+        ${users
+          .map((user) => {
+            const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || user.user;
+            const roles = (user.roles || [])
+              .map((role) => `<span class="bedo-role-chip">${escape(role)}</span>`)
+              .join("");
+            return `
+              <article class="bedo-user-card">
+                <div class="bedo-user-card-top">
+                  <div class="bedo-user-avatar">${escape((fullName || "U").slice(0, 1).toUpperCase())}</div>
+                  <div>
+                    <strong>${escape(fullName || "")}</strong>
+                    <span>${escape(user.username || user.user || "")}</span>
+                  </div>
+                  <span class="bedo-account-state ${user.enabled ? "is-enabled" : "is-disabled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+                </div>
+                <div class="bedo-user-meta">
+                  <span>${escape(user.email || "No email")}</span>
+                  <span>${escape(user.phone_number || "No phone")}</span>
+                  <span class="bedo-status-pill">${escape(user.primary_department || "Unassigned")}</span>
+                </div>
+                <div class="bedo-role-chip-row">${roles || '<span class="bedo-role-chip is-empty">No BEDO roles</span>'}</div>
+              </article>`;
+          })
+          .join("")}
+      </div>`;
   };
 
   const render = function (data) {
@@ -63,6 +67,29 @@ window.bedo_platform.render_admin_users_page = function (wrapper) {
             <strong>${(data.users || []).length}</strong>
           </div>
         </header>
+
+        <div class="bedo-admin-overview">
+          <div class="bedo-admin-card is-primary">
+            <span class="bedo-card-kicker">Users</span>
+            <strong>${(data.users || []).length}</strong>
+            <p>Active and disabled BEDO accounts.</p>
+          </div>
+          <a class="bedo-admin-card" href="/app/permission-manager">
+            <span class="bedo-card-kicker">Permissions</span>
+            <strong>Permission Manager</strong>
+            <p>Review role permissions and access rules.</p>
+          </a>
+          <a class="bedo-admin-card" href="/app/user-permission">
+            <span class="bedo-card-kicker">User access</span>
+            <strong>User Permissions</strong>
+            <p>Control document-level user restrictions.</p>
+          </a>
+          <a class="bedo-admin-card" href="/app/role">
+            <span class="bedo-card-kicker">Roles</span>
+            <strong>Role Directory</strong>
+            <p>Review role records and role profiles.</p>
+          </a>
+        </div>
 
         <form class="bedo-admin-form">
           <div class="bedo-panel-header">
