@@ -11,6 +11,20 @@ type SessionEnvelope = {
   exp: number;
 };
 
+function minimalContext(context: BedoUserContext): BedoUserContext {
+  return {
+    user: context.user,
+    username: context.username,
+    first_name: context.first_name,
+    middle_name: context.middle_name || "",
+    last_name: context.last_name,
+    enabled: context.enabled,
+    roles: context.roles,
+    landing_route: context.landing_route,
+    modules: []
+  };
+}
+
 function sessionSecret() {
   const secret = process.env.BEDO_WEB_SESSION_SECRET;
   if (!secret) throw new Error("BEDO_WEB_SESSION_SECRET is not configured.");
@@ -19,7 +33,7 @@ function sessionSecret() {
 
 export function signSession(context: BedoUserContext) {
   const envelope: SessionEnvelope = {
-    context,
+    context: minimalContext(context),
     exp: Math.floor(Date.now() / 1000) + maxAgeSeconds
   };
   const payload = base64url(JSON.stringify(envelope));

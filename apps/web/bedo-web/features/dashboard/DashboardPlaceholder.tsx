@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import type { BedoUserContext } from "@/lib/routes";
 import { canAccessRoute, routeLabels } from "@/lib/routes";
+import { frappeCall } from "@/server/frappe";
 import { requireSession } from "@/server/session";
 
 type Props = {
@@ -9,7 +11,8 @@ type Props = {
 
 export async function DashboardPlaceholder({ route, eyebrow }: Props) {
   const session = await requireSession();
-  if (!canAccessRoute(session, route)) redirect("/forbidden");
+  const freshSession = await frappeCall<BedoUserContext>("bedo_platform.api.web.me", {}, session.user).catch(() => session);
+  if (!canAccessRoute(freshSession, route)) redirect("/forbidden");
   return (
     <section className="space-y-6">
       <div className="rounded-md border border-gray-200 bg-white p-6 shadow-panel">

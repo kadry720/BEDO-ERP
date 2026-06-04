@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/server/session";
-import { LoginForm } from "@/features/auth/LoginForm";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
   const session = await getSession();
   if (session) redirect(session.landing_route || "/access-not-configured");
+  const params = searchParams ? await searchParams : {};
 
   return (
     <main className="grid min-h-screen grid-cols-1 bg-white lg:grid-cols-[1.1fr_0.9fr]">
@@ -26,7 +26,38 @@ export default async function LoginPage() {
             <h2 className="text-2xl font-bold text-ink">Sign in</h2>
             <p className="mt-2 text-sm text-muted">Use your LDAP username and password.</p>
           </div>
-          <LoginForm />
+          <form className="space-y-5" action="/api/auth/login" method="post">
+            <label className="block">
+              <span className="text-sm font-semibold text-ink">Username</span>
+              <input
+                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-3 text-sm"
+                name="username"
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-ink">Password</span>
+              <input
+                className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-3 text-sm"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            {params.error === "invalid" && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                Invalid username or password.
+              </div>
+            )}
+            <button
+              className="focus-ring inline-flex min-h-10 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel"
+              type="submit"
+            >
+              Sign in
+            </button>
+          </form>
         </div>
       </section>
     </main>
