@@ -41,6 +41,7 @@ after_install = "bedo_platform.setup.seed_all.execute"
 after_migrate = "bedo_platform.setup.seed_all.execute"
 on_session_creation = "bedo_platform.services.auth_service.enforce_ldap_only_session"
 on_logout = "bedo_platform.services.auth_service.record_logout"
+before_request = ["bedo_platform.services.desk_access.restrict_frappe_desk"]
 
 app_include_js = [
     "/assets/bedo_platform/js/dashboard_page.js?v=20260604-2",

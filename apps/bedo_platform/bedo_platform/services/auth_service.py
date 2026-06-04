@@ -5,7 +5,7 @@ from typing import Any
 
 from bedo_platform.constants import ALL_ROLE_NAMES
 from bedo_platform.services import ldap_service
-from bedo_platform.services.routing_service import get_current_user_landing_route
+from bedo_platform.services.routing_service import get_current_user_landing_route, get_visible_dashboards_for_user
 from bedo_platform.services.security_audit_service import log_security_event
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
@@ -84,6 +84,62 @@ def sync_frappe_user(ldap_user: ldap_service.LDAPUser) -> str:
     user_doc.flags.no_reset_password = True
     user_doc.insert(ignore_permissions=True)
     return user_doc.name
+
+
+def get_safe_user_context(user: str) -> dict[str, Any]:
+    import frappe
+
+    user_doc = frappe.get_doc("User", user)
+    roles = [role for role in frappe.get_roles(user) if role in ALL_ROLE_NAMES]
+    return {
+        "user": user_doc.name,
+        "username": user_doc.username or user_doc.name,
+        "first_name": user_doc.first_name or "",
+        "middle_name": getattr(user_doc, "middle_name", "") or "",
+        "last_name": user_doc.last_name or "",
+        "email": user_doc.email or "",
+        "phone_number": user_doc.phone or "",
+        "enabled": int(user_doc.enabled or 0),
+        "roles": roles,
+        "landing_route": get_current_user_landing_route(user),
+        "modules": get_visible_dashboards_for_user(user),
+    }
+
+
+def login_for_web(username: str, password: str) -> dict[str, Any]:
+    username = validate_username(username)
+    if username.lower() in {"administrator", "admin"}:
+        log_security_event(
+            "login_failure",
+            username="Administrator",
+            status="Failure",
+            message="Administrator web login is not allowed",
+        )
+        return {"success": False, "message": "Invalid username or password."}
+    if not password:
+        record_failed_attempt(username)
+        log_security_event("login_failure", username=username, status="Failure", message="Missing password")
+        return {"success": False, "message": "Invalid username or password."}
+    if is_rate_limited(username):
+        log_security_event("login_failure", username=username, status="Failure", message="Rate limit exceeded")
+        return {"success": False, "message": "Invalid username or password."}
+
+    try:
+        ldap_user = ldap_service.authenticate(username, password)
+    except Exception:
+        record_failed_attempt(username)
+        log_security_event("login_failure", username=username, status="Failure", message="LDAP authentication failed")
+        return {"success": False, "message": "Invalid username or password."}
+
+    if not ldap_user:
+        record_failed_attempt(username)
+        log_security_event("login_failure", username=username, status="Failure", message="Invalid credentials")
+        return {"success": False, "message": "Invalid username or password."}
+
+    user = sync_frappe_user(ldap_user)
+    clear_failed_attempts(username)
+    log_security_event("login_success", username=username, user=user, status="Success")
+    return {"success": True, "context": get_safe_user_context(user)}
 
 
 def login(username: str, password: str) -> dict[str, Any]:

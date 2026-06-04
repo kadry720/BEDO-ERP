@@ -63,10 +63,11 @@ def roles_can_access_department(roles: Iterable[str], department_key: str) -> bo
 
 def route_allowed_for_roles(route: str, role_names: Iterable[str] | None) -> bool:
     roles = normalize_roles(role_names)
-    if roles & GLOBAL_VIEW_ROLES:
-        return route in DASHBOARD_BY_ROUTE
     if route == ADMIN_USERS_ROUTE:
         return bool(roles & ADMIN_ACCESS_ROLES)
+    if roles & GLOBAL_VIEW_ROLES:
+        dashboard = DASHBOARD_BY_ROUTE.get(route)
+        return bool(dashboard and dashboard.get("department_key"))
     dashboard = DASHBOARD_BY_ROUTE.get(route)
     if not dashboard:
         return route == ACCESS_NOT_CONFIGURED_ROUTE

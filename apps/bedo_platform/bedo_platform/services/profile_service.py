@@ -6,13 +6,19 @@ from bedo_platform.services.auth_service import USERNAME_RE
 from bedo_platform.services.security_audit_service import log_security_event
 
 
-def get_current_profile() -> dict[str, Any]:
+def _resolve_profile_user(user: str | None = None) -> str:
     import frappe
 
-    user = frappe.session.user
+    user = user or frappe.session.user
     if not user or user == "Guest":
         frappe.throw("You must be logged in to view your profile.", frappe.PermissionError)
+    return user
 
+
+def get_current_profile(user: str | None = None) -> dict[str, Any]:
+    import frappe
+
+    user = _resolve_profile_user(user)
     doc = frappe.get_doc("User", user)
     return {
         "user": doc.name,
@@ -23,18 +29,15 @@ def get_current_profile() -> dict[str, Any]:
     }
 
 
-def update_current_profile(payload: dict[str, Any]) -> dict[str, Any]:
+def update_current_profile(payload: dict[str, Any], user: str | None = None) -> dict[str, Any]:
     import frappe
 
-    user = frappe.session.user
-    if not user or user == "Guest":
-        frappe.throw("You must be logged in to update your profile.", frappe.PermissionError)
+    user = _resolve_profile_user(user)
 
     username = str(payload.get("username", "")).strip()
     first_name = str(payload.get("first_name", "")).strip()
     middle_name = str(payload.get("middle_name", "")).strip()
     last_name = str(payload.get("last_name", "")).strip()
-    password = str(payload.get("password", "")).strip()
 
     if not USERNAME_RE.match(username):
         raise ValueError("Username may contain only letters, numbers, dot, dash, and underscore.")
@@ -51,10 +54,5 @@ def update_current_profile(payload: dict[str, Any]) -> dict[str, Any]:
     doc.flags.ignore_permissions = True
     doc.save(ignore_permissions=True)
 
-    if password:
-        from frappe.core.doctype.user.user import _update_password
-
-        _update_password(user, password, logout_all_sessions=0)
-
     log_security_event("profile_update", user=user, status="Success")
-    return {"success": True, "profile": get_current_profile()}
+    return {"success": True, "profile": get_current_profile(user)}

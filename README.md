@@ -1,17 +1,19 @@
 # BEDO ERP
 
-BEDO ERP is the repository for BEDO's internal enterprise platform. The active Phase 1 Frappe app is `bedo_platform` under `apps/bedo_platform`.
+BEDO ERP is the repository for BEDO's internal enterprise platform. The active backend app is the Frappe app `bedo_platform` under `apps/bedo_platform`; the normal user-facing application is moving to the Next.js app `bedo-web` under `apps/web/bedo-web`.
 
 ## Phase 1 Scope
 
 - Frappe v15 custom app named `bedo_platform`.
+- Next.js TypeScript frontend named `bedo-web`.
 - MariaDB-backed Frappe site setup.
 - LDAP-only business login with username and password only.
-- Frappe-native users, roles, pages, DocTypes, fixtures, patches, and migrations.
+- Frappe-native users, roles, DocTypes, fixtures, patches, and migrations.
 - BEDO department metadata, role catalog metadata, dashboard routing, route guard APIs, and security audit events.
-- Admin user management foundation at `/app/bedo-admin-users`.
-- Empty dashboards for GM Support Office, SRS, ARD, Command Center, Production, QC, and Operations.
+- Admin user management foundation at `/admin/users` in the Next.js app.
+- Empty Next.js dashboard placeholders for GM Support Office, SRS, ARD, Command Center, Production, QC, and Operations.
 - Multiple empty ARD dashboards with no workflow logic.
+- Frappe Desk access restricted to technical administrators.
 
 Business workflow permissions and workflow DocTypes are intentionally empty in this phase. Do not implement ARD process logic from visual flowcharts; those diagrams are known to be incorrect. Future ARD workflow logic must come from Chapter 4 and Chapter 6 text only.
 
@@ -38,6 +40,15 @@ apps/
       public/
       templates/pages/login.html
       tests/
+  web/
+    bedo-web/
+      app/
+      components/
+      features/
+      lib/
+      server/
+      styles/
+      tests/
 ```
 
 ## Environment
@@ -59,6 +70,9 @@ Required LDAP and seed variables:
 - `LDAP_CERT_REQUIRED`
 - `BEDO_SEED_GM_PASSWORD`
 - `BEDO_SEED_ARD_MANAGER_PASSWORD`
+- `BEDO_WEB_SERVICE_SECRET`
+- `BEDO_WEB_SESSION_SECRET`
+- `FRAPPE_INTERNAL_URL`
 
 Use `BEDO_LDAP_ADAPTER=mock` only for development. Production should use `ldaps://` with certificate validation enabled.
 
@@ -96,6 +110,16 @@ Start Frappe:
 cd /workspace/frappe-bench
 bench start
 ```
+
+Start the Next.js app from another terminal:
+
+```bash
+cd apps/web/bedo-web
+npm install
+npm run dev
+```
+
+Open the BEDO app at `http://localhost:3000`. The Frappe backend remains at `http://localhost:8000` for technical administrators only.
 
 ## LDAP Setup
 
@@ -146,8 +170,9 @@ bench --site bedo.localhost run-tests --app bedo_platform
 - No secrets, LDAP bind passwords, local passwords, generated site configs, or plaintext user passwords belong in Git.
 - Login UI exposes username and password only.
 - Signup, social login, magic link, and forgot password are not implemented.
-- Route visibility is checked server-side through `bedo_platform.api.routing`.
-- User administration APIs require GM Support, General Manager, BEDO User Administrator, or BEDO System Administrator roles.
+- Route visibility is checked server-side through `bedo_platform.api.web` and mirrored in Next.js route guards.
+- User administration APIs require explicit `BEDO User Administrator` or `BEDO System Administrator` roles. The initial `gm` user has `BEDO User Administrator` explicitly assigned; GM/global viewer status alone is not enough.
+- Next.js calls Frappe with signed server-to-server requests using `BEDO_WEB_SERVICE_SECRET`. The browser never receives Frappe API secrets, LDAP secrets, Frappe session IDs, backend tokens, or database credentials.
 - Security events are recorded for login success, login failure, logout, user creation, role changes, and user disablement.
 
 ## Git Workflow

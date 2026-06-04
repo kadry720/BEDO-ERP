@@ -12,10 +12,11 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,24}$")
 
 
-def require_user_admin() -> None:
+def require_user_admin(user: str | None = None) -> None:
     import frappe
 
-    roles = set(frappe.get_roles(frappe.session.user))
+    user = user or frappe.session.user
+    roles = set(frappe.get_roles(user))
     if not roles & ADMIN_ACCESS_ROLES:
         frappe.throw("You do not have access to BEDO user administration.", frappe.PermissionError)
 
@@ -129,8 +130,8 @@ def _set_role_assignments(user: str, primary_department: str, roles: list[str]) 
             doc.insert(ignore_permissions=True)
 
 
-def create_user_from_admin(payload: dict[str, Any]) -> dict[str, Any]:
-    require_user_admin()
+def create_user_from_admin(payload: dict[str, Any], actor: str | None = None) -> dict[str, Any]:
+    require_user_admin(actor)
     data = validate_user_payload(payload, creating=True)
 
     ldap_user = LDAPUser(
@@ -144,12 +145,12 @@ def create_user_from_admin(payload: dict[str, Any]) -> dict[str, Any]:
     user = _get_or_create_user(data)
     _assign_roles(user, data["roles"])
     _set_role_assignments(user, data["primary_department"], data["roles"])
-    log_security_event("user_creation", username=data["username"], user=user, status="Success")
+    log_security_event("user_creation", username=data["username"], user=actor or user, status="Success")
     return {"success": True, "user": user}
 
 
-def update_user_roles(user: str, roles: list[str], primary_department: str = "") -> dict[str, Any]:
-    require_user_admin()
+def update_user_roles(user: str, roles: list[str], primary_department: str = "", actor: str | None = None) -> dict[str, Any]:
+    require_user_admin(actor)
     if not roles:
         raise ValueError("At least one role is required.")
     unknown_roles = sorted(set(roles) - set(ALL_ROLE_NAMES))
@@ -159,24 +160,24 @@ def update_user_roles(user: str, roles: list[str], primary_department: str = "")
         raise ValueError("Primary department is required unless this is a system admin-only user.")
     _assign_roles(user, roles)
     _set_role_assignments(user, primary_department, roles)
-    log_security_event("role_change", user=user, status="Success")
+    log_security_event("role_change", user=actor or user, status="Success", message=f"Target user: {user}")
     return {"success": True, "user": user}
 
 
-def disable_user(user: str) -> dict[str, Any]:
-    require_user_admin()
+def disable_user(user: str, actor: str | None = None) -> dict[str, Any]:
+    require_user_admin(actor)
     import frappe
 
     user_doc = frappe.get_doc("User", user)
     user_doc.enabled = 0
     user_doc.flags.ignore_permissions = True
     user_doc.save(ignore_permissions=True)
-    log_security_event("user_disablement", user=user, status="Success")
+    log_security_event("user_disablement", user=actor or user, status="Success", message=f"Target user: {user}")
     return {"success": True, "user": user}
 
 
-def list_users_for_admin() -> list[dict[str, Any]]:
-    require_user_admin()
+def list_users_for_admin(actor: str | None = None) -> list[dict[str, Any]]:
+    require_user_admin(actor)
     import frappe
 
     rows = frappe.get_all(

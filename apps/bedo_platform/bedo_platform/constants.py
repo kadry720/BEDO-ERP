@@ -1,56 +1,58 @@
 from __future__ import annotations
 
-ACCESS_NOT_CONFIGURED_ROUTE = "/app/access-not-configured"
-ADMIN_USERS_ROUTE = "/app/bedo-admin-users"
+ACCESS_NOT_CONFIGURED_ROUTE = "/access-not-configured"
+ADMIN_USERS_ROUTE = "/admin/users"
+PROFILE_ROUTE = "/profile"
+FORBIDDEN_ROUTE = "/forbidden"
 
 DEPARTMENTS = [
     {
         "key": "GM_SUPPORT",
         "name": "GM Support Office",
         "pillar_number": 1,
-        "dashboard_route": "/app/gm-support-dashboard",
+        "dashboard_route": "/gm",
         "is_global_access_department": 1,
     },
     {
         "key": "SRS",
         "name": "Strategic R&D Sector",
         "pillar_number": 2,
-        "dashboard_route": "/app/srs-dashboard",
+        "dashboard_route": "/srs",
         "is_global_access_department": 0,
     },
     {
         "key": "ARD",
         "name": "Applied R&D Department",
         "pillar_number": 3,
-        "dashboard_route": "/app/ard-dashboard",
+        "dashboard_route": "/ard",
         "is_global_access_department": 0,
     },
     {
         "key": "COMMAND_CENTER",
         "name": "Command Center",
         "pillar_number": 4,
-        "dashboard_route": "/app/command-center-dashboard",
+        "dashboard_route": "/command-center",
         "is_global_access_department": 0,
     },
     {
         "key": "PRODUCTION",
         "name": "Production",
         "pillar_number": 5,
-        "dashboard_route": "/app/production-dashboard",
+        "dashboard_route": "/production",
         "is_global_access_department": 0,
     },
     {
         "key": "QC",
         "name": "Quality Control & Validation",
         "pillar_number": 6,
-        "dashboard_route": "/app/qc-dashboard",
+        "dashboard_route": "/qc",
         "is_global_access_department": 0,
     },
     {
         "key": "OPERATIONS",
         "name": "Operations",
         "pillar_number": 7,
-        "dashboard_route": "/app/operations-dashboard",
+        "dashboard_route": "/operations",
         "is_global_access_department": 0,
     },
     {
@@ -88,7 +90,7 @@ DASHBOARDS = [
         "page_name": "gm-support-dashboard",
         "title": "GM Support Office Dashboard",
         "module": "GM Support",
-        "route": "/app/gm-support-dashboard",
+        "route": "/gm",
         "department_key": "GM_SUPPORT",
         "content": "GM Support Office Dashboard - placeholder",
     },
@@ -96,7 +98,7 @@ DASHBOARDS = [
         "page_name": "srs-dashboard",
         "title": "SRS Dashboard",
         "module": "SRS",
-        "route": "/app/srs-dashboard",
+        "route": "/srs",
         "department_key": "SRS",
         "content": "SRS Dashboard - placeholder",
     },
@@ -104,7 +106,7 @@ DASHBOARDS = [
         "page_name": "ard-dashboard",
         "title": "ARD Main Dashboard",
         "module": "ARD",
-        "route": "/app/ard-dashboard",
+        "route": "/ard",
         "department_key": "ARD",
         "content": "ARD Main Dashboard - placeholder",
     },
@@ -112,7 +114,7 @@ DASHBOARDS = [
         "page_name": "ard-blueprint-dashboard",
         "title": "ARD Blueprint Dashboard",
         "module": "ARD",
-        "route": "/app/ard-blueprint-dashboard",
+        "route": "/ard/blueprint",
         "department_key": "ARD",
         "content": "ARD Blueprint Phase Dashboard - placeholder",
     },
@@ -120,7 +122,7 @@ DASHBOARDS = [
         "page_name": "ard-validation-dashboard",
         "title": "ARD Validation Dashboard",
         "module": "ARD",
-        "route": "/app/ard-validation-dashboard",
+        "route": "/ard/validation",
         "department_key": "ARD",
         "content": "ARD Validation / Digital Breath Dashboard - placeholder",
     },
@@ -128,7 +130,7 @@ DASHBOARDS = [
         "page_name": "ard-scmdp-dashboard",
         "title": "ARD SCMDP Dashboard",
         "module": "ARD",
-        "route": "/app/ard-scmdp-dashboard",
+        "route": "/ard/scmdp",
         "department_key": "ARD",
         "content": "ARD SCMDP Dashboard - placeholder",
     },
@@ -136,7 +138,7 @@ DASHBOARDS = [
         "page_name": "ard-coordination-dashboard",
         "title": "ARD Coordination Dashboard",
         "module": "ARD",
-        "route": "/app/ard-coordination-dashboard",
+        "route": "/ard/coordination",
         "department_key": "ARD",
         "content": "ARD Coordination Dashboard - placeholder",
     },
@@ -144,7 +146,7 @@ DASHBOARDS = [
         "page_name": "command-center-dashboard",
         "title": "Command Center Dashboard",
         "module": "Command Center",
-        "route": "/app/command-center-dashboard",
+        "route": "/command-center",
         "department_key": "COMMAND_CENTER",
         "content": "Command Center Dashboard - placeholder",
     },
@@ -152,7 +154,7 @@ DASHBOARDS = [
         "page_name": "production-dashboard",
         "title": "Production Dashboard",
         "module": "Production",
-        "route": "/app/production-dashboard",
+        "route": "/production",
         "department_key": "PRODUCTION",
         "content": "Production Dashboard - placeholder",
     },
@@ -160,7 +162,7 @@ DASHBOARDS = [
         "page_name": "qc-dashboard",
         "title": "QC Dashboard",
         "module": "QC",
-        "route": "/app/qc-dashboard",
+        "route": "/qc",
         "department_key": "QC",
         "content": "QC Dashboard - placeholder",
     },
@@ -168,7 +170,7 @@ DASHBOARDS = [
         "page_name": "operations-dashboard",
         "title": "Operations Dashboard",
         "module": "Operations",
-        "route": "/app/operations-dashboard",
+        "route": "/operations",
         "department_key": "OPERATIONS",
         "content": "Operations Dashboard - placeholder",
     },
@@ -339,9 +341,10 @@ GLOBAL_VIEW_ROLES = {
     "BEDO Global Viewer",
 }
 ADMIN_ACCESS_ROLES = {
-    "General Manager",
-    "GM Support Office User",
     "BEDO User Administrator",
+    "BEDO System Administrator",
+}
+FRAPPE_DESK_TECHNICAL_ROLES = {
     "BEDO System Administrator",
 }
 SECURITY_AUDIT_ROLES = {
