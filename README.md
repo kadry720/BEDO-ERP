@@ -2,8 +2,6 @@
 
 BEDO ERP is the repository for BEDO's internal enterprise platform. The active Phase 1 Frappe app is `bedo_platform` under `apps/bedo_platform`.
 
-The older `apps/bedo_erp` app remains in the repository as prior foundation work, but new implementation in this branch follows the requested `bedo_platform` structure.
-
 ## Phase 1 Scope
 
 - Frappe v15 custom app named `bedo_platform`.

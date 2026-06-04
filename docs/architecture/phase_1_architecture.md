@@ -4,16 +4,16 @@ Phase 1 uses Frappe Framework 15 as the core backend/admin platform and keeps th
 
 ## Core Service
 
-`apps/bedo_erp` is the current core application service. It owns authentication context, LDAP integration helpers, BEDO user profiles, roles, permissions, security settings, audit logs, and minimal placeholder pages.
+`apps/bedo_platform` is the core application service. It owns LDAP-only authentication, Frappe user synchronization, BEDO department metadata, role catalog metadata, dashboard routing, admin user management, security audit events, and placeholder Desk pages.
 
 ## Internal Modules
 
-- `identity`: current user context, LDAP test/sync helpers, session logout handling.
-- `users`: user profile lookup, department assignment, role assignment, BEDO deactivation.
-- `security`: singleton security settings and authorization policies.
-- `audit`: audit log creation and filtered reads.
-- `admin_placeholder`: only placeholder pages for Zeinab's future UI.
-- `shared`: shared constants, response helpers, and exceptions.
+- `constants.py`: department keys, routes, roles, ARD team options, and seed users.
+- `services`: LDAP adapter, login guard, routing guard, user management, and audit logging.
+- `api`: whitelisted methods used by login, dashboards, and admin users.
+- `setup`: idempotent seed routines for departments, roles, dashboards, and initial users.
+- `bedo_core`: platform metadata DocTypes and the admin users page.
+- department folders: placeholder dashboard pages only.
 
 ## Future Services
 

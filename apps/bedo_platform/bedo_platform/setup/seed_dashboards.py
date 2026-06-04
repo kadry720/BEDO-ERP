@@ -8,10 +8,11 @@ def _upsert_workspace(dashboard: dict[str, str]) -> None:
 
     if dashboard["route"] == "/app/access-not-configured":
         return
-    existing = frappe.db.exists("Workspace", dashboard["title"])
+    workspace_title = f"{dashboard['title']} Workspace"
+    existing = frappe.db.exists("Workspace", workspace_title)
     doc = frappe.get_doc("Workspace", existing) if existing else frappe.new_doc("Workspace")
-    doc.label = dashboard["title"]
-    doc.title = dashboard["title"]
+    doc.label = workspace_title
+    doc.title = workspace_title
     doc.module = dashboard["module"]
     doc.public = 1
     doc.is_standard = 1
