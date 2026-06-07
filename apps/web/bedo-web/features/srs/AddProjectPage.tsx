@@ -1,6 +1,5 @@
 "use client";
 
-import type { FormEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, PencilLine, Plus, Rocket, Trash2, X } from "lucide-react";
@@ -68,8 +67,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     return data.project as string;
   }
 
-  async function submitProjectDetails(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitProjectDetails() {
     setError("");
     setSavingDetails(true);
     try {
@@ -145,7 +143,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
 
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
-      <form className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel" onSubmit={submitProjectDetails}>
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-black text-slate-950">Project Details</h3>
@@ -165,12 +163,12 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
           <ProjectField label="PO Deadline Date" type="date" value={fields.po_deadline_date} onChange={(value) => setFields((current) => ({ ...current, po_deadline_date: value }))} />
         </div>
         <div className="mt-5 flex justify-end border-t border-slate-200 pt-4">
-          <Button type="submit" disabled={savingDetails}>
+          <Button type="button" disabled={savingDetails} onClick={submitProjectDetails}>
             <CheckCircle2 className="h-4 w-4" />
             {savingDetails ? "Saving..." : detailsSubmitted ? "Save Project Details" : "Submit Project Details"}
           </Button>
         </div>
-      </form>
+      </div>
 
       {detailsSubmitted && (
         <section ref={trainerSectionRef} className="rounded-lg border border-slate-200 bg-white shadow-panel">
