@@ -31,7 +31,6 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   const [trainerModal, setTrainerModal] = useState<TrainerItem | "new" | null>(null);
   const [quantityDraft, setQuantityDraft] = useState<TrainerDraft | null>(null);
   const [error, setError] = useState("");
-  const fieldsValid = isValidProjectFields(fields);
 
   const defaultReportTo = useMemo(() => {
     const gm = reportToUsers.find((user) => user.business_role === "General Manager");
@@ -39,10 +38,6 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   }, [reportToUsers]);
 
   async function ensureProject() {
-    if (!fieldsValid) {
-      setError("Complete all project details before continuing. Project code must use the format 05/26.");
-      return "";
-    }
     if (projectId) {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
@@ -50,7 +45,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
         body: JSON.stringify(fields),
       });
       if (!response.ok) {
-        setError("Project details could not be saved. Check required fields and project code format.");
+        setError("Project details could not be saved.");
         return "";
       }
       return projectId;
@@ -61,7 +56,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
       body: JSON.stringify(fields),
     });
     if (!response.ok) {
-      setError("Project could not be created. Check required fields and project code format.");
+      setError("Project could not be created.");
       return "";
     }
     const data = await response.json();
@@ -150,7 +145,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-black text-slate-950">Project Details</h3>
-            <p className="mt-1 text-sm font-medium text-slate-500">Submit project details first. Trainer items open after validation succeeds.</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Submit project details first, then add trainer items.</p>
           </div>
           {detailsSubmitted && (
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
@@ -161,13 +156,12 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ProjectField label="Project Name" value={fields.project_name} onChange={(value) => setFields((current) => ({ ...current, project_name: value }))} />
-          <ProjectField label="Project Code" value={fields.project_code} pattern="05/26" onChange={(value) => setFields((current) => ({ ...current, project_code: value }))} />
+          <ProjectField label="Project Code" value={fields.project_code} onChange={(value) => setFields((current) => ({ ...current, project_code: value }))} />
           <ProjectField label="End User" value={fields.end_user} onChange={(value) => setFields((current) => ({ ...current, end_user: value }))} />
           <ProjectField label="PO Deadline Date" type="date" value={fields.po_deadline_date} onChange={(value) => setFields((current) => ({ ...current, po_deadline_date: value }))} />
         </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-          <p className="text-xs font-bold text-slate-500">Required format: project code like 05/26.</p>
-          <Button type="submit" disabled={!fieldsValid || savingDetails}>
+        <div className="mt-5 flex justify-end border-t border-slate-200 pt-4">
+          <Button type="submit" disabled={savingDetails}>
             <CheckCircle2 className="h-4 w-4" />
             {savingDetails ? "Saving..." : detailsSubmitted ? "Save Project Details" : "Submit Project Details"}
           </Button>
@@ -257,7 +251,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   );
 }
 
-function ProjectField({ label, value, onChange, type = "text", pattern }: { label: string; value: string; onChange: (value: string) => void; type?: string; pattern?: string }) {
+function ProjectField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
   return (
     <label className="block">
       <span className="text-sm font-black text-slate-800">{label}</span>
@@ -266,12 +260,10 @@ function ProjectField({ label, value, onChange, type = "text", pattern }: { labe
         type={type}
         name={labelToFieldName(label)}
         value={value}
-        placeholder={pattern}
         onChange={(event) => onChange(event.target.value)}
         onInput={(event) => onChange(event.currentTarget.value)}
         onKeyUp={(event) => onChange(event.currentTarget.value)}
         onBlur={(event) => onChange(event.currentTarget.value)}
-        required
       />
     </label>
   );
@@ -279,10 +271,6 @@ function ProjectField({ label, value, onChange, type = "text", pattern }: { labe
 
 function labelToFieldName(label: string) {
   return label.toLowerCase().replace(/\s+/g, "_") as keyof ProjectFields;
-}
-
-function isValidProjectFields(values: ProjectFields) {
-  return Boolean(values.project_name.trim() && /^\d{2}\/\d{2}$/.test(values.project_code.trim()) && values.end_user.trim() && values.po_deadline_date);
 }
 
 function TrainerModal({
@@ -326,11 +314,11 @@ function TrainerModal({
         <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
           <label className="block">
             <span className="text-sm font-black text-slate-800">Trainer Name</span>
-            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="trainer_name" defaultValue={item?.trainer_name || ""} required />
+            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="trainer_name" defaultValue={item?.trainer_name || ""} />
           </label>
           <label className="block">
             <span className="text-sm font-black text-slate-800">Quantity</span>
-            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" min={1} step={1} name="quantity" type="number" defaultValue={item?.quantity || 1} required />
+            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" min={1} step={1} name="quantity" type="number" defaultValue={item?.quantity || 1} />
           </label>
           <div className="md:col-span-2">
             <div className="text-sm font-black text-slate-800">Report To</div>

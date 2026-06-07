@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
-import re
+from datetime import UTC, datetime
 from typing import Any
 
 from bedo_platform.constants import (
@@ -42,7 +41,6 @@ PROJECT_STATUS_DRAFT = "DRAFT"
 PROJECT_STATUS_DETAILS_FINALIZED = "DETAILS_FINALIZED"
 PROJECT_STATUS_RELEASED_TO_SRS = "RELEASED_TO_SRS"
 PROJECT_STATUS_IN_SRS = "IN_SRS"
-PROJECT_CODE_PATTERN = re.compile(r"^\d{2}/\d{2}$")
 
 ITEM_STATUS_DRAFT = "DRAFT"
 ITEM_STATUS_RELEASED = "RELEASED_TO_SRS"
@@ -593,19 +591,41 @@ def _assert_item_access(user: str, trainer_item: str) -> None:
         frappe.throw("You do not have access to this trainer item.", frappe.PermissionError)
 
 
+def _project_fallback_code() -> str:
+    return f"PRJ-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+
+
+def _project_date_or_default(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return datetime.now(UTC).date().isoformat()
+    try:
+        return datetime.fromisoformat(text).date().isoformat()
+    except ValueError:
+        return datetime.now(UTC).date().isoformat()
+
+
 def _validate_project_payload(payload: dict[str, Any]) -> dict[str, str]:
-    values = {
-        "project_name": str(payload.get("project_name") or "").strip(),
-        "project_code": str(payload.get("project_code") or "").strip(),
-        "end_user": str(payload.get("end_user") or "").strip(),
-        "po_deadline_date": str(payload.get("po_deadline_date") or "").strip(),
+    project_code = str(payload.get("project_code") or "").strip() or _project_fallback_code()
+    return {
+        "project_name": str(payload.get("project_name") or "").strip() or "Untitled Project",
+        "project_code": project_code,
+        "end_user": str(payload.get("end_user") or "").strip() or "Unspecified",
+        "po_deadline_date": _project_date_or_default(payload.get("po_deadline_date")),
     }
-    missing = [label for label, value in values.items() if not value]
-    if missing:
-        raise ValueError(f"Missing required project fields: {', '.join(missing)}")
-    if not PROJECT_CODE_PATTERN.match(values["project_code"]):
-        raise ValueError("Project code must use the format 05/26.")
-    return values
+
+
+def _unique_project_code(project_code: str, current_project: str = "") -> str:
+    import frappe
+
+    candidate = project_code
+    suffix = 2
+    while True:
+        existing = frappe.db.get_value("BEDO Project", {"project_code": candidate}, "name")
+        if not existing or existing == current_project:
+            return candidate
+        candidate = f"{project_code}-{suffix}"
+        suffix += 1
 
 
 def create_project(payload: dict[str, Any], actor: str) -> dict[str, Any]:
@@ -613,6 +633,7 @@ def create_project(payload: dict[str, Any], actor: str) -> dict[str, Any]:
 
     _require_gm(actor)
     data = _validate_project_payload(payload)
+    data["project_code"] = _unique_project_code(data["project_code"])
     doc = frappe.get_doc(
         {
             "doctype": "BEDO Project",
@@ -635,6 +656,7 @@ def update_project_details(project: str, payload: dict[str, Any], actor: str) ->
     _require_gm(actor)
     doc = _project_or_throw(project)
     data = _validate_project_payload(payload)
+    data["project_code"] = _unique_project_code(data["project_code"], current_project=project)
     for key, value in data.items():
         setattr(doc, key, value)
     doc.flags.ignore_permissions = True
@@ -688,6 +710,18 @@ def _replace_report_to(trainer_item: str, users: list[str], actor: str) -> None:
         doc.insert(ignore_permissions=True)
 
 
+def _positive_int_or_default(value: Any, default: int = 1) -> int:
+    try:
+        result = int(value or default)
+    except (TypeError, ValueError):
+        return default
+    return result if result >= 1 else default
+
+
+def _trainer_name_or_default(value: Any) -> str:
+    return str(value or "").strip() or "Untitled Trainer"
+
+
 def _create_trainer_item(project_doc, trainer_name: str, quantity: int, original_quantity: int, separation_mode: str, sequence_no: int, actor: str, report_to_users: list[str]) -> str:
     import frappe
 
@@ -724,18 +758,14 @@ def add_trainer_item(project: str, payload: dict[str, Any], actor: str) -> dict[
     project_doc = _project_or_throw(project)
     if project_doc.status != PROJECT_STATUS_DETAILS_FINALIZED:
         frappe.throw("Finalize project details before adding trainer items.", frappe.PermissionError)
-    trainer_name = str(payload.get("trainer_name") or "").strip()
-    if not trainer_name:
-        raise ValueError("Trainer name is required.")
-    quantity = int(payload.get("quantity") or 0)
-    if quantity < 1:
-        raise ValueError("Quantity must be an integer greater than or equal to 1.")
+    trainer_name = _trainer_name_or_default(payload.get("trainer_name"))
+    quantity = _positive_int_or_default(payload.get("quantity"))
     report_to_users = list(payload.get("report_to_users") or [])
     mode = str(payload.get("separation_mode") or ("SINGLE" if quantity == 1 else "")).strip().upper()
     if quantity == 1:
         mode = "SINGLE"
     if quantity > 1 and mode not in {"COMBINED", "SEPARATED"}:
-        raise ValueError("Combined or Separated mode is required when quantity is greater than 1.")
+        mode = "COMBINED"
     created = []
     if mode == "SEPARATED":
         for index in range(1, quantity + 1):
@@ -754,12 +784,8 @@ def update_trainer_item(trainer_item: str, payload: dict[str, Any], actor: str) 
     project = _project_or_throw(doc.project)
     if project.status not in {PROJECT_STATUS_DRAFT, PROJECT_STATUS_DETAILS_FINALIZED}:
         frappe.throw("Trainer items cannot be edited after release to SRS.", frappe.PermissionError)
-    trainer_name = str(payload.get("trainer_name") or "").strip()
-    quantity = int(payload.get("quantity") or 0)
-    if not trainer_name:
-        raise ValueError("Trainer name is required.")
-    if quantity < 1:
-        raise ValueError("Quantity must be at least 1.")
+    trainer_name = _trainer_name_or_default(payload.get("trainer_name"))
+    quantity = _positive_int_or_default(payload.get("quantity"))
     doc.trainer_name = trainer_name
     doc.trainer_item_name = trainer_name if doc.separation_mode != "SEPARATED" else f"{trainer_name}_{doc.sequence_no or 1}"
     doc.quantity = quantity
