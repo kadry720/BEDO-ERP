@@ -138,8 +138,97 @@ def get_deadlines_for_trainer_item(trainer_item: str) -> list[dict[str, object]]
 
 
 def run_deadline_reminder_check() -> dict[str, int]:
-    return {"checked": 0, "sent": 0}
+    import frappe
+    from bedo_platform.services.notification_service import notify_many
+
+    now = datetime.now(CAIRO_TZ)
+    checked = 0
+    sent = 0
+    rows = frappe.get_all(
+        "BEDO Deadline",
+        filters={"status": "ACTIVE", "reminder_notified_at": ["is", "not set"]},
+        fields=["name", "project", "trainer_item", "workflow_type", "node_id", "start_at", "due_at"],
+        page_length=500,
+    )
+    for row in rows:
+        checked += 1
+        start = _as_cairo(row.start_at)
+        due = _as_cairo(row.due_at)
+        should_send = now >= start or due - now <= timedelta(hours=2)
+        if not should_send:
+            continue
+        recipients = _deadline_recipients(row.trainer_item, row.node_id)
+        if not recipients:
+            continue
+        notify_many(
+            recipients,
+            title="SRS deadline active",
+            message="An SRS workflow deadline is active or due soon.",
+            notification_type="DEADLINE_REMINDER",
+            project=row.project,
+            trainer_item=row.trainer_item,
+            workflow_type=row.workflow_type,
+            node_id=row.node_id,
+            action_url=f"/srs/projects/{row.project}/items/{row.trainer_item}",
+            priority="High",
+        )
+        frappe.db.set_value("BEDO Deadline", row.name, "reminder_notified_at", to_storage_datetime(now), update_modified=False)
+        sent += len(recipients)
+    return {"checked": checked, "sent": sent}
 
 
 def run_overdue_check() -> dict[str, int]:
-    return {"checked": 0, "sent": 0}
+    import frappe
+    from bedo_platform.services.notification_service import notify_many
+
+    now = datetime.now(CAIRO_TZ)
+    checked = 0
+    sent = 0
+    rows = frappe.get_all(
+        "BEDO Deadline",
+        filters={"status": "ACTIVE", "overdue_notified_at": ["is", "not set"]},
+        fields=["name", "project", "trainer_item", "workflow_type", "node_id", "due_at"],
+        page_length=500,
+    )
+    for row in rows:
+        checked += 1
+        if now <= _as_cairo(row.due_at):
+            continue
+        recipients = _deadline_recipients(row.trainer_item, row.node_id)
+        if not recipients:
+            continue
+        notify_many(
+            recipients,
+            title="SRS deadline overdue",
+            message="An SRS workflow deadline is overdue.",
+            notification_type="DEADLINE_OVERDUE",
+            project=row.project,
+            trainer_item=row.trainer_item,
+            workflow_type=row.workflow_type,
+            node_id=row.node_id,
+            action_url=f"/srs/projects/{row.project}/items/{row.trainer_item}",
+            priority="High",
+        )
+        frappe.db.set_value(
+            "BEDO Deadline",
+            row.name,
+            {"status": "OVERDUE", "overdue_notified_at": to_storage_datetime(now)},
+            update_modified=False,
+        )
+        sent += len(recipients)
+    return {"checked": checked, "sent": sent}
+
+
+def _deadline_recipients(trainer_item: str, node_id: str) -> list[str]:
+    import frappe
+
+    users = set()
+    state_user = frappe.db.get_value("SRS Workflow Node State", {"trainer_item": trainer_item, "node_id": node_id}, "responsible_user")
+    if state_user:
+        users.add(state_user)
+    owner = frappe.db.get_value("SRS Workflow Instance", {"trainer_item": trainer_item}, "project_owner")
+    if owner:
+        users.add(owner)
+    team_users = frappe.get_all("SRS Item Team Member", filters={"trainer_item": trainer_item}, pluck="user")
+    users.update(team_users)
+    return sorted(user for user in users if user)

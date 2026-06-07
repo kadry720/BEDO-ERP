@@ -45,9 +45,10 @@ export type TrainerItem = {
   status: string;
   current_node: string;
   current_responsible_user?: string;
+  current_responsible_name?: string;
   released_to_srs_at?: string;
-  workflow?: SrsWorkflow | null;
-  deadline?: { node_id: string; due_at: string; status: string; deadline_status?: string; server_now?: string } | null;
+  workflow?: (SrsWorkflow & { project_owner_full_name?: string }) | null;
+  deadline?: { node_id: string; start_at?: string; due_at: string; status: string; deadline_status?: string; server_now?: string } | null;
 };
 
 export type TrainerItemList = {
@@ -76,6 +77,8 @@ export type SrsNodeState = {
   deadline_due_at?: string;
   deadline_days?: number;
   responsible_user?: string;
+  responsible_name?: string;
+  display_data?: Record<string, string | number>;
 };
 
 export type SrsNodeDefinition = {
@@ -116,6 +119,8 @@ export type TrainerWorkspace = {
   node_availability: Array<{ nodeId: string; canView: boolean; canOpen: boolean; canAct: boolean; disabledReason?: string }>;
   server_now: string;
   report_to_users: string[];
+  team_members: Array<{ user: string; full_name: string; is_project_owner?: number; selected_by?: string; selected_at?: string }>;
+  approvals: Array<Record<string, string | number>>;
   audit_events: Array<{ event_type: string; user: string; target_user?: string; node_id?: string; message?: string; created_at: string }>;
   tabs: string[];
 };
@@ -123,11 +128,43 @@ export type TrainerWorkspace = {
 export type NotificationRow = {
   name: string;
   notification_type: string;
+  type_label?: string;
   title: string;
   message: string;
   action_url: string;
   priority: string;
   is_read: number;
+  created_at: string;
+  project?: string;
+  project_code?: string;
+  project_name?: string;
+  trainer_item?: string;
+  trainer_item_name?: string;
+};
+
+export type ApprovalRow = {
+  name: string;
+  approval_type: string;
+  approval_label: string;
+  status: string;
+  required_role: string;
+  project: string;
+  project_code: string;
+  project_name: string;
+  end_user: string;
+  po_deadline_date: string;
+  trainer_item: string;
+  trainer_item_name: string;
+  submitted_by: string;
+  submitted_by_name: string;
+  submitted_at: string;
+  srs_manager_name: string;
+  project_owner: string;
+  project_owner_name: string;
+  current_node: string;
+  case_classification: string;
+  deadline_proposal_days: number;
+  priority: string;
   created_at: string;
 };
 

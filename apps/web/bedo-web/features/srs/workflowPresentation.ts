@@ -12,7 +12,7 @@ export type StatusTone = "complete" | "in-progress" | "pending" | "awaiting-appr
 export const FLOWCHART_DIMENSIONS = {
   laneLabelWidth: 200,
   canvasWidth: 1500,
-  canvasHeight: 990,
+  canvasHeight: 1120,
   deadlineHeaderHeight: 56,
 };
 
@@ -30,7 +30,6 @@ export const STATUS_LABELS: Record<string, string> = {
   READY: "Pending",
   RELEASED_TO_SRS: "Released to SRS",
   SRS_COMPLETE: "SRS Complete",
-  [["SRS", "COMPLETED", "AWAITING", "FUTURE", "ARD", "HANDOVER"].join("_")]: "SRS Complete",
   SRS_GATEWAY_IN_PROGRESS: "SRS Gateway in Progress",
   SRS_IN_PROGRESS: "SRS in Progress",
   SKIPPED: "Skipped",
@@ -65,21 +64,21 @@ export function nodeStatusClass(status?: string | null, canOpen = false) {
 }
 
 export const NODE_POSITIONS: Record<string, { x: number; y: number; w: number; h: number }> = {
-  PRODUCT_DIGITAL_RELEASE: { x: 40, y: 58, w: 220, h: 86 },
-  SRS_GATEWAY: { x: 40, y: 230, w: 255, h: 106 },
-  MANDATORY_COORDINATION_MEETING: { x: 360, y: 226, w: 260, h: 112 },
-  DELIVERABLES_MATRIX: { x: 680, y: 220, w: 270, h: 120 },
-  CASES_1_2: { x: 420, y: 448, w: 220, h: 86 },
-  CASES_3_4: { x: 420, y: 590, w: 220, h: 86 },
-  GM_APPROVAL: { x: 700, y: 588, w: 220, h: 94 },
-  GATE_1_SRS_MANAGER_APPROVAL: { x: 980, y: 448, w: 280, h: 108 },
-  DEADLINE_LOCKED_IN_ERP: { x: 980, y: 590, w: 245, h: 92 },
-  ACTION_PATHS: { x: 1250, y: 540, w: 210, h: 84 },
-  CASE_1: { x: 670, y: 742, w: 180, h: 90 },
-  CASE_2: { x: 870, y: 742, w: 180, h: 90 },
-  CASE_3: { x: 1070, y: 742, w: 190, h: 90 },
-  CASE_4: { x: 1280, y: 742, w: 190, h: 90 },
-  BMDP: { x: 930, y: 850, w: 300, h: 118 },
+  PRODUCT_DIGITAL_RELEASE: { x: 40, y: 58, w: 230, h: 96 },
+  SRS_GATEWAY: { x: 40, y: 230, w: 270, h: 124 },
+  MANDATORY_COORDINATION_MEETING: { x: 360, y: 224, w: 285, h: 138 },
+  DELIVERABLES_MATRIX: { x: 690, y: 224, w: 290, h: 138 },
+  CASES_1_2: { x: 420, y: 470, w: 230, h: 96 },
+  CASES_3_4: { x: 420, y: 625, w: 230, h: 96 },
+  GM_APPROVAL: { x: 710, y: 615, w: 245, h: 128 },
+  GATE_1_SRS_MANAGER_APPROVAL: { x: 1000, y: 460, w: 295, h: 132 },
+  DEADLINE_LOCKED_IN_ERP: { x: 1000, y: 625, w: 255, h: 104 },
+  ACTION_PATHS: { x: 1265, y: 570, w: 220, h: 96 },
+  CASE_1: { x: 670, y: 800, w: 185, h: 102 },
+  CASE_2: { x: 875, y: 800, w: 185, h: 102 },
+  CASE_3: { x: 1080, y: 800, w: 195, h: 102 },
+  CASE_4: { x: 1295, y: 800, w: 195, h: 102 },
+  BMDP: { x: 930, y: 960, w: 320, h: 124 },
 };
 
 export const NODE_LABELS: Record<string, string> = {
@@ -103,7 +102,7 @@ export const NODE_LABELS: Record<string, string> = {
 export const LANE_BANDS = [
   { id: "operations", label: "Operations", y: 0, h: 180 },
   { id: "srs_entry", label: "SRS Entry & Assignment", y: 180, h: 200 },
-  { id: "study_phase", label: "Multidisciplinary Study Phase", y: 380, h: 610 },
+  { id: "study_phase", label: "Multidisciplinary Study Phase", y: 380, h: 740 },
 ];
 
 export const DEADLINE_BANDS = [

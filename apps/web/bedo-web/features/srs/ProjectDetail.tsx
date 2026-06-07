@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Plus, Rocket, Trash2 } from "lucide-react";
-import { Button } from "@/components/Button";
-import type { BedoProject, SafeUser, TrainerItem, TrainerItemList } from "@/features/srs/types";
-import { formatNodeId, formatStatus, statusBadgeClass } from "@/features/srs/workflowPresentation";
+import type { ComponentType } from "react";
+import { useMemo } from "react";
+import { Activity, AlertTriangle, Clock3, FolderOpen, UserMinus, Users } from "lucide-react";
+import type { BedoProject, TrainerItem, TrainerItemList } from "@/features/srs/types";
+import { formatDistance, formatNodeId } from "@/features/srs/workflowPresentation";
 
 type Props = {
   project: BedoProject;
@@ -13,255 +13,145 @@ type Props = {
   mode: "gm" | "srs";
 };
 
-type PendingTrainer = {
-  trainer_name: string;
-  quantity: number;
-  report_to_users: string[];
-};
-
 export function ProjectDetail({ project, initialItems, mode }: Props) {
-  const [items, setItems] = useState(initialItems.trainer_items);
-  const [projectState, setProjectState] = useState(project);
-  const [reportToUsers, setReportToUsers] = useState<SafeUser[]>([]);
-  const [pendingTrainer, setPendingTrainer] = useState<PendingTrainer | null>(null);
-  const [editing, setEditing] = useState<TrainerItem | null>(null);
-  const [error, setError] = useState("");
-  const isGm = mode === "gm";
-  const locked = projectState.status === "RELEASED_TO_SRS" || projectState.status === "IN_SRS";
-  const canManageItems = isGm && projectState.status === "DETAILS_FINALIZED" && !locked;
+  const items = initialItems.trainer_items;
   const itemRouteBase = mode === "gm" ? `/gm/projects/${project.name}/items` : `/srs/projects/${project.name}/items`;
-
-  useEffect(() => {
-    if (isGm) {
-      fetch("/api/report-to-candidates")
-        .then((response) => response.json())
-        .then((data) => setReportToUsers(data.users || []))
-        .catch(() => setReportToUsers([]));
-    }
-  }, [isGm]);
-
-  const defaultReportTo = useMemo(() => {
-    const gm = reportToUsers.find((user) => user.business_role === "General Manager");
-    return gm ? [gm.user] : [];
-  }, [reportToUsers]);
-
-  async function refreshItems() {
-    const response = await fetch(`/api/projects/${project.name}/trainer-items`);
-    if (response.ok) setItems((await response.json()).trainer_items);
-  }
-
-  async function finalizeProject() {
-    setError("");
-    const response = await fetch(`/api/projects/${project.name}/finalize`, { method: "POST" });
-    if (!response.ok) {
-      setError("Project details could not be finalized.");
-      return;
-    }
-    setProjectState((await response.json()).project);
-  }
-
-  async function releaseProject() {
-    setError("");
-    const response = await fetch(`/api/projects/${project.name}/release-srs`, { method: "POST" });
-    if (!response.ok) {
-      setError("Project could not be released. Make sure details are finalized and trainer items exist.");
-      return;
-    }
-    const data = await response.json();
-    setProjectState(data.project);
-    setItems(data.trainer_items);
-  }
-
-  async function submitTrainer(payload: PendingTrainer & { separation_mode?: string }) {
-    const response = await fetch(editing ? `/api/trainer-items/${editing.name}` : `/api/projects/${project.name}/trainer-items`, {
-      method: editing ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      setError("Trainer item could not be saved.");
-      return;
-    }
-    setPendingTrainer(null);
-    setEditing(null);
-    await refreshItems();
-  }
-
-  async function handleTrainerSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const payload = {
-      trainer_name: String(form.get("trainer_name") || "").trim(),
-      quantity: Number(form.get("quantity") || 1),
-      report_to_users: form.getAll("report_to_users").map(String)
-    };
-    if (payload.quantity > 1 && !editing) {
-      setPendingTrainer(payload);
-      return;
-    }
-    await submitTrainer({ ...payload, separation_mode: editing?.separation_mode || "SINGLE" });
-    formElement.reset();
-  }
-
-  async function deleteItem(item: TrainerItem) {
-    const response = await fetch(`/api/trainer-items/${item.name}`, { method: "DELETE" });
-    if (response.ok) await refreshItems();
-  }
+  const stats = useMemo(() => trainerStats(items), [items]);
 
   return (
     <section className="space-y-6">
-      <header className="rounded-md border border-gray-200 bg-white p-6 shadow-panel">
-        <div className="text-xs font-bold uppercase text-muted">{projectState.project_code}</div>
+      <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-panel">
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">{project.project_code}</div>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-ink">{projectState.project_name}</h1>
-            <p className="mt-2 text-sm text-muted">End user: {projectState.end_user} | PO deadline: {projectState.po_deadline_date}</p>
+            <h2 className="text-3xl font-black text-slate-950">{project.project_name}</h2>
+            <p className="mt-2 text-sm font-medium text-slate-600">End user: {project.end_user} | PO deadline: {project.po_deadline_date}</p>
           </div>
-          <span className={`rounded-full border px-3 py-2 text-sm font-bold ${statusBadgeClass(projectState.status)}`}>{formatStatus(projectState.status)}</span>
         </div>
       </header>
 
-      {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-
-      {isGm && projectState.status === "DRAFT" && (
-        <div className="rounded-md border border-gray-200 bg-white p-5 shadow-panel">
-          <h2 className="text-lg font-bold text-ink">Step 1: Project Details</h2>
-          <p className="mt-1 text-sm text-muted">Details are complete. Finalize them to unlock the trainer-items table.</p>
-          <Button className="mt-4" type="button" onClick={finalizeProject}>
-            <CheckCircle2 className="h-4 w-4" />
-            Finalize Project Details
-          </Button>
-        </div>
-      )}
-
-      {isGm && canManageItems && (
-        <form className="rounded-md border border-gray-200 bg-white p-5 shadow-panel" onSubmit={handleTrainerSubmit}>
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-ink">{editing ? "Edit Trainer Item" : "Step 2: Trainer Items"}</h2>
-            <p className="text-sm text-muted">Trainer items own SRS workflow instances. Projects do not have flowcharts.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-[1fr_140px_2fr_auto]">
-            <label className="block">
-              <span className="text-sm font-semibold text-ink">Trainer Name</span>
-              <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="trainer_name" defaultValue={editing?.trainer_name || ""} required />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-ink">Quantity</span>
-              <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" min={1} name="quantity" type="number" defaultValue={editing?.quantity || 1} required />
-            </label>
-            <div>
-              <div className="text-sm font-semibold text-ink">Report To</div>
-              <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-auto rounded-md border border-gray-200 p-2">
-                {reportToUsers.map((user) => (
-                  <label key={user.user} className="cursor-pointer">
-                    <input className="peer sr-only" name="report_to_users" type="checkbox" value={user.user} defaultChecked={!editing && defaultReportTo.includes(user.user)} />
-                    <span className="block rounded-md border border-gray-300 px-3 py-2 text-xs font-semibold peer-checked:border-ember peer-checked:bg-orange-50">
-                      {user.full_name}
-                    </span>
-                  </label>
-                ))}
-                {!reportToUsers.length && <span className="text-sm text-muted">No GM Support Office users found.</span>}
-              </div>
-            </div>
-            <div className="flex items-end gap-2">
-              <Button type="submit">
-                <Plus className="h-4 w-4" />
-                {editing ? "Save" : "Add"}
-              </Button>
-              {editing && (
-                <Button variant="secondary" type="button" onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
-              )}
-            </div>
-          </div>
-        </form>
-      )}
-
-      <div className="rounded-md border border-gray-200 bg-white p-5 shadow-panel">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-ink">Trainer Items</h2>
-            <p className="text-sm text-muted">{items.length} item(s)</p>
-          </div>
-          {isGm && projectState.status === "DETAILS_FINALIZED" && (
-            <Button type="button" disabled={!items.length} onClick={releaseProject}>
-              <Rocket className="h-4 w-4" />
-              Release PO to SRS
-            </Button>
-          )}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-xs uppercase text-muted">
-              <tr>
-                <th className="py-3 pr-4">Trainer Item</th>
-                <th className="py-3 pr-4">Quantity</th>
-                <th className="py-3 pr-4">Mode</th>
-                <th className="py-3 pr-4">Current SRS Node</th>
-                <th className="py-3 pr-4">Responsible</th>
-                <th className="py-3 pr-4">Deadline Due</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((item) => (
-                <tr key={item.name}>
-                  <td className="py-3 pr-4 font-semibold text-ink">
-                    <Link href={`${itemRouteBase}/${item.name}`}>{item.trainer_item_name}</Link>
-                  </td>
-                  <td className="py-3 pr-4">{item.quantity}</td>
-                  <td className="py-3 pr-4">{formatStatus(item.separation_mode)}</td>
-                  <td className="py-3 pr-4">{formatNodeId(item.workflow?.current_node || item.current_node)}</td>
-                  <td className="py-3 pr-4">{item.current_responsible_user || item.workflow?.project_owner || "-"}</td>
-                  <td className="py-3 pr-4">{item.deadline?.due_at || "-"}</td>
-                  <td className="py-3 pr-4">
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusBadgeClass(item.status)}`}>
-                      {formatStatus(item.status)}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    {canManageItems && (
-                      <div className="flex justify-end gap-2">
-                        <Button variant="secondary" type="button" onClick={() => setEditing(item)}>
-                          Edit
-                        </Button>
-                        <Button variant="danger" type="button" onClick={() => deleteItem(item)}>
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!items.length && <div className="rounded-md border border-dashed border-gray-300 p-6 text-sm text-muted">No trainer items yet.</div>}
-        </div>
-      </div>
-
-      {pendingTrainer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-md bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-ink">Quantity Handling</h3>
-            <p className="mt-2 text-sm text-muted">
-              Quantity is {pendingTrainer.quantity}. Choose whether these units share one SRS flowchart or split into independent trainer items.
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Button type="button" onClick={() => submitTrainer({ ...pendingTrainer, separation_mode: "COMBINED" })}>
-                Combined
-              </Button>
-              <Button variant="secondary" type="button" onClick={() => submitTrainer({ ...pendingTrainer, separation_mode: "SEPARATED" })}>
-                Separated
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TrainerStatsCards stats={stats} />
+      <TrainerItemsTable items={items} itemRouteBase={itemRouteBase} />
     </section>
   );
+}
+
+function TrainerStatsCards({ stats }: { stats: ReturnType<typeof trainerStats> }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <Stat icon={FolderOpen} label="Trainers Done" value={stats.done} tone="green" />
+      <Stat icon={Activity} label="Trainers In Progress" value={stats.inProgress} tone="amber" />
+      <Stat icon={UserMinus} label="Without Owner" value={stats.withoutOwner} tone="slate" />
+      <Stat icon={Users} label="Owner Assigned / No Team" value={stats.ownerNoTeam} tone="blue" />
+      <Stat icon={AlertTriangle} label="Awaiting GM Approval" value={stats.awaitingGm} tone="blue" />
+      <Stat icon={Clock3} label="Awaiting SRS Manager Approval" value={stats.awaitingSrsManager} tone="blue" />
+    </div>
+  );
+}
+
+function Stat({ icon: Icon, label, value, tone }: { icon: ComponentType<{ className?: string }>; label: string; value: number; tone: "green" | "amber" | "blue" | "slate" }) {
+  const color = {
+    green: "text-emerald-700 bg-emerald-50",
+    amber: "text-amber-700 bg-amber-50",
+    blue: "text-blue-700 bg-blue-50",
+    slate: "text-slate-700 bg-slate-100",
+  }[tone];
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</div>
+        <div className={`rounded-md p-2 ${color}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <div className="mt-3 text-3xl font-black text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; itemRouteBase: string }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white shadow-panel">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h3 className="text-lg font-black text-slate-950">Trainer Items</h3>
+        <p className="text-sm font-medium text-slate-500">{items.length} trainer item(s)</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[980px] w-full text-left text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Trainer Name</th>
+              <th className="px-4 py-3">Quantity</th>
+              <th className="px-4 py-3">Current SRS Node</th>
+              <th className="px-4 py-3">Project Owner</th>
+              <th className="px-4 py-3">Deadline Due</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {items.map((item) => (
+              <tr key={item.name} className="hover:bg-slate-50">
+                <td className="max-w-[260px] truncate px-4 py-3 font-black text-slate-950" title={item.trainer_item_name}>{item.trainer_item_name}</td>
+                <td className="px-4 py-3 text-slate-600">{item.quantity}</td>
+                <td className="px-4 py-3 text-slate-600">{formatNodeId(item.workflow?.current_node || item.current_node)}</td>
+                <td className="px-4 py-3 text-slate-600">{item.workflow?.project_owner_full_name || item.current_responsible_name || "-"}</td>
+                <td className="px-4 py-3"><CountdownBadge startAt={item.deadline?.start_at} dueAt={item.deadline?.due_at} serverNow={item.deadline?.server_now} /></td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${isDone(item) ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                    {isDone(item) ? "Done" : "In Progress"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <Link className="focus-ring inline-flex min-h-9 items-center rounded-md bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-700" href={`${itemRouteBase}/${item.name}`}>
+                    Open Workflow
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!items.length && <div className="m-5 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">No trainer items.</div>}
+      </div>
+    </section>
+  );
+}
+
+function CountdownBadge({ startAt, dueAt, serverNow }: { startAt?: string; dueAt?: string; serverNow?: string }) {
+  const now = new Date(serverNow || Date.now());
+  if (!startAt || !dueAt) return <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-600">No active deadline</span>;
+  const start = new Date(startAt);
+  const due = new Date(dueAt);
+  let label = "Due in";
+  let seconds = (due.getTime() - now.getTime()) / 1000;
+  let className = "border-amber-200 bg-amber-50 text-amber-800";
+  if (now < start) {
+    label = "Starting in";
+    seconds = (start.getTime() - now.getTime()) / 1000;
+    className = "border-slate-200 bg-slate-50 text-slate-700";
+  } else if (now > due) {
+    label = "Overdue by";
+    seconds = (now.getTime() - due.getTime()) / 1000;
+    className = "border-red-200 bg-red-50 text-red-800";
+  }
+  return <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${className}`}>{label} {formatDistance(seconds)}</span>;
+}
+
+function trainerStats(items: TrainerItem[]) {
+  return items.reduce(
+    (acc, item) => {
+      if (isDone(item)) acc.done += 1;
+      else acc.inProgress += 1;
+      if (!item.workflow?.project_owner) acc.withoutOwner += 1;
+      if (item.workflow?.project_owner && item.workflow.current_node === "MANDATORY_COORDINATION_MEETING") acc.ownerNoTeam += 1;
+      if (item.workflow?.current_node === "GM_APPROVAL") acc.awaitingGm += 1;
+      if (item.workflow?.current_node === "GATE_1_SRS_MANAGER_APPROVAL") acc.awaitingSrsManager += 1;
+      return acc;
+    },
+    { done: 0, inProgress: 0, withoutOwner: 0, ownerNoTeam: 0, awaitingGm: 0, awaitingSrsManager: 0 }
+  );
+}
+
+function isDone(item: TrainerItem) {
+  return item.status === "SRS_COMPLETE" || item.workflow?.status === "SRS_COMPLETE";
 }

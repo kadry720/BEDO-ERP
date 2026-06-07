@@ -84,10 +84,13 @@ export function TrainerWorkspace({
         {workspace.tabs.map((tab) => (
           <button
             key={tab}
-            className={`focus-ring rounded-md px-4 py-2 text-sm font-semibold ${activeTab === tab ? "bg-ink text-white" : "border border-gray-300 bg-white text-gray-700"}`}
+            className={`focus-ring inline-flex items-center gap-2 rounded-t-lg border px-4 py-2 text-sm font-black transition ${
+              activeTab === tab ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
             type="button"
             onClick={() => setActiveTab(tab)}
           >
+            <span className={`h-2 w-2 rounded-full ${activeTab === tab ? "bg-amber-400" : "bg-slate-300"}`} />
             {tab}
           </button>
         ))}
@@ -113,6 +116,9 @@ export function TrainerWorkspace({
 }
 
 function Overview({ workspace }: { workspace: TrainerWorkspaceData }) {
+  const projectOwner = workspace.team_members.find((member) => member.is_project_owner);
+  const selectedTeam = workspace.team_members.filter((member) => !member.is_project_owner);
+  const activeDeadline = workspace.deadlines.find((deadline) => deadline.status === "ACTIVE");
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard
@@ -126,14 +132,23 @@ function Overview({ workspace }: { workspace: TrainerWorkspaceData }) {
         ]}
       />
       <InfoCard
-        title="Trainer Item"
+        title="SRS Summary"
         rows={[
           ["Name", workspace.trainer_item.trainer_item_name],
           ["Quantity", String(workspace.trainer_item.quantity)],
-          ["Mode", formatStatus(workspace.trainer_item.separation_mode)],
+          ["Project Owner", projectOwner?.full_name || workspace.workflow?.project_owner || "-"],
+          ["Selected Team", selectedTeam.length ? `${selectedTeam.length} member(s)` : "-"],
           ["Current Node", formatNodeId(workspace.workflow?.current_node || workspace.trainer_item.current_node)],
+          ["Current Deadline", activeDeadline?.due_at || "No active deadline"],
           ["Status", formatStatus(workspace.trainer_item.status)],
         ]}
+      />
+      <InfoCard
+        title="Recent Activity"
+        rows={(workspace.audit_events.slice(0, 5).map((event) => [
+          formatStatus(event.event_type),
+          [event.message, event.created_at].filter(Boolean).join(" | ") || "-",
+        ]) as Array<[string, string]>).concat(workspace.audit_events.length ? [] : [["Activity", "No audit events yet."]])}
       />
     </div>
   );
@@ -524,9 +539,9 @@ const NODE_ICONS: Record<string, FlowIcon> = {
 };
 
 const NODE_SUBTITLES: Record<string, string> = {
-  SRS_GATEWAY: "SRS Director Breakdown / PO & Assign Project Owner via ERP",
+  SRS_GATEWAY: "Assign Project Owner via ERP",
   DELIVERABLES_MATRIX: "Case classification + deadline proposal",
-  CASE_1: "Legacy Validation / Audit Archive",
+  CASE_1: "Legacy Validation",
   CASE_2: "Standard Innovation",
   CASE_3: "Experimental Prototyping",
   CASE_4: "Vanguard Manufacturing",
@@ -573,6 +588,7 @@ function FlowNode({
   const StatusIcon = STATUS_ICONS[tone];
   const NodeIcon = NODE_ICONS[node.id] || Route;
   const subtitle = NODE_SUBTITLES[node.id];
+  const summaryRows = Object.entries(state?.display_data || {}).filter(([, value]) => value !== "" && value !== undefined && value !== null);
   const content = (
     <>
       <span className="absolute bottom-2 left-0 top-2 w-1 rounded-full" style={{ backgroundColor: style.accent }} />
@@ -591,6 +607,16 @@ function FlowNode({
           {formatStatus(status)}
         </span>
       </div>
+      {summaryRows.length > 0 && (
+        <dl className="mt-1.5 grid gap-0.5 pl-1.5 text-[10.5px] leading-tight text-slate-600">
+          {summaryRows.slice(0, 3).map(([label, value]) => (
+            <div key={label} className="flex min-w-0 gap-1">
+              <dt className="shrink-0 font-bold">{label}:</dt>
+              <dd className="truncate">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {!canOpen && availability?.disabledReason && node.clickable && (
         <div className="mt-1.5 whitespace-normal break-words pl-1.5 text-[11px] font-medium leading-tight text-slate-500">{availability.disabledReason}</div>
       )}
@@ -723,13 +749,13 @@ function NodeModal({
             <OwnerForm owners={owners} loadOwners={loadOwners} onSubmit={(project_owner) => submit("assign_owner", { project_owner })} />
           )}
           {nodeId === "MANDATORY_COORDINATION_MEETING" && (
-            <TeamForm teamMembers={teamMembers} loadTeamMembers={loadTeamMembers} onSubmit={(users) => submit("select_team", { users })} />
+            <TeamForm
+              cases={flowchart.case_classifications}
+              teamMembers={teamMembers}
+              loadTeamMembers={loadTeamMembers}
+              onSubmit={(payload) => submit("submit_coordination", payload)}
+            />
           )}
-          {nodeId === "DELIVERABLES_MATRIX" && (
-            <DeliverablesForm cases={flowchart.case_classifications} onSubmit={(payload) => submit("submit_deliverables", payload)} />
-          )}
-          {nodeId === "GM_APPROVAL" && <ApprovalForm cases={flowchart.case_classifications} workspace={workspace} onSubmit={(payload) => submit("gm_approve", payload)} />}
-          {nodeId === "GATE_1_SRS_MANAGER_APPROVAL" && <ApprovalForm cases={flowchart.case_classifications} workspace={workspace} onSubmit={(payload) => submit("manager_approve", payload)} />}
           {nodeId === "BMDP" && <BmdpForm onSubmit={(bmdp_path) => submit("submit_bmdp", { bmdp_path })} />}
         </div>
       </div>
@@ -773,8 +799,20 @@ function OwnerForm({ owners, loadOwners, onSubmit }: { owners: Record<string, Sa
   );
 }
 
-function TeamForm({ teamMembers, loadTeamMembers, onSubmit }: { teamMembers: SafeUser[]; loadTeamMembers: () => void; onSubmit: (users: string[]) => void }) {
+function TeamForm({
+  cases,
+  teamMembers,
+  loadTeamMembers,
+  onSubmit,
+}: {
+  cases: string[];
+  teamMembers: SafeUser[];
+  loadTeamMembers: () => void;
+  onSubmit: (payload: Record<string, unknown>) => void;
+}) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [caseClassification, setCaseClassification] = useState(cases[0] || "");
+  const [deadlineDays, setDeadlineDays] = useState(1);
   useEffect(() => {
     void loadTeamMembers();
   }, []);
@@ -822,7 +860,35 @@ function TeamForm({ teamMembers, loadTeamMembers, onSubmit }: { teamMembers: Saf
           </section>
         ))}
       </div>
-      <Button type="button" disabled={!selected.length} onClick={() => onSubmit(selected)}>Select SRS Team</Button>
+      <div className="grid gap-4 rounded-md border border-gray-200 bg-white p-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-sm font-semibold text-ink">Case Classification</span>
+          <select className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={caseClassification} onChange={(event) => setCaseClassification(event.target.value)} required>
+            {cases.map((classification) => (
+              <option key={classification} value={classification}>{classification}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold text-ink">Deadline Proposal (working days)</span>
+          <input
+            className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            min={1}
+            step={1}
+            type="number"
+            value={deadlineDays}
+            onChange={(event) => setDeadlineDays(Number(event.target.value || 1))}
+            required
+          />
+        </label>
+      </div>
+      <Button
+        type="button"
+        disabled={!selected.length || !caseClassification || deadlineDays < 1 || !Number.isInteger(deadlineDays)}
+        onClick={() => onSubmit({ users: selected, case_classification: caseClassification, deadline_proposal_days: deadlineDays })}
+      >
+        Submit Coordination
+      </Button>
     </div>
   );
 }
@@ -854,66 +920,6 @@ function srsSectionLabel(user: SafeUser) {
 function roleRank(role: string) {
   const index = ["SRS Manager", "SRS Section Head", "SRS Team Leader", "SRS Engineer"].indexOf(role);
   return index === -1 ? 99 : index;
-}
-
-function DeliverablesForm({ cases, onSubmit }: { cases: string[]; onSubmit: (payload: Record<string, unknown>) => void }) {
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        onSubmit({ case_classification: form.get("case_classification"), deadline_proposal_days: Number(form.get("deadline_proposal_days") || 0) });
-      }}
-    >
-      <SelectCase cases={cases} />
-      <DeadlineField />
-      <Button type="submit">Submit Deliverables Matrix</Button>
-    </form>
-  );
-}
-
-function ApprovalForm({ cases, workspace, onSubmit }: { cases: string[]; workspace: TrainerWorkspaceData; onSubmit: (payload: Record<string, unknown>) => void }) {
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        onSubmit({ case_classification: form.get("case_classification"), deadline_proposal_days: Number(form.get("deadline_proposal_days") || 0), comments: form.get("comments") });
-      }}
-    >
-      <SelectCase cases={cases} defaultValue={workspace.workflow?.case_classification} />
-      <DeadlineField defaultValue={workspace.workflow?.deadline_proposal_days || workspace.workflow?.approved_deadline_days || 1} />
-      <label className="block">
-        <span className="text-sm font-semibold text-ink">Comments</span>
-        <textarea className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="comments" rows={3} />
-      </label>
-      <Button type="submit">Approve</Button>
-    </form>
-  );
-}
-
-function SelectCase({ cases, defaultValue }: { cases: string[]; defaultValue?: string }) {
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-ink">Case Classification</span>
-      <select className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="case_classification" defaultValue={defaultValue} required>
-        {cases.map((classification) => (
-          <option key={classification} value={classification}>{classification}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function DeadlineField({ defaultValue = 1 }: { defaultValue?: number }) {
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-ink">Deadline Proposal (working days)</span>
-      <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" min={1} name="deadline_proposal_days" type="number" defaultValue={defaultValue} required />
-    </label>
-  );
 }
 
 function BmdpForm({ onSubmit }: { onSubmit: (path: string) => void }) {

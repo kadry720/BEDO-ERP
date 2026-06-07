@@ -23,10 +23,11 @@ export type BedoUserContext = {
 export const adminRoute = "/admin/users";
 
 export const routeLabels: Record<string, string> = {
-  "/gm": "GM Support Office",
-  "/srs": "SRS",
-  "/admin/users": "User Administration",
-  "/notifications": "Notifications"
+  "/gm": "GM Support Office Dashboard",
+  "/srs": "SRS Dashboard",
+  "/admin/users": "Admin Dashboard",
+  "/notifications": "Notifications",
+  "/approvals": "Approvals"
 };
 
 export const placeholderRoutes = ["/gm", "/srs"];

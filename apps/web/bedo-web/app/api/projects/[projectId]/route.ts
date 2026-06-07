@@ -21,3 +21,11 @@ export async function PATCH(request: Request, { params }: Params) {
   const data = await frappeCall("bedo_platform.api.web.get_project_detail", { project: projectId }, session.user);
   return NextResponse.json(data);
 }
+
+export async function DELETE(_request: Request, { params }: Params) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const { projectId } = await params;
+  await frappeCall("bedo_platform.api.web.delete_project", { project: projectId }, session.user);
+  return NextResponse.json({ success: true });
+}

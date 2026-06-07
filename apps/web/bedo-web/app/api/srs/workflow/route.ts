@@ -10,14 +10,8 @@ export async function POST(request: Request) {
   try {
     if (payload.action === "assign_owner") {
       await frappeCall("bedo_platform.api.web.assign_srs_project_owner", { trainer_item, project_owner: payload.project_owner }, session.user);
-    } else if (payload.action === "select_team") {
-      await frappeCall("bedo_platform.api.web.select_srs_team", { trainer_item, users: payload.users || [] }, session.user);
-    } else if (payload.action === "submit_deliverables") {
-      await frappeCall("bedo_platform.api.web.submit_srs_deliverables_matrix", { trainer_item, payload }, session.user);
-    } else if (payload.action === "gm_approve") {
-      await frappeCall("bedo_platform.api.web.approve_srs_case_as_gm", { trainer_item, payload }, session.user);
-    } else if (payload.action === "manager_approve") {
-      await frappeCall("bedo_platform.api.web.approve_srs_deadline_as_srs_manager", { trainer_item, payload }, session.user);
+    } else if (payload.action === "submit_coordination") {
+      await frappeCall("bedo_platform.api.web.submit_mandatory_coordination", { trainer_item, payload }, session.user);
     } else if (payload.action === "submit_bmdp") {
       await frappeCall("bedo_platform.api.web.submit_srs_bmdp_path", { trainer_item, bmdp_path: payload.bmdp_path }, session.user);
     } else {

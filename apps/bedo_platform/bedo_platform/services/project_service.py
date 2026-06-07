@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+import re
 from typing import Any
 
 from bedo_platform.constants import (
@@ -41,6 +42,7 @@ PROJECT_STATUS_DRAFT = "DRAFT"
 PROJECT_STATUS_DETAILS_FINALIZED = "DETAILS_FINALIZED"
 PROJECT_STATUS_RELEASED_TO_SRS = "RELEASED_TO_SRS"
 PROJECT_STATUS_IN_SRS = "IN_SRS"
+PROJECT_CODE_PATTERN = re.compile(r"^\d{2}/\d{2}$")
 
 ITEM_STATUS_DRAFT = "DRAFT"
 ITEM_STATUS_RELEASED = "RELEASED_TO_SRS"
@@ -79,7 +81,7 @@ SRS_FLOWCHART_NODE_DEFINITIONS: list[dict[str, Any]] = [
         "column": "deadline_1",
         "kind": "action",
         "clickable": True,
-        "requiredRoles": ["General Manager", "SRS Manager"],
+        "requiredRoles": ["SRS Manager"],
         "requiredPreviousNodes": [SRS_NODE_PRODUCT_DIGITAL_RELEASE],
     },
     {
@@ -96,8 +98,8 @@ SRS_FLOWCHART_NODE_DEFINITIONS: list[dict[str, Any]] = [
         "label": "Deliverables Matrix",
         "lane": "study_phase",
         "column": "deadline_2",
-        "kind": "input",
-        "clickable": True,
+        "kind": "display",
+        "clickable": False,
         "requiredPreviousNodes": [SRS_NODE_COORDINATION],
     },
     {
@@ -124,7 +126,7 @@ SRS_FLOWCHART_NODE_DEFINITIONS: list[dict[str, Any]] = [
         "lane": "study_phase",
         "column": "deadline_3",
         "kind": "approval",
-        "clickable": True,
+        "clickable": False,
         "requiredRoles": ["General Manager"],
         "requiredPreviousNodes": [SRS_NODE_DELIVERABLES],
     },
@@ -134,7 +136,7 @@ SRS_FLOWCHART_NODE_DEFINITIONS: list[dict[str, Any]] = [
         "lane": "study_phase",
         "column": "deadline_3",
         "kind": "approval",
-        "clickable": True,
+        "clickable": False,
         "requiredRoles": ["SRS Manager"],
         "requiredPreviousNodes": [SRS_NODE_DELIVERABLES],
     },
@@ -286,6 +288,15 @@ def _safe_user_row(user: str) -> dict[str, str]:
         "department": department,
         "business_role": roles[0] if roles else "",
     }
+
+
+def _user_full_name(user: str | None) -> str:
+    if not user:
+        return ""
+    try:
+        return _safe_user_row(user)["full_name"]
+    except Exception:
+        return user or ""
 
 
 def _active_users_with_role(role: str) -> list[str]:
@@ -463,7 +474,7 @@ def _case_group_node_id(case_classification: str) -> str:
     return SRS_NODE_CASES_3_4 if case_classification in {CASE_3, CASE_4} else SRS_NODE_CASES_1_2
 
 
-def _set_case_path_states(workflow, case_classification: str, actor: str, status: str = NODE_STATUS_COMPLETED) -> None:
+def _set_case_path_states(workflow, case_classification: str, actor: str, status: str = NODE_STATUS_IN_PROGRESS) -> None:
     selected_group = _case_group_node_id(case_classification)
     selected_case = _case_node_id(case_classification)
     for node_id in [SRS_NODE_CASES_1_2, SRS_NODE_CASES_3_4, SRS_NODE_CASE_1, SRS_NODE_CASE_2, SRS_NODE_CASE_3, SRS_NODE_CASE_4]:
@@ -592,6 +603,8 @@ def _validate_project_payload(payload: dict[str, Any]) -> dict[str, str]:
     missing = [label for label, value in values.items() if not value]
     if missing:
         raise ValueError(f"Missing required project fields: {', '.join(missing)}")
+    if not PROJECT_CODE_PATTERN.match(values["project_code"]):
+        raise ValueError("Project code must use the format 05/26.")
     return values
 
 
@@ -600,13 +613,11 @@ def create_project(payload: dict[str, Any], actor: str) -> dict[str, Any]:
 
     _require_gm(actor)
     data = _validate_project_payload(payload)
-    if frappe.db.exists("BEDO Project", {"project_code": data["project_code"]}):
-        raise ValueError("Project code already exists.")
     doc = frappe.get_doc(
         {
             "doctype": "BEDO Project",
             **data,
-            "status": PROJECT_STATUS_DRAFT,
+            "status": PROJECT_STATUS_DETAILS_FINALIZED,
             "created_by_user": actor,
             "created_at": datetime.utcnow(),
             "is_deleted": 0,
@@ -623,12 +634,7 @@ def update_project_details(project: str, payload: dict[str, Any], actor: str) ->
 
     _require_gm(actor)
     doc = _project_or_throw(project)
-    if doc.status not in {PROJECT_STATUS_DRAFT, PROJECT_STATUS_DETAILS_FINALIZED}:
-        frappe.throw("Project details cannot be edited after release to SRS.", frappe.PermissionError)
     data = _validate_project_payload(payload)
-    duplicate = frappe.db.get_value("BEDO Project", {"project_code": data["project_code"]}, "name")
-    if duplicate and duplicate != project:
-        raise ValueError("Project code already exists.")
     for key, value in data.items():
         setattr(doc, key, value)
     doc.flags.ignore_permissions = True
@@ -777,6 +783,55 @@ def delete_trainer_item(trainer_item: str, actor: str) -> dict[str, Any]:
     doc.save(ignore_permissions=True)
     _log("trainer_item_deleted", actor, project=doc.project, trainer_item=trainer_item)
     return {"success": True, "trainer_item": trainer_item}
+
+
+def delete_project_cascade(project: str, actor: str) -> dict[str, Any]:
+    import frappe
+
+    _require_gm(actor)
+    project_doc = _project_or_throw(project)
+    snapshot = f"{project_doc.project_code} - {project_doc.project_name}"
+    trainer_items = frappe.get_all("BEDO Trainer Item", filters={"project": project}, pluck="name")
+    workflows = frappe.get_all("SRS Workflow Instance", filters={"project": project}, pluck="name")
+
+    log_security_event(
+        "project_deleted",
+        user=actor,
+        status="Success",
+        message=f"Project deleted: {snapshot}",
+    )
+
+    try:
+        for doctype in [
+            "BEDO Notification",
+            "BEDO Deadline",
+            "SRS Approval",
+            "SRS BMDP Submission",
+            "SRS Deliverables Matrix",
+            "SRS Item Team Member",
+            "SRS Workflow Node State",
+            "BEDO Security Event",
+        ]:
+            frappe.db.delete(doctype, {"project": project})
+
+        for trainer_item in trainer_items:
+            frappe.db.delete("BEDO Trainer Item Report To", {"trainer_item": trainer_item})
+
+        for workflow in workflows:
+            if frappe.db.exists("SRS Workflow Instance", workflow):
+                frappe.delete_doc("SRS Workflow Instance", workflow, ignore_permissions=True)
+
+        for trainer_item in trainer_items:
+            if frappe.db.exists("BEDO Trainer Item", trainer_item):
+                frappe.delete_doc("BEDO Trainer Item", trainer_item, ignore_permissions=True)
+
+        frappe.delete_doc("BEDO Project", project, ignore_permissions=True)
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    return {"success": True, "project": project}
 
 
 def _create_initial_workflow(item, actor: str) -> str:
@@ -962,11 +1017,12 @@ def _safe_item(row) -> dict[str, Any]:
         "status": row.status,
         "current_node": row.current_node,
         "current_responsible_user": row.current_responsible_user,
+        "current_responsible_name": _user_full_name(row.current_responsible_user),
         "released_to_srs_at": to_cairo_iso(row.released_to_srs_at),
     }
 
 
-def _safe_node_state(row) -> dict[str, Any]:
+def _safe_node_state(row, display_data: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "node_id": row.node_id,
         "status": row.status,
@@ -976,6 +1032,46 @@ def _safe_node_state(row) -> dict[str, Any]:
         "deadline_due_at": to_cairo_iso(row.deadline_due_at),
         "deadline_days": row.deadline_days,
         "responsible_user": row.responsible_user,
+        "responsible_name": _user_full_name(row.responsible_user),
+        "display_data": display_data or {},
+    }
+
+
+def _node_display_data(workflow, team_members: list[dict[str, Any]], approvals: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if not workflow:
+        return {}
+    gm_approval = approvals.get("GM_CASE_APPROVAL") or {}
+    manager_approval = approvals.get("SRS_MANAGER_DEADLINE_APPROVAL") or {}
+    team_count = len([member for member in team_members if not member.get("is_project_owner")])
+    return {
+        SRS_NODE_GATEWAY: {
+            "Owner": _user_full_name(workflow.project_owner) or "Not assigned",
+        },
+        SRS_NODE_COORDINATION: {
+            "Team": f"{team_count} additional member{'s' if team_count != 1 else ''}",
+            "Case": workflow.case_classification or "Not selected",
+            "Deadline": f"{workflow.deadline_proposal_days} working day(s)" if workflow.deadline_proposal_days else "Not proposed",
+        },
+        SRS_NODE_DELIVERABLES: {
+            "Case": workflow.case_classification or "Not selected",
+            "Deadline": f"{workflow.deadline_proposal_days} working day(s)" if workflow.deadline_proposal_days else "Not proposed",
+        },
+        SRS_NODE_GM_APPROVAL: {
+            "Status": "Approved by General Manager" if workflow.gm_approved_at else "Pending GM Approval",
+            "Case": workflow.case_classification or "",
+            "Deadline": f"{workflow.deadline_proposal_days} working day(s)" if workflow.deadline_proposal_days else "",
+            "Decision": gm_approval.get("status", ""),
+        },
+        SRS_NODE_MANAGER_APPROVAL: {
+            "Status": "Approved by SRS Manager" if workflow.srs_manager_approved_at else "Pending SRS Manager Approval",
+            "Case": workflow.case_classification or "",
+            "Deadline": f"{workflow.approved_deadline_days or workflow.deadline_proposal_days or ''} working day(s)" if (workflow.approved_deadline_days or workflow.deadline_proposal_days) else "",
+            "Decision": manager_approval.get("status", ""),
+        },
+        SRS_NODE_BMDP: {
+            "Status": "BMDP submitted" if workflow.bmdp_path else "BMDP path required",
+            "Path": str(workflow.bmdp_path or "")[:72],
+        },
     }
 
 
@@ -993,20 +1089,19 @@ def list_trainer_items_for_project(project: str, actor: str) -> dict[str, Any]:
         fields=["name", "project", "trainer_name", "trainer_item_name", "quantity", "original_quantity", "separation_mode", "sequence_no", "status", "current_node", "current_responsible_user", "released_to_srs_at"],
         order_by="creation asc",
     )
-    workflows = {
-        row.trainer_item: dict(row)
-        for row in frappe.get_all(
-            "SRS Workflow Instance",
-            filters={"project": project},
-            fields=["name", "trainer_item", "status", "current_node", "project_owner", "case_classification", "approved_deadline_days"],
-        )
-    }
+    workflows = {}
+    for row in frappe.get_all(
+        "SRS Workflow Instance",
+        filters={"project": project},
+        fields=["name", "trainer_item", "status", "current_node", "project_owner", "case_classification", "approved_deadline_days"],
+    ):
+        workflows[row.trainer_item] = {**dict(row), "project_owner_full_name": _user_full_name(row.project_owner)}
     deadlines = {
-        row.trainer_item: {**dict(row), "due_at": to_cairo_iso(row.due_at)}
+        row.trainer_item: {**dict(row), "start_at": to_cairo_iso(row.start_at), "due_at": to_cairo_iso(row.due_at), "deadline_status": "ACTIVE", "server_now": server_now_iso()}
         for row in frappe.get_all(
             "BEDO Deadline",
             filters={"project": project, "status": "ACTIVE"},
-            fields=["trainer_item", "node_id", "due_at", "status"],
+            fields=["trainer_item", "node_id", "start_at", "due_at", "status"],
             order_by="due_at asc",
         )
     }
@@ -1034,6 +1129,27 @@ def get_trainer_item_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
             fields=["node_id", "status", "started_at", "completed_at", "deadline_start_at", "deadline_due_at", "deadline_days", "responsible_user"],
             order_by="creation asc",
         )
+    team_members = []
+    approvals = {}
+    if workflow:
+        team_members = [
+            {**dict(row), "full_name": _user_full_name(row.user)}
+            for row in frappe.get_all(
+                "SRS Item Team Member",
+                filters={"workflow_instance": workflow.name},
+                fields=["user", "is_project_owner", "selected_by", "selected_at"],
+                order_by="selected_at asc",
+            )
+        ]
+        approvals = {
+            row.approval_type: dict(row)
+            for row in frappe.get_all(
+                "SRS Approval",
+                filters={"workflow_instance": workflow.name},
+                fields=["name", "approval_type", "status", "required_role", "approved_by", "approved_at", "edited_case_classification", "edited_deadline_proposal_days"],
+            )
+        }
+    display_data = _node_display_data(workflow, team_members, approvals)
     report_to = frappe.get_all("BEDO Trainer Item Report To", filters={"trainer_item": trainer_item}, fields=["user"])
     audit = frappe.get_all(
         "BEDO Security Event",
@@ -1047,11 +1163,13 @@ def get_trainer_item_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
         "project": _safe_project(project),
         "trainer_item": _safe_item(item),
         "workflow": dict(workflow.as_dict()) if workflow else None,
-        "node_states": [_safe_node_state(row) for row in node_states],
+        "node_states": [_safe_node_state(row, display_data.get(row.node_id)) for row in node_states],
         "deadlines": get_deadlines_for_trainer_item(trainer_item),
         "node_availability": _node_availability(actor, workflow) if workflow else [],
         "server_now": server_now_iso(),
         "report_to_users": [row.user for row in report_to],
+        "team_members": team_members,
+        "approvals": list(approvals.values()),
         "audit_events": [dict(row) for row in audit],
         "tabs": tabs,
         "can_edit_before_release": _is_gm(actor) and project.status in {PROJECT_STATUS_DRAFT, PROJECT_STATUS_DETAILS_FINALIZED},
@@ -1082,17 +1200,11 @@ def _node_definition(node_id: str) -> dict[str, Any]:
 
 def _can_user_open_node(actor: str, workflow, node_id: str) -> bool:
     if node_id == SRS_NODE_GATEWAY:
-        return _is_gm(actor) or _is_srs_manager(actor)
-    if node_id == SRS_NODE_COORDINATION:
-        return _is_gm(actor) or _is_srs_manager(actor) or workflow.project_owner == actor
-    if node_id == SRS_NODE_DELIVERABLES:
-        return _is_gm(actor) or _is_srs_manager(actor) or workflow.project_owner == actor
-    if node_id == SRS_NODE_GM_APPROVAL:
-        return _is_gm(actor)
-    if node_id == SRS_NODE_MANAGER_APPROVAL:
         return _is_srs_manager(actor)
+    if node_id == SRS_NODE_COORDINATION:
+        return workflow.project_owner == actor
     if node_id == SRS_NODE_BMDP:
-        return _is_srs_manager(actor) or workflow.project_owner == actor
+        return workflow.project_owner == actor or _is_selected_srs_team_member(workflow, actor)
     return False
 
 
@@ -1152,6 +1264,17 @@ def _authorized_for_workflow_action(actor: str, workflow, *, allow_gm: bool = Tr
     return False
 
 
+def _is_selected_srs_team_member(workflow, actor: str) -> bool:
+    import frappe
+
+    return bool(
+        frappe.db.exists(
+            "SRS Item Team Member",
+            {"workflow_instance": workflow.name, "user": actor},
+        )
+    )
+
+
 def _assert_workflow_action(actor: str, workflow, node_id: str, *, allow_gm: bool = True, allow_manager: bool = True, allow_owner: bool = True) -> None:
     import frappe
 
@@ -1188,7 +1311,7 @@ def assign_srs_project_owner(trainer_item: str, project_owner: str, actor: str) 
 
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
-    _assert_workflow_action(actor, workflow, SRS_NODE_GATEWAY, allow_owner=False)
+    _assert_workflow_action(actor, workflow, SRS_NODE_GATEWAY, allow_gm=False, allow_manager=True, allow_owner=False)
     _assert_transition_prerequisites("assign_owner", workflow, actor)
     if workflow.project_owner:
         frappe.throw("Project Owner has already been assigned.", frappe.PermissionError)
@@ -1261,7 +1384,7 @@ def select_srs_team(trainer_item: str, users: list[str], actor: str) -> dict[str
 
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
-    _assert_workflow_action(actor, workflow, SRS_NODE_COORDINATION)
+    _assert_workflow_action(actor, workflow, SRS_NODE_COORDINATION, allow_gm=False, allow_manager=False, allow_owner=True)
     _assert_transition_prerequisites("select_team", workflow, actor)
     if frappe.db.exists("SRS Item Team Member", {"workflow_instance": workflow.name, "is_project_owner": 0}):
         frappe.throw("SRS team has already been selected.", frappe.PermissionError)
@@ -1287,12 +1410,95 @@ def select_srs_team(trainer_item: str, users: list[str], actor: str) -> dict[str
     return {"success": True, "trainer_item": trainer_item}
 
 
+def submit_mandatory_coordination(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _assert_item_access(actor, trainer_item)
+    workflow = _workflow_for_item(trainer_item)
+    _assert_workflow_action(actor, workflow, SRS_NODE_COORDINATION, allow_gm=False, allow_manager=False, allow_owner=True)
+    _assert_transition_prerequisites("select_team", workflow, actor)
+    if frappe.db.exists("SRS Item Team Member", {"workflow_instance": workflow.name, "is_project_owner": 0}):
+        frappe.throw("SRS team has already been selected.", frappe.PermissionError)
+    if frappe.db.exists("SRS Deliverables Matrix", {"workflow_instance": workflow.name}):
+        frappe.throw("Coordination data has already been submitted.", frappe.PermissionError)
+
+    additional = sorted(set(list(payload.get("users") or [])))
+    if workflow.project_owner in additional:
+        additional = [user for user in additional if user != workflow.project_owner]
+    if not additional:
+        raise ValueError("Select at least one additional SRS team member.")
+    for user in additional:
+        if not assert_user_can_login(user) or not (_roles(user) & SRS_ROLES):
+            raise ValueError("Additional team members must be active SRS users.")
+
+    case_classification = str(payload.get("case_classification") or "").strip()
+    raw_deadline = payload.get("deadline_proposal_days")
+    if isinstance(raw_deadline, float) and not raw_deadline.is_integer():
+        raise ValueError("Deadline proposal must be a whole number.")
+    deadline_days = int(raw_deadline or 0)
+    if case_classification not in CASE_CLASSIFICATIONS:
+        raise ValueError("A valid case classification is required.")
+    if deadline_days < 1:
+        raise ValueError("Deadline proposal must be at least 1 working day.")
+
+    _ensure_item_team_member(workflow, workflow.project_owner, actor, is_project_owner=True)
+    for user in additional:
+        _ensure_item_team_member(workflow, user, actor)
+
+    doc = frappe.get_doc(
+        {
+            "doctype": "SRS Deliverables Matrix",
+            "workflow_instance": workflow.name,
+            "project": workflow.project,
+            "trainer_item": trainer_item,
+            "submitted_by": actor,
+            "submitted_at": datetime.utcnow(),
+            "case_classification": case_classification,
+            "deadline_proposal_days": deadline_days,
+            "status": "SUBMITTED",
+        }
+    )
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+
+    complete_deadlines(trainer_item, SRS_NODE_COORDINATION)
+    workflow.case_classification = case_classification
+    workflow.deadline_proposal_days = deadline_days
+    workflow.status = STATE_WAITING_GM if case_classification in GM_APPROVAL_CASES else STATE_WAITING_MANAGER
+    workflow.current_node = SRS_NODE_GM_APPROVAL if case_classification in GM_APPROVAL_CASES else SRS_NODE_MANAGER_APPROVAL
+    workflow.updated_at = datetime.utcnow()
+    workflow.flags.ignore_permissions = True
+    workflow.save(ignore_permissions=True)
+
+    _set_node_state(workflow, SRS_NODE_COORDINATION, NODE_STATUS_COMPLETED, actor=actor, responsible_user=workflow.project_owner)
+    _set_node_state(workflow, SRS_NODE_DELIVERABLES, NODE_STATUS_COMPLETED, actor=actor, responsible_user=workflow.project_owner)
+    _set_case_path_states(workflow, case_classification, actor, NODE_STATUS_IN_PROGRESS)
+    next_node = SRS_NODE_GM_APPROVAL if case_classification in GM_APPROVAL_CASES else SRS_NODE_MANAGER_APPROVAL
+    _set_node_state(workflow, next_node, NODE_STATUS_WAITING_APPROVAL, actor=actor)
+    _create_approval(workflow, "GM_CASE_APPROVAL" if case_classification in GM_APPROVAL_CASES else "SRS_MANAGER_DEADLINE_APPROVAL", actor)
+    frappe.db.set_value("BEDO Trainer Item", trainer_item, "current_node", next_node)
+    recipients = _active_users_with_role("General Manager" if case_classification in GM_APPROVAL_CASES else "SRS Manager")
+    notify_many(
+        recipients,
+        title="SRS approval required",
+        message=f"{case_classification} requires approval.",
+        notification_type="APPROVAL_REQUIRED",
+        project=workflow.project,
+        trainer_item=trainer_item,
+        node_id=next_node,
+        action_url="/approvals",
+        priority="High",
+    )
+    _log("srs_coordination_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_COORDINATION)
+    return {"success": True, "trainer_item": trainer_item}
+
+
 def submit_srs_deliverables_matrix(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
     import frappe
 
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
-    _assert_workflow_action(actor, workflow, SRS_NODE_DELIVERABLES)
+    _assert_workflow_action(actor, workflow, SRS_NODE_DELIVERABLES, allow_gm=False, allow_manager=False, allow_owner=True)
     _assert_transition_prerequisites("submit_deliverables", workflow, actor)
     if frappe.db.exists("SRS Deliverables Matrix", {"workflow_instance": workflow.name}):
         frappe.throw("Deliverables Matrix has already been submitted.", frappe.PermissionError)
@@ -1492,8 +1698,8 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
 
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
-    if not (_is_srs_manager(actor) or workflow.project_owner == actor):
-        frappe.throw("Only the Project Owner or SRS Manager can submit the BMDP path.", frappe.PermissionError)
+    if not (workflow.project_owner == actor or _is_selected_srs_team_member(workflow, actor)):
+        frappe.throw("Only the Project Owner or a selected SRS team member can submit the BMDP path.", frappe.PermissionError)
     _assert_transition_prerequisites("submit_bmdp", workflow, actor)
     if workflow.bmdp_path:
         frappe.throw("BMDP path has already been submitted.", frappe.PermissionError)
@@ -1516,6 +1722,7 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
     doc.insert(ignore_permissions=True)
     complete_deadlines(trainer_item, SRS_NODE_ACTION_PATHS)
     _set_node_state(workflow, SRS_NODE_ACTION_PATHS, NODE_STATUS_COMPLETED, actor=actor, responsible_user=workflow.project_owner)
+    _set_case_path_states(workflow, workflow.case_classification, actor, NODE_STATUS_COMPLETED)
     _set_node_state(workflow, SRS_NODE_BMDP, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
     workflow.bmdp_path = path
     workflow.status = STATE_COMPLETE
@@ -1528,9 +1735,9 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
     report_to = frappe.get_all("BEDO Trainer Item Report To", filters={"trainer_item": trainer_item}, pluck="user")
     notify_many(
         report_to,
-        title="SRS workflow completed",
+        title="BMDP submitted",
         message="BMDP path has been submitted. SRS Complete.",
-        notification_type="SRS_WORKFLOW_COMPLETED",
+        notification_type="BMDP_SUBMITTED",
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=SRS_NODE_BMDP,
@@ -1539,6 +1746,105 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
     )
     _log("srs_bmdp_path_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_BMDP)
     return {"success": True, "trainer_item": trainer_item}
+
+
+def _approval_roles_for_actor(actor: str) -> set[str]:
+    roles = set()
+    if _is_gm(actor):
+        roles.add("General Manager")
+    if _is_srs_manager(actor):
+        roles.add("SRS Manager")
+    return roles
+
+
+def _approval_display_row(row) -> dict[str, Any]:
+    import frappe
+
+    project = frappe.db.get_value("BEDO Project", row.project, ["project_code", "project_name", "end_user", "po_deadline_date"], as_dict=True) or {}
+    item = frappe.db.get_value("BEDO Trainer Item", row.trainer_item, ["trainer_item_name"], as_dict=True) or {}
+    workflow = frappe.db.get_value(
+        "SRS Workflow Instance",
+        row.workflow_instance,
+        ["current_node", "project_owner", "case_classification", "deadline_proposal_days", "approved_deadline_days"],
+        as_dict=True,
+    ) or {}
+    submitted = frappe.db.get_value("SRS Deliverables Matrix", {"workflow_instance": row.workflow_instance}, ["submitted_by", "submitted_at"], as_dict=True) or {}
+    return {
+        "name": row.name,
+        "approval_type": row.approval_type,
+        "approval_label": "GM Case Approval" if row.approval_type == "GM_CASE_APPROVAL" else "SRS Manager Deadline Approval",
+        "status": row.status,
+        "required_role": row.required_role,
+        "project": row.project,
+        "project_code": project.get("project_code") or "",
+        "project_name": project.get("project_name") or "",
+        "end_user": project.get("end_user") or "",
+        "po_deadline_date": str(project.get("po_deadline_date") or ""),
+        "trainer_item": row.trainer_item,
+        "trainer_item_name": item.get("trainer_item_name") or "",
+        "submitted_by": submitted.get("submitted_by") or "",
+        "submitted_by_name": _user_full_name(submitted.get("submitted_by")),
+        "submitted_at": to_cairo_iso(submitted.get("submitted_at")),
+        "srs_manager_name": ", ".join(_user_full_name(user) for user in _active_users_with_role("SRS Manager")),
+        "project_owner": workflow.get("project_owner") or "",
+        "project_owner_name": _user_full_name(workflow.get("project_owner")),
+        "current_node": workflow.get("current_node") or "",
+        "case_classification": row.edited_case_classification or workflow.get("case_classification") or row.original_case_classification or "",
+        "deadline_proposal_days": row.edited_deadline_proposal_days or workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days") or row.original_deadline_proposal_days or 0,
+        "priority": "High" if row.approval_type == "GM_CASE_APPROVAL" else "Normal",
+        "created_at": to_cairo_iso(row.creation),
+    }
+
+
+def list_my_pending_approvals(actor: str, status: str = "WAITING") -> dict[str, Any]:
+    import frappe
+
+    roles = _approval_roles_for_actor(actor)
+    if not roles:
+        return {"approvals": [], "count": 0}
+    filters: dict[str, Any] = {"required_role": ["in", sorted(roles)]}
+    if status:
+        filters["status"] = status
+    rows = frappe.get_all(
+        "SRS Approval",
+        filters=filters,
+        fields=["name", "workflow_instance", "project", "trainer_item", "approval_type", "status", "required_role", "original_case_classification", "edited_case_classification", "original_deadline_proposal_days", "edited_deadline_proposal_days", "creation"],
+        order_by="creation desc",
+        page_length=100,
+    )
+    approvals = [_approval_display_row(row) for row in rows if can_view_trainer_item(actor, row.trainer_item)]
+    return {"approvals": approvals, "count": len(approvals)}
+
+
+def get_pending_approval_count(actor: str) -> dict[str, int]:
+    return {"count": int(list_my_pending_approvals(actor).get("count") or 0)}
+
+
+def get_approval_detail(approval: str, actor: str) -> dict[str, Any]:
+    import frappe
+
+    if not frappe.db.exists("SRS Approval", approval):
+        frappe.throw("Approval not found.", frappe.DoesNotExistError)
+    doc = frappe.get_doc("SRS Approval", approval)
+    if doc.required_role not in _approval_roles_for_actor(actor) or not can_view_trainer_item(actor, doc.trainer_item):
+        frappe.throw("You do not have access to this approval.", frappe.PermissionError)
+    return {"approval": _approval_display_row(doc)}
+
+
+def approve_srs_approval(approval: str, actor: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    import frappe
+
+    detail = get_approval_detail(approval, actor)["approval"]
+    if detail["status"] != "WAITING":
+        frappe.throw("Approval has already been completed.", frappe.PermissionError)
+    payload = payload or {}
+    if detail["approval_type"] == "GM_CASE_APPROVAL":
+        return approve_srs_case_as_gm(detail["trainer_item"], payload, actor)
+    return approve_srs_deadline_as_srs_manager(detail["trainer_item"], payload, actor)
+
+
+def approve_srs_approval_with_edits(approval: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    return approve_srs_approval(approval, actor, payload)
 
 
 def get_srs_trainer_item_audit_trail(trainer_item: str, actor: str) -> dict[str, Any]:

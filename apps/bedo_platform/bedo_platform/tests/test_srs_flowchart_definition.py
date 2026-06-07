@@ -39,13 +39,30 @@ def test_display_only_srs_nodes_are_not_clickable():
 
     for node_id in [
         SRS_NODE_PRODUCT_DIGITAL_RELEASE,
+        SRS_NODE_DELIVERABLES,
         SRS_NODE_CASES_1_2,
         SRS_NODE_CASES_3_4,
+        SRS_NODE_GM_APPROVAL,
+        SRS_NODE_MANAGER_APPROVAL,
         SRS_NODE_DEADLINE_LOCKED,
         SRS_NODE_ACTION_PATHS,
+        SRS_NODE_CASE_1,
+        SRS_NODE_CASE_2,
+        SRS_NODE_CASE_3,
+        SRS_NODE_CASE_4,
     ]:
-        assert nodes[node_id]["kind"] == "display"
+        assert nodes[node_id]["kind"] in {"display", "approval"}
         assert nodes[node_id]["clickable"] is False
+
+
+def test_srs_flowchart_clickable_nodes_match_permission_matrix():
+    definition = get_srs_flowchart_definition()
+    nodes = {node["id"]: node for node in definition["nodes"]}
+
+    assert nodes[SRS_NODE_GATEWAY]["clickable"] is True
+    assert nodes[SRS_NODE_GATEWAY]["requiredRoles"] == ["SRS Manager"]
+    assert nodes[SRS_NODE_COORDINATION]["clickable"] is True
+    assert nodes[SRS_NODE_BMDP]["clickable"] is True
 
 
 def test_srs_flowchart_has_lanes_deadline_columns_and_edges():

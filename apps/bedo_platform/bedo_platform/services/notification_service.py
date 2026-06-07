@@ -5,6 +5,27 @@ from datetime import datetime
 from typing import Any
 
 
+NOTIFICATION_TYPE_LABELS = {
+    "PROJECT_RELEASED_TO_SRS": "New trainer released to SRS",
+    "PROJECT_OWNER_ASSIGNED": "Project owner assigned",
+    "DEADLINE_STARTING": "Deadline starting",
+    "DEADLINE_REMINDER": "Deadline due soon",
+    "DEADLINE_OVERDUE": "Deadline overdue",
+    "APPROVAL_REQUIRED": "Approval required",
+    "GM_APPROVAL_REQUIRED": "Approval required",
+    "SRS_MANAGER_APPROVAL_REQUIRED": "Approval required",
+    "GM_APPROVAL_COMPLETED": "Approval completed",
+    "SRS_MANAGER_APPROVAL_COMPLETED": "Approval completed",
+    "BMDP_SUBMITTED": "BMDP submitted",
+    "SRS_WORKFLOW_COMPLETED": "SRS complete",
+    "DEADLINE_LOCKED": "Deadline starting",
+}
+
+
+def _notification_label(notification_type: str) -> str:
+    return NOTIFICATION_TYPE_LABELS.get(notification_type, notification_type.replace("_", " ").title())
+
+
 def create_notification(
     *,
     recipient_user: str,
@@ -60,7 +81,20 @@ def list_my_notifications(user: str, limit: int = 25) -> dict[str, Any]:
         page_length=min(max(int(limit or 25), 1), 100),
     )
     unread = frappe.db.count("BEDO Notification", {"recipient_user": user, "is_read": 0})
-    return {"notifications": rows, "unread": unread}
+    safe_rows = []
+    for row in rows:
+        project = frappe.db.get_value("BEDO Project", row.project, ["project_code", "project_name"], as_dict=True) if row.project else {}
+        trainer = frappe.db.get_value("BEDO Trainer Item", row.trainer_item, ["trainer_item_name"], as_dict=True) if row.trainer_item else {}
+        safe_rows.append(
+            {
+                **dict(row),
+                "type_label": _notification_label(row.notification_type),
+                "project_code": (project or {}).get("project_code") or "",
+                "project_name": (project or {}).get("project_name") or "",
+                "trainer_item_name": (trainer or {}).get("trainer_item_name") or "",
+            }
+        )
+    return {"notifications": safe_rows, "unread": unread}
 
 
 def mark_notification_read(user: str, notification: str) -> dict[str, bool]:
