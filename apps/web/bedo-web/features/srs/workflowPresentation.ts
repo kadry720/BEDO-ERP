@@ -11,8 +11,8 @@ export type StatusTone = "complete" | "in-progress" | "pending" | "awaiting-appr
 
 export const FLOWCHART_DIMENSIONS = {
   laneLabelWidth: 200,
-  canvasWidth: 1300,
-  canvasHeight: 840,
+  canvasWidth: 1500,
+  canvasHeight: 990,
   deadlineHeaderHeight: 56,
 };
 
@@ -65,21 +65,21 @@ export function nodeStatusClass(status?: string | null, canOpen = false) {
 }
 
 export const NODE_POSITIONS: Record<string, { x: number; y: number; w: number; h: number }> = {
-  PRODUCT_DIGITAL_RELEASE: { x: 40, y: 58, w: 200, h: 76 },
-  SRS_GATEWAY: { x: 40, y: 250, w: 200, h: 80 },
-  MANDATORY_COORDINATION_MEETING: { x: 320, y: 248, w: 210, h: 84 },
-  DELIVERABLES_MATRIX: { x: 570, y: 240, w: 230, h: 100 },
-  CASES_1_2: { x: 320, y: 470, w: 180, h: 70 },
-  CASES_3_4: { x: 320, y: 580, w: 180, h: 70 },
-  GM_APPROVAL: { x: 570, y: 580, w: 190, h: 80 },
-  GATE_1_SRS_MANAGER_APPROVAL: { x: 820, y: 410, w: 230, h: 88 },
-  DEADLINE_LOCKED_IN_ERP: { x: 820, y: 560, w: 210, h: 76 },
-  ACTION_PATHS: { x: 1090, y: 410, w: 170, h: 66 },
-  CASE_1: { x: 1090, y: 520, w: 170, h: 64 },
-  CASE_2: { x: 1090, y: 600, w: 170, h: 64 },
-  CASE_3: { x: 1090, y: 680, w: 170, h: 64 },
-  CASE_4: { x: 1090, y: 760, w: 170, h: 64 },
-  BMDP: { x: 1090, y: 250, w: 170, h: 90 },
+  PRODUCT_DIGITAL_RELEASE: { x: 40, y: 58, w: 220, h: 86 },
+  SRS_GATEWAY: { x: 40, y: 230, w: 255, h: 106 },
+  MANDATORY_COORDINATION_MEETING: { x: 360, y: 226, w: 260, h: 112 },
+  DELIVERABLES_MATRIX: { x: 680, y: 220, w: 270, h: 120 },
+  CASES_1_2: { x: 420, y: 448, w: 220, h: 86 },
+  CASES_3_4: { x: 420, y: 590, w: 220, h: 86 },
+  GM_APPROVAL: { x: 700, y: 588, w: 220, h: 94 },
+  GATE_1_SRS_MANAGER_APPROVAL: { x: 980, y: 448, w: 280, h: 108 },
+  DEADLINE_LOCKED_IN_ERP: { x: 980, y: 590, w: 245, h: 92 },
+  ACTION_PATHS: { x: 1250, y: 540, w: 210, h: 84 },
+  CASE_1: { x: 670, y: 742, w: 180, h: 90 },
+  CASE_2: { x: 870, y: 742, w: 180, h: 90 },
+  CASE_3: { x: 1070, y: 742, w: 190, h: 90 },
+  CASE_4: { x: 1280, y: 742, w: 190, h: 90 },
+  BMDP: { x: 930, y: 850, w: 300, h: 118 },
 };
 
 export const NODE_LABELS: Record<string, string> = {
@@ -103,13 +103,13 @@ export const NODE_LABELS: Record<string, string> = {
 export const LANE_BANDS = [
   { id: "operations", label: "Operations", y: 0, h: 180 },
   { id: "srs_entry", label: "SRS Entry & Assignment", y: 180, h: 200 },
-  { id: "study_phase", label: "Multidisciplinary Study Phase", y: 380, h: 460 },
+  { id: "study_phase", label: "Multidisciplinary Study Phase", y: 380, h: 610 },
 ];
 
 export const DEADLINE_BANDS = [
   { id: "deadline_1", label: "Deadline 1", detail: "1 Day", x: 0, w: 280 },
   { id: "deadline_2", label: "Deadline 2", detail: "2 Days", x: 280, w: 510 },
-  { id: "deadline_3", label: "Deadline 3", detail: "Depending on SRS Manager Approval", x: 790, w: 510 },
+  { id: "deadline_3", label: "Deadline 3", detail: "Depending on SRS Manager Approval", x: 790, w: 710 },
 ];
 
 export const CONNECTOR_ROUTES: Record<string, ConnectorRoute> = {
@@ -124,13 +124,13 @@ export const CONNECTOR_ROUTES: Record<string, ConnectorRoute> = {
   "GATE_1_SRS_MANAGER_APPROVAL->DEADLINE_LOCKED_IN_ERP": { fromSide: "bottom", toSide: "top" },
   "DEADLINE_LOCKED_IN_ERP->ACTION_PATHS": { fromSide: "right", toSide: "left" },
   "ACTION_PATHS->CASE_1": { fromSide: "bottom", toSide: "top" },
-  "ACTION_PATHS->CASE_2": { fromSide: "bottom", toSide: "left" },
-  "ACTION_PATHS->CASE_3": { fromSide: "bottom", toSide: "left" },
-  "ACTION_PATHS->CASE_4": { fromSide: "bottom", toSide: "left" },
-  "CASE_1->BMDP": { fromSide: "top", toSide: "bottom" },
-  "CASE_2->BMDP": { fromSide: "right", toSide: "bottom" },
-  "CASE_3->BMDP": { fromSide: "right", toSide: "bottom" },
-  "CASE_4->BMDP": { fromSide: "right", toSide: "bottom" },
+  "ACTION_PATHS->CASE_2": { fromSide: "bottom", toSide: "top" },
+  "ACTION_PATHS->CASE_3": { fromSide: "bottom", toSide: "top" },
+  "ACTION_PATHS->CASE_4": { fromSide: "bottom", toSide: "top" },
+  "CASE_1->BMDP": { fromSide: "bottom", toSide: "top" },
+  "CASE_2->BMDP": { fromSide: "bottom", toSide: "top" },
+  "CASE_3->BMDP": { fromSide: "bottom", toSide: "top" },
+  "CASE_4->BMDP": { fromSide: "bottom", toSide: "top" },
 };
 
 export function nodePosition(node: SrsNodeDefinition) {

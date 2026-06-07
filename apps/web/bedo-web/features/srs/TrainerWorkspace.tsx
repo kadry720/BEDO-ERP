@@ -523,6 +523,16 @@ const NODE_ICONS: Record<string, FlowIcon> = {
   BMDP: Cpu,
 };
 
+const NODE_SUBTITLES: Record<string, string> = {
+  SRS_GATEWAY: "SRS Director Breakdown / PO & Assign Project Owner via ERP",
+  DELIVERABLES_MATRIX: "Case classification + deadline proposal",
+  CASE_1: "Legacy Validation / Audit Archive",
+  CASE_2: "Standard Innovation",
+  CASE_3: "Experimental Prototyping",
+  CASE_4: "Vanguard Manufacturing",
+  BMDP: "SRS Complete",
+};
+
 function edgePath(fromId: string, toId: string) {
   const route = CONNECTOR_ROUTES[`${fromId}->${toId}`] || { fromSide: "right" as const, toSide: "left" as const };
   const start = anchorPoint(fromId, route.fromSide);
@@ -562,19 +572,17 @@ function FlowNode({
   const style = TONE_STYLES[tone];
   const StatusIcon = STATUS_ICONS[tone];
   const NodeIcon = NODE_ICONS[node.id] || Route;
+  const subtitle = NODE_SUBTITLES[node.id];
   const content = (
     <>
       <span className="absolute bottom-2 left-0 top-2 w-1 rounded-full" style={{ backgroundColor: style.accent }} />
       <div className="flex items-start gap-2 pl-1.5">
         <NodeIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: style.accent }} />
         <div className="min-w-0">
-          <div className="text-[12.5px] font-semibold leading-tight" style={{ color: style.title }}>{node.label}</div>
-          {node.isTerminal && <div className="mt-0.5 text-[10.5px] font-medium leading-tight text-slate-500">SRS Complete</div>}
-          {node.id === "DELIVERABLES_MATRIX" && <div className="mt-0.5 text-[10.5px] leading-tight text-slate-500">Case classification + deadline proposal</div>}
-          {node.id === "CASE_1" && <div className="mt-0.5 text-[10.5px] leading-tight text-slate-500">Legacy Validation</div>}
-          {node.id === "CASE_2" && <div className="mt-0.5 text-[10.5px] leading-tight text-slate-500">Standard Innovation</div>}
-          {node.id === "CASE_3" && <div className="mt-0.5 text-[10.5px] leading-tight text-slate-500">Experimental Prototyping</div>}
-          {node.id === "CASE_4" && <div className="mt-0.5 text-[10.5px] leading-tight text-slate-500">Vanguard Manufacturing</div>}
+          <div className="whitespace-normal break-words text-[12.5px] font-semibold leading-snug" style={{ color: style.title }}>
+            {node.label}
+          </div>
+          {subtitle && <div className="mt-0.5 whitespace-normal break-words text-[10.5px] leading-snug text-slate-500">{subtitle}</div>}
         </div>
       </div>
       <div className="mt-1.5 pl-1.5">
@@ -584,7 +592,7 @@ function FlowNode({
         </span>
       </div>
       {!canOpen && availability?.disabledReason && node.clickable && (
-        <div className="mt-1.5 pl-1.5 text-[11px] font-medium leading-tight text-slate-500">{availability.disabledReason}</div>
+        <div className="mt-1.5 whitespace-normal break-words pl-1.5 text-[11px] font-medium leading-tight text-slate-500">{availability.disabledReason}</div>
       )}
     </>
   );
