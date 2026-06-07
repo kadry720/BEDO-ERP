@@ -7,6 +7,8 @@ from bedo_platform.services.user_management_service import (
     create_user_from_admin as create_user,
     disable_user as disable_existing_user,
     list_users_for_admin as list_users,
+    soft_delete_user,
+    update_user_from_admin,
     update_user_roles as update_roles,
 )
 
@@ -37,6 +39,18 @@ def update_user_roles(user: str, roles, primary_department: str = ""):
     if isinstance(roles, str):
         roles = frappe.parse_json(roles)
     return update_roles(user, roles, primary_department)
+
+
+@frappe.whitelist()
+def update_user(user: str, payload):
+    if isinstance(payload, str):
+        payload = frappe.parse_json(payload)
+    return update_user_from_admin(user, payload)
+
+
+@frappe.whitelist()
+def delete_user(user: str):
+    return soft_delete_user(user)
 
 
 @frappe.whitelist()

@@ -24,35 +24,35 @@ DEPARTMENTS = [
         "key": "ARD",
         "name": "Applied R&D Department",
         "pillar_number": 3,
-        "dashboard_route": "/ard",
+        "dashboard_route": "",
         "is_global_access_department": 0,
     },
     {
         "key": "COMMAND_CENTER",
         "name": "Command Center",
         "pillar_number": 4,
-        "dashboard_route": "/command-center",
+        "dashboard_route": "",
         "is_global_access_department": 0,
     },
     {
         "key": "PRODUCTION",
         "name": "Production",
         "pillar_number": 5,
-        "dashboard_route": "/production",
+        "dashboard_route": "",
         "is_global_access_department": 0,
     },
     {
         "key": "QC",
         "name": "Quality Control & Validation",
         "pillar_number": 6,
-        "dashboard_route": "/qc",
+        "dashboard_route": "",
         "is_global_access_department": 0,
     },
     {
         "key": "OPERATIONS",
         "name": "Operations",
         "pillar_number": 7,
-        "dashboard_route": "/operations",
+        "dashboard_route": "",
         "is_global_access_department": 0,
     },
     {
@@ -78,6 +78,9 @@ DEPARTMENTS = [
     },
 ]
 
+VISIBLE_DEPARTMENT_KEYS = {"GM_SUPPORT", "SRS"}
+VISIBLE_DEPARTMENTS = [department for department in DEPARTMENTS if department["key"] in VISIBLE_DEPARTMENT_KEYS]
+
 DEPARTMENT_BY_KEY = {department["key"]: department for department in DEPARTMENTS}
 DEPARTMENT_ROUTE_BY_KEY = {
     department["key"]: department["dashboard_route"]
@@ -92,7 +95,7 @@ DASHBOARDS = [
         "module": "GM Support",
         "route": "/gm",
         "department_key": "GM_SUPPORT",
-        "content": "GM Support Office Dashboard - placeholder",
+        "content": "GM Support Office Dashboard",
     },
     {
         "page_name": "srs-dashboard",
@@ -100,79 +103,7 @@ DASHBOARDS = [
         "module": "SRS",
         "route": "/srs",
         "department_key": "SRS",
-        "content": "SRS Dashboard - placeholder",
-    },
-    {
-        "page_name": "ard-dashboard",
-        "title": "ARD Main Dashboard",
-        "module": "ARD",
-        "route": "/ard",
-        "department_key": "ARD",
-        "content": "ARD Main Dashboard - placeholder",
-    },
-    {
-        "page_name": "ard-blueprint-dashboard",
-        "title": "ARD Blueprint Dashboard",
-        "module": "ARD",
-        "route": "/ard/blueprint",
-        "department_key": "ARD",
-        "content": "ARD Blueprint Phase Dashboard - placeholder",
-    },
-    {
-        "page_name": "ard-validation-dashboard",
-        "title": "ARD Validation Dashboard",
-        "module": "ARD",
-        "route": "/ard/validation",
-        "department_key": "ARD",
-        "content": "ARD Validation / Digital Breath Dashboard - placeholder",
-    },
-    {
-        "page_name": "ard-scmdp-dashboard",
-        "title": "ARD SCMDP Dashboard",
-        "module": "ARD",
-        "route": "/ard/scmdp",
-        "department_key": "ARD",
-        "content": "ARD SCMDP Dashboard - placeholder",
-    },
-    {
-        "page_name": "ard-coordination-dashboard",
-        "title": "ARD Coordination Dashboard",
-        "module": "ARD",
-        "route": "/ard/coordination",
-        "department_key": "ARD",
-        "content": "ARD Coordination Dashboard - placeholder",
-    },
-    {
-        "page_name": "command-center-dashboard",
-        "title": "Command Center Dashboard",
-        "module": "Command Center",
-        "route": "/command-center",
-        "department_key": "COMMAND_CENTER",
-        "content": "Command Center Dashboard - placeholder",
-    },
-    {
-        "page_name": "production-dashboard",
-        "title": "Production Dashboard",
-        "module": "Production",
-        "route": "/production",
-        "department_key": "PRODUCTION",
-        "content": "Production Dashboard - placeholder",
-    },
-    {
-        "page_name": "qc-dashboard",
-        "title": "QC Dashboard",
-        "module": "QC",
-        "route": "/qc",
-        "department_key": "QC",
-        "content": "QC Dashboard - placeholder",
-    },
-    {
-        "page_name": "operations-dashboard",
-        "title": "Operations Dashboard",
-        "module": "Operations",
-        "route": "/operations",
-        "department_key": "OPERATIONS",
-        "content": "Operations Dashboard - placeholder",
+        "content": "SRS Dashboard",
     },
     {
         "page_name": "bedo-admin-users",
@@ -200,144 +131,35 @@ BASE_PLATFORM_ROLES = [
     "BEDO Global Viewer",
 ]
 
+VISIBLE_BUSINESS_ROLES = [
+    "General Manager",
+    "SRS Manager",
+    "SRS Section Head",
+    "SRS Team Leader",
+    "SRS Engineer",
+]
+
 DEPARTMENT_ROLES = {
-    "GM_SUPPORT": [
-        "General Manager",
-        "GM Support Office User",
-        "GM Support Office Specialist",
-        "GM Support Office Consultant",
-    ],
+    "GM_SUPPORT": ["General Manager"],
     "SRS": [
-        "SRS User",
         "SRS Manager",
-        "SRS Deputy",
         "SRS Section Head",
         "SRS Team Leader",
-        "SRS Senior Engineer",
-        "SRS Research Fellow",
-        "SRS External Consultant",
-        "SRS Assistant",
-    ],
-    "ARD": [
-        "ARD User",
-        "ARD Manager",
-        "ARD Deputy",
-        "ARD Project Owner",
-        "ARD Team Leader",
-        "ARD Senior Engineer",
-        "ARD Engineer",
-        "ARD Software Engineer",
-        "ARD AI and IoT Engineer",
-        "ARD Electronics Engineer",
-        "ARD Control Engineer",
-        "ARD Electrical Power Engineer",
-        "ARD Mechatronics Engineer",
-        "ARD Mechanical Design Engineer",
-        "ARD Mechanical Engineer",
-        "ARD Documentation Specialist",
-        "ARD Graphics and Art Specialist",
-    ],
-    "COMMAND_CENTER": [
-        "Command Center User",
-        "Command Center Manager",
-        "Command Center Deputy",
-        "Command Center Team Leader",
-        "Command Center Senior Specialist",
-        "Command Center Assistant",
-        "Procurement and Sourcing Specialist",
-        "Master Planning Specialist",
-        "Kitting and Staging Specialist",
-        "Inventory and ERP Control Specialist",
-        "Technical Archiving and Support Specialist",
-        "HSE and Safety Specialist",
-        "Global Logistics and Export Specialist",
-        "Knowledge Vault Archivist",
-    ],
-    "PRODUCTION": [
-        "Production User",
-        "Production Manager",
-        "Production Deputy",
-        "Production Vice Manager",
-        "Production Admin Assistant",
-        "Production Engineer",
-        "Senior Production Engineer Metal",
-        "Senior Production Engineer Assembly",
-        "Senior Production Engineer Electronics",
-        "Hall Supervisor",
-        "Quality Supervisor",
-        "Metal Fabrication Supervisor",
-        "Metal Fabrication Quality Supervisor",
-        "Mechanical Installation Supervisor",
-        "Mechanical Assembly Supervisor",
-        "Electrical Installation Supervisor",
-        "Electronics Installation Supervisor",
-        "Senior CNC and Laser Technician",
-        "Senior Welding Technician",
-        "Senior Painting Technician",
-        "CNC Hall Specialist",
-        "Assembly Unit Supervisor",
-        "Senior Mechanical Assembly Technician",
-        "Senior Electrical Technician",
-        "Senior Electronics Technician",
-        "Mechanical Installation Technician",
-        "Mechanical and Electrical Assembly Technician",
-        "Electronics and Soldering Lab Technician",
-        "ERP Material Controller",
-        "Kitting and Supply Technician",
-    ],
-    "QC": [
-        "QC User",
-        "QC Sector Manager",
-        "Assistant QC Manager",
-        "Product Line QC Leader",
-        "Senior QC and Validation Engineer",
-        "Aesthetic and UX Branding Auditor",
-        "Remote Support Specialist",
-    ],
-    "OPERATIONS": [
-        "Operations User",
-        "Operations Manager",
-        "Operations Deputy",
-        "Project Coordinator",
-        "Field Team Leader",
-        "Technical Support Team Member",
-        "Technical Support Specialist",
-    ],
-    "PURCHASING": [
-        "Purchasing User",
-        "Purchasing Manager",
-        "Purchasing Specialist",
-        "Supplier Relations Specialist",
-    ],
-    "HR": [
-        "HR User",
-        "HR Manager",
-        "HR Specialist",
-        "KPI Administrator",
-    ],
-    "IT_ADMINISTRATION": [
-        "IT User",
-        "IT Administrator",
-        "LDAP Administrator",
+        "SRS Engineer",
     ],
 }
 
-ARD_TEAM_OPTIONS = [
-    "Software Engineering Team",
-    "AI & IoT Integration Team",
-    "Electronics Engineering Team",
-    "Control Engineering Team",
-    "Electrical Power Team",
-    "Mechatronics Team",
-    "Mechanical Design Team",
-    "Mechanical Engineering Team",
-    "Documentation Team",
-    "Graphics and Art Team",
+SRS_SECTION_OPTIONS = [
+    "Electronics",
+    "Electrical",
+    "Control",
+    "Mechatronics",
+    "Mechanical",
+    "Mechanical Design",
 ]
 
 GLOBAL_VIEW_ROLES = {
     "General Manager",
-    "GM Support Office User",
     "BEDO Global Viewer",
 }
 ADMIN_ACCESS_ROLES = {
@@ -349,10 +171,14 @@ FRAPPE_DESK_TECHNICAL_ROLES = {
 }
 SECURITY_AUDIT_ROLES = {
     "General Manager",
-    "GM Support Office User",
+    "BEDO User Administrator",
     "BEDO Security Auditor",
     "BEDO System Administrator",
 }
+
+SRS_ROLES = {"SRS Manager", "SRS Section Head", "SRS Team Leader", "SRS Engineer"}
+SRS_PROJECT_OWNER_ELIGIBLE_ROLES = SRS_ROLES | {"General Manager"}
+SRS_TEAM_MEMBER_ELIGIBLE_ROLES = SRS_ROLES
 
 
 def _role_key(role_name: str) -> str:
@@ -368,7 +194,7 @@ ROLE_CATALOG = [
         "role_category": "Platform",
         "is_managerial": int("Administrator" in role_name or "Global Viewer" in role_name),
         "is_active": 1,
-        "description": "BEDO platform role.",
+        "description": "Internal BEDO platform role.",
     }
     for role_name in BASE_PLATFORM_ROLES
 ]
@@ -383,18 +209,7 @@ for department_key, role_names in DEPARTMENT_ROLES.items():
                 "department_key": department_key,
                 "role_category": "Department",
                 "is_managerial": int(
-                    any(
-                        token in role_name
-                        for token in [
-                            "Manager",
-                            "Deputy",
-                            "General Manager",
-                            "Section Head",
-                            "Team Leader",
-                            "Supervisor",
-                            "Vice Manager",
-                        ]
-                    )
+                    role_name in {"General Manager", "SRS Manager", "SRS Section Head", "SRS Team Leader"}
                 ),
                 "is_active": 1,
                 "description": f"{DEPARTMENT_BY_KEY[department_key]['name']} role.",
@@ -402,37 +217,168 @@ for department_key, role_names in DEPARTMENT_ROLES.items():
         )
 
 ALL_ROLE_NAMES = [role["role_name"] for role in ROLE_CATALOG]
+VISIBLE_BUSINESS_ROLE_NAMES = list(VISIBLE_BUSINESS_ROLES)
 ROLE_DEPARTMENT_KEY = {
     role["role_name"]: role["department_key"]
     for role in ROLE_CATALOG
     if role["department_key"]
 }
 
+DEV_SEED_PASSWORD = "123456"
+
+
+def _user(
+    username: str,
+    first_name: str,
+    last_name: str,
+    department: str,
+    roles: list[str],
+    phone_index: int,
+    *,
+    internal_roles: list[str] | None = None,
+    force_active: bool = False,
+) -> dict[str, object]:
+    return {
+        "username": username,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": f"{username}@bedo.local",
+        "phone_number": f"+2000000{phone_index:04d}",
+        "primary_department": department,
+        "roles": ["BEDO Employee", *(internal_roles or []), *roles],
+        "password": DEV_SEED_PASSWORD,
+        "force_active": force_active,
+    }
+
+
 INITIAL_USERS = [
-    {
-        "username": "gm",
-        "first_name": "General",
-        "last_name": "Manager",
-        "email": "gm@bedo.local",
-        "phone_number": "+0000000000",
-        "primary_department": "GM_SUPPORT",
-        "roles": [
-            "BEDO Employee",
-            "General Manager",
-            "GM Support Office User",
-            "BEDO Global Viewer",
-            "BEDO User Administrator",
-        ],
-        "password_env": "BEDO_SEED_GM_PASSWORD",
-    },
-    {
-        "username": "ard.manager",
-        "first_name": "ARD",
-        "last_name": "Manager",
-        "email": "ard.manager@bedo.local",
-        "phone_number": "+0000000001",
-        "primary_department": "ARD",
-        "roles": ["BEDO Employee", "ARD User", "ARD Manager"],
-        "password_env": "BEDO_SEED_ARD_MANAGER_PASSWORD",
-    },
+    _user(
+        "gm",
+        "General",
+        "Manager",
+        "GM_SUPPORT",
+        ["General Manager"],
+        1,
+        internal_roles=["BEDO User Administrator", "BEDO Security Auditor", "BEDO Global Viewer"],
+        force_active=True,
+    ),
+    _user("systemadmin", "System", "Admin", "", [], 2, internal_roles=["BEDO System Administrator", "BEDO User Administrator", "BEDO Security Auditor"]),
+    _user("useradmin", "User", "Admin", "", [], 3, internal_roles=["BEDO User Administrator"]),
+    _user("securityauditor", "Security", "Auditor", "", [], 4, internal_roles=["BEDO Security Auditor"]),
+    _user("globalviewer", "Global", "Viewer", "GM_SUPPORT", [], 5, internal_roles=["BEDO Global Viewer"]),
+    _user("srsmanager", "SRS", "Manager", "SRS", ["SRS Manager"], 6),
 ]
+
+_SRS_SECTION_USER_PREFIX = {
+    "Electronics": "srselectronics",
+    "Electrical": "srselectrical",
+    "Control": "srscontrol",
+    "Mechatronics": "srsmechatronics",
+    "Mechanical": "srsmechanical",
+    "Mechanical Design": "srsmechanicaldesign",
+}
+
+for section_index, section_name in enumerate(SRS_SECTION_OPTIONS, start=1):
+    prefix = _SRS_SECTION_USER_PREFIX[section_name]
+    phone_base = 100 + section_index * 10
+    INITIAL_USERS.append(
+        _user(
+            f"{prefix}head",
+            "SRS",
+            f"{section_name} Section Head",
+            "SRS",
+            ["SRS Section Head"],
+            phone_base,
+        )
+    )
+    INITIAL_USERS.append(
+        _user(
+            f"{prefix}tl",
+            "SRS",
+            f"{section_name} Team Leader",
+            "SRS",
+            ["SRS Team Leader"],
+            phone_base + 1,
+        )
+    )
+    for engineer_index in range(1, 5):
+        INITIAL_USERS.append(
+            _user(
+                f"{prefix}eng{engineer_index}",
+                "SRS",
+                f"{section_name} Engineer {engineer_index}",
+                "SRS",
+                ["SRS Engineer"],
+                phone_base + 1 + engineer_index,
+            )
+        )
+
+LEGACY_PHASE_USERNAMES = {
+    "ard.manager",
+    "ardmanager",
+    "ardsectionhead1",
+    "ardsectionhead2",
+    "ardteamleader1",
+    "ardteamleader2",
+    "ardengineer1",
+    "ardengineer2",
+    "ardengineer3",
+    "ardengineer4",
+}
+
+SRS_WORKFLOW_TYPE = "SRS"
+
+SRS_NODE_PRODUCT_DIGITAL_RELEASE = "PRODUCT_DIGITAL_RELEASE"
+SRS_NODE_GATEWAY = "SRS_GATEWAY"
+SRS_NODE_COORDINATION = "MANDATORY_COORDINATION_MEETING"
+SRS_NODE_DELIVERABLES = "DELIVERABLES_MATRIX"
+SRS_NODE_CASES_1_2 = "CASES_1_2"
+SRS_NODE_CASES_3_4 = "CASES_3_4"
+SRS_NODE_GM_APPROVAL = "GM_APPROVAL"
+SRS_NODE_MANAGER_APPROVAL = "GATE_1_SRS_MANAGER_APPROVAL"
+SRS_NODE_DEADLINE_LOCKED = "DEADLINE_LOCKED_IN_ERP"
+SRS_NODE_ACTION_PATHS = "ACTION_PATHS"
+SRS_NODE_CASE_1 = "CASE_1"
+SRS_NODE_CASE_2 = "CASE_2"
+SRS_NODE_CASE_3 = "CASE_3"
+SRS_NODE_CASE_4 = "CASE_4"
+SRS_NODE_BMDP = "BMDP"
+
+SRS_FUNCTIONAL_NODES = [
+    SRS_NODE_PRODUCT_DIGITAL_RELEASE,
+    SRS_NODE_GATEWAY,
+    SRS_NODE_COORDINATION,
+    SRS_NODE_DELIVERABLES,
+    SRS_NODE_CASES_1_2,
+    SRS_NODE_CASES_3_4,
+    SRS_NODE_GM_APPROVAL,
+    SRS_NODE_MANAGER_APPROVAL,
+    SRS_NODE_DEADLINE_LOCKED,
+    SRS_NODE_ACTION_PATHS,
+    SRS_NODE_CASE_1,
+    SRS_NODE_CASE_2,
+    SRS_NODE_CASE_3,
+    SRS_NODE_CASE_4,
+    SRS_NODE_BMDP,
+]
+
+SRS_PLACEHOLDER_NODES: list[str] = []
+
+NODE_STATUS_LOCKED = "LOCKED"
+NODE_STATUS_READY = "READY"
+NODE_STATUS_IN_PROGRESS = "IN_PROGRESS"
+NODE_STATUS_WAITING_APPROVAL = "WAITING_APPROVAL"
+NODE_STATUS_COMPLETED = "COMPLETED"
+NODE_STATUS_OVERDUE = "OVERDUE"
+NODE_STATUS_SKIPPED = "SKIPPED"
+
+CASE_CLASSIFICATIONS = [
+    "Case 1 - Legacy Validation",
+    "Case 2 - Standard Innovation",
+    "Case 3 - Experimental Prototyping",
+    "Case 4 - Vanguard Manufacturing",
+]
+GM_APPROVAL_CASES = {
+    "Case 3 - Experimental Prototyping",
+    "Case 4 - Vanguard Manufacturing",
+}

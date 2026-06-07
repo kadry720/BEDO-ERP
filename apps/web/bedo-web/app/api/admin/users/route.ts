@@ -23,9 +23,21 @@ export async function PATCH(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const payload = await request.json();
-  await frappeCall("bedo_platform.api.web.set_user_enabled", {
+  await frappeCall("bedo_platform.api.web.update_user", {
     target_user: payload.user,
-    enabled: payload.enabled
+    payload
   }, session.user);
-  return NextResponse.json({ success: true });
+  const data = await frappeCall<{ users: AdminUser[] }>("bedo_platform.api.web.list_users", {}, session.user);
+  return NextResponse.json(data);
+}
+
+export async function DELETE(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const payload = await request.json();
+  await frappeCall("bedo_platform.api.web.delete_user", {
+    target_user: payload.user
+  }, session.user);
+  const data = await frappeCall<{ users: AdminUser[] }>("bedo_platform.api.web.list_users", {}, session.user);
+  return NextResponse.json(data);
 }

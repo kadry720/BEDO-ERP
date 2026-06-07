@@ -34,15 +34,7 @@ def resolve_landing_route(
     if primary_department and primary_department in DEPARTMENT_ROUTE_BY_KEY:
         if roles_can_access_department(roles, primary_department):
             return DEPARTMENT_ROUTE_BY_KEY[primary_department]
-    for department_key in [
-        "ARD",
-        "SRS",
-        "COMMAND_CENTER",
-        "PRODUCTION",
-        "QC",
-        "OPERATIONS",
-        "GM_SUPPORT",
-    ]:
+    for department_key in ["SRS", "GM_SUPPORT"]:
         if roles_can_access_department(roles, department_key):
             return DEPARTMENT_ROUTE_BY_KEY[department_key]
     if roles & ADMIN_ACCESS_ROLES:
@@ -56,8 +48,6 @@ def any_department_role(roles: set[str]) -> bool:
 
 def roles_can_access_department(roles: Iterable[str], department_key: str) -> bool:
     role_set = normalize_roles(roles)
-    if role_set & GLOBAL_VIEW_ROLES:
-        return True
     return bool(role_set & DEPARTMENT_ROLES_BY_KEY.get(department_key, set()))
 
 
@@ -65,9 +55,6 @@ def route_allowed_for_roles(route: str, role_names: Iterable[str] | None) -> boo
     roles = normalize_roles(role_names)
     if route == ADMIN_USERS_ROUTE:
         return bool(roles & ADMIN_ACCESS_ROLES)
-    if roles & GLOBAL_VIEW_ROLES:
-        dashboard = DASHBOARD_BY_ROUTE.get(route)
-        return bool(dashboard and dashboard.get("department_key"))
     dashboard = DASHBOARD_BY_ROUTE.get(route)
     if not dashboard:
         return route == ACCESS_NOT_CONFIGURED_ROUTE

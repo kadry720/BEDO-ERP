@@ -1,0 +1,135 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "field:project_code",
+  "creation": "2026-06-05 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "project_code",
+    "project_name",
+    "end_user",
+    "po_deadline_date",
+    "status",
+    "created_by_user",
+    "created_at",
+    "finalized_at",
+    "released_to_srs_at",
+    "is_deleted",
+    "legacy_section",
+    "legacy_details",
+    "legacy_current_stage"
+  ],
+  "fields": [
+    {
+      "fieldname": "project_code",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Project Code",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "project_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Project Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "end_user",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "End User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "po_deadline_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "PO Deadline Date",
+      "reqd": 1
+    },
+    {
+      "default": "DRAFT",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Status",
+      "options": "DRAFT\nDETAILS_FINALIZED\nRELEASED_TO_SRS\nIN_SRS\nCOMPLETED_PLACEHOLDER",
+      "reqd": 1
+    },
+    {
+      "fieldname": "created_by_user",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Created By User",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "created_at",
+      "fieldtype": "Datetime",
+      "label": "Created At"
+    },
+    {
+      "fieldname": "finalized_at",
+      "fieldtype": "Datetime",
+      "label": "Finalized At"
+    },
+    {
+      "fieldname": "released_to_srs_at",
+      "fieldtype": "Datetime",
+      "label": "Released To SRS At"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "legacy_section",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Legacy Section"
+    },
+    {
+      "fieldname": "legacy_details",
+      "fieldtype": "Small Text",
+      "hidden": 1,
+      "label": "Legacy Details"
+    },
+    {
+      "fieldname": "legacy_current_stage",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Legacy Current Stage"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-07 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "BEDO Project",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

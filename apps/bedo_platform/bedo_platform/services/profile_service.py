@@ -5,6 +5,7 @@ from typing import Any
 from bedo_platform.services.auth_service import USERNAME_RE
 from bedo_platform.services.ldap_service import change_password
 from bedo_platform.services.security_audit_service import log_security_event
+from bedo_platform.services.user_profile_service import assert_user_can_login, ensure_user_profile
 from bedo_platform.services.user_management_service import EMAIL_RE, PHONE_RE
 
 
@@ -14,6 +15,8 @@ def _resolve_profile_user(user: str | None = None) -> str:
     user = user or frappe.session.user
     if not user or user == "Guest":
         frappe.throw("You must be logged in to view your profile.", frappe.PermissionError)
+    if not assert_user_can_login(user):
+        frappe.throw("This BEDO account is inactive.", frappe.PermissionError)
     return user
 
 
@@ -66,6 +69,7 @@ def update_current_profile(payload: dict[str, Any], user: str | None = None) -> 
     doc.phone = phone_number
     doc.flags.ignore_permissions = True
     doc.save(ignore_permissions=True)
+    ensure_user_profile(user, username, active=True, deleted=False)
 
     if password:
         change_password(username, password)

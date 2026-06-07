@@ -1,0 +1,33 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-06-07 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["project", "trainer_item", "workflow_type", "node_id", "triggered_by", "triggered_at", "start_at", "due_at", "deadline_days", "status", "reminder_notified_at", "overdue_notified_at"],
+  "fields": [
+    {"fieldname": "project", "fieldtype": "Link", "in_list_view": 1, "label": "Project", "options": "BEDO Project", "reqd": 1},
+    {"fieldname": "trainer_item", "fieldtype": "Link", "in_list_view": 1, "label": "Trainer Item", "options": "BEDO Trainer Item", "reqd": 1},
+    {"default": "SRS", "fieldname": "workflow_type", "fieldtype": "Data", "in_list_view": 1, "label": "Workflow Type", "reqd": 1},
+    {"fieldname": "node_id", "fieldtype": "Data", "in_list_view": 1, "label": "Node ID", "reqd": 1},
+    {"fieldname": "triggered_by", "fieldtype": "Link", "label": "Triggered By", "options": "User", "reqd": 1},
+    {"fieldname": "triggered_at", "fieldtype": "Datetime", "label": "Triggered At", "reqd": 1},
+    {"fieldname": "start_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Start At", "reqd": 1},
+    {"fieldname": "due_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Due At", "reqd": 1},
+    {"fieldname": "deadline_days", "fieldtype": "Int", "label": "Deadline Days", "reqd": 1},
+    {"default": "ACTIVE", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "ACTIVE\nCOMPLETED\nOVERDUE", "reqd": 1},
+    {"fieldname": "reminder_notified_at", "fieldtype": "Datetime", "label": "Reminder Notified At"},
+    {"fieldname": "overdue_notified_at", "fieldtype": "Datetime", "label": "Overdue Notified At"}
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-07 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "BEDO Deadline",
+  "owner": "Administrator",
+  "permissions": [{"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}],
+  "sort_field": "due_at",
+  "sort_order": "ASC",
+  "states": []
+}

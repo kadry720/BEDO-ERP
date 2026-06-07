@@ -25,22 +25,22 @@ export const adminRoute = "/admin/users";
 export const routeLabels: Record<string, string> = {
   "/gm": "GM Support Office",
   "/srs": "SRS",
-  "/ard": "ARD",
-  "/ard/blueprint": "ARD Blueprint",
-  "/ard/validation": "ARD Validation",
-  "/ard/scmdp": "ARD SCMDP",
-  "/ard/coordination": "ARD Coordination",
-  "/command-center": "Command Center",
-  "/production": "Production",
-  "/qc": "Quality Control",
-  "/operations": "Operations",
-  "/admin/users": "User Administration"
+  "/admin/users": "User Administration",
+  "/notifications": "Notifications"
 };
 
-export const placeholderRoutes = Object.keys(routeLabels).filter((route) => route !== adminRoute);
+export const placeholderRoutes = ["/gm", "/srs"];
 
 export function isAdminUser(context: BedoUserContext) {
   return context.roles.includes("BEDO User Administrator") || context.roles.includes("BEDO System Administrator");
+}
+
+export function isGeneralManager(context: BedoUserContext) {
+  return context.roles.includes("General Manager");
+}
+
+export function isSrsUser(context: BedoUserContext) {
+  return context.roles.some((role) => role.startsWith("SRS "));
 }
 
 export function canAccessRoute(context: BedoUserContext, route: string) {

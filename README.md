@@ -15,7 +15,7 @@ BEDO ERP is the repository for BEDO's internal enterprise platform. The active b
 - Multiple empty ARD dashboards with no workflow logic.
 - Frappe Desk access restricted to technical administrators.
 
-Business workflow permissions and workflow DocTypes are intentionally empty in this phase. Do not implement ARD process logic from visual flowcharts; those diagrams are known to be incorrect. Future ARD workflow logic must come from Chapter 4 and Chapter 6 text only.
+Business workflow permissions and workflow DocTypes are intentionally empty in this phase. Do not implement ARD process logic from visual flowcharts; those diagrams are known to be incorrect. Later ARD workflow logic must come from Chapter 4 and Chapter 6 text only.
 
 ## Project Layout
 
@@ -84,13 +84,15 @@ Start the local infrastructure:
 docker compose up -d mariadb redis-cache redis-queue redis-socketio frappe
 ```
 
-Open a shell in the Frappe container:
+The `frappe` container now bootstraps the bench, creates the site if needed, runs migrations, seeds phase 1 data, and then starts the Frappe processes automatically.
+
+Open a shell in the Frappe container if you need to run manual commands:
 
 ```bash
 docker compose exec frappe bash
 ```
 
-Initialize bench and install the app:
+If you need to bootstrap manually, use:
 
 ```bash
 bash /workspace/BEDO-ERP/infrastructure/scripts/init_project.sh
@@ -102,13 +104,6 @@ Run migrations and seed metadata:
 ```bash
 bash /workspace/BEDO-ERP/infrastructure/scripts/run_migrations.sh
 bash /workspace/BEDO-ERP/infrastructure/scripts/seed_phase_1_data.sh
-```
-
-Start Frappe:
-
-```bash
-cd /workspace/frappe-bench
-bench start
 ```
 
 Start the Next.js app from another terminal:

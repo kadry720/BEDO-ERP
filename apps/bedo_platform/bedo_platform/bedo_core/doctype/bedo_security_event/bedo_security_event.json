@@ -9,6 +9,12 @@
     "event_type",
     "username",
     "user",
+    "target_user",
+    "target_username",
+    "project",
+    "trainer_item",
+    "workflow_type",
+    "node_id",
     "status",
     "ip_address",
     "user_agent",
@@ -35,6 +41,43 @@
       "in_list_view": 1,
       "label": "User",
       "options": "User"
+    },
+    {
+      "fieldname": "target_user",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Target User",
+      "options": "User"
+    },
+    {
+      "fieldname": "target_username",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Target Username"
+    },
+    {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Project",
+      "options": "BEDO Project"
+    },
+    {
+      "fieldname": "trainer_item",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Trainer Item",
+      "options": "BEDO Trainer Item"
+    },
+    {
+      "fieldname": "workflow_type",
+      "fieldtype": "Data",
+      "label": "Workflow Type"
+    },
+    {
+      "fieldname": "node_id",
+      "fieldtype": "Data",
+      "label": "Node ID"
     },
     {
       "fieldname": "status",

@@ -8,6 +8,7 @@ export type AdminUser = {
   primary_department: string;
   roles: string[];
   enabled: number;
+  can_delete: boolean;
 };
 
 export type Department = {
@@ -22,6 +23,8 @@ export type SecurityEvent = {
   event_type: string;
   username: string;
   user: string;
+  target_user: string;
+  target_username: string;
   status: string;
   ip_address: string;
   user_agent: string;

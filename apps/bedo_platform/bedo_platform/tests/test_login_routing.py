@@ -8,10 +8,10 @@ def test_general_manager_routes_to_gm_dashboard():
     assert route == "/gm"
 
 
-def test_ard_manager_routes_to_ard_dashboard():
-    route = resolve_landing_route(["BEDO Employee", "ARD User", "ARD Manager"], "ARD")
+def test_srs_manager_routes_to_srs_dashboard():
+    route = resolve_landing_route(["BEDO Employee", "SRS Manager"], "SRS")
 
-    assert route == "/ard"
+    assert route == "/srs"
 
 
 def test_user_with_no_role_routes_to_access_not_configured():

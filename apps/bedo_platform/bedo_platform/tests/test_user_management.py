@@ -11,8 +11,8 @@ def test_create_user_validates_required_fields():
         "last_name": "User",
         "email": "new.user@bedo.local",
         "phone_number": "+201000000000",
-        "primary_department": "ARD",
-        "roles": ["BEDO Employee", "ARD User"],
+        "primary_department": "SRS",
+        "roles": ["SRS Engineer"],
     }
 
     result = validate_user_payload(payload, creating=True)
@@ -29,8 +29,8 @@ def test_create_user_rejects_invalid_phone():
         "last_name": "User",
         "email": "new.user@bedo.local",
         "phone_number": "bad",
-        "primary_department": "ARD",
-        "roles": ["BEDO Employee", "ARD User"],
+        "primary_department": "SRS",
+        "roles": ["SRS Engineer"],
     }
 
     with pytest.raises(ValueError):
@@ -45,8 +45,8 @@ def test_create_user_rejects_unknown_roles():
         "last_name": "User",
         "email": "new.user@bedo.local",
         "phone_number": "+201000000000",
-        "primary_department": "ARD",
-        "roles": ["BEDO Employee", "Unexpected Role"],
+        "primary_department": "SRS",
+        "roles": ["Unexpected Role"],
     }
 
     with pytest.raises(ValueError):

@@ -2,15 +2,50 @@ from __future__ import annotations
 
 import frappe
 
-from bedo_platform.constants import ALL_ROLE_NAMES, DEPARTMENTS, FRAPPE_DESK_TECHNICAL_ROLES
+from bedo_platform.constants import FRAPPE_DESK_TECHNICAL_ROLES, VISIBLE_BUSINESS_ROLE_NAMES, VISIBLE_DEPARTMENTS
 from bedo_platform.services.auth_service import get_safe_user_context, login_for_web
 from bedo_platform.services.profile_service import get_current_profile, update_current_profile
+from bedo_platform.services.deadline_service import (
+    calculate_next_working_start,
+    calculate_working_due_at,
+    get_deadlines_for_trainer_item,
+    run_deadline_reminder_check,
+    run_overdue_check,
+)
+from bedo_platform.services.notification_service import list_my_notifications, mark_all_notifications_read, mark_notification_read
+from bedo_platform.services.project_service import (
+    add_trainer_item as add_bedo_trainer_item,
+    approve_srs_case_as_gm as approve_srs_case_as_gm_service,
+    approve_srs_deadline_as_srs_manager as approve_srs_deadline_as_srs_manager_service,
+    assign_srs_project_owner as assign_srs_project_owner_service,
+    create_project as create_bedo_project,
+    delete_trainer_item as delete_bedo_trainer_item,
+    finalize_project_details as finalize_bedo_project_details,
+    get_project_detail as get_bedo_project_detail,
+    get_srs_flowchart_definition as get_srs_flowchart_definition_service,
+    get_srs_trainer_item_audit_trail as get_srs_trainer_item_audit_trail_service,
+    get_trainer_item_workspace as get_bedo_trainer_item_workspace,
+    list_eligible_project_owners as list_eligible_project_owners_service,
+    list_eligible_srs_team_members as list_eligible_srs_team_members_service,
+    list_projects,
+    list_report_to_candidates as list_report_to_candidates_service,
+    list_trainer_items_for_project as list_bedo_trainer_items_for_project,
+    release_project_to_srs as release_bedo_project_to_srs,
+    select_srs_team as select_srs_team_service,
+    submit_srs_bmdp_path as submit_srs_bmdp_path_service,
+    submit_srs_deliverables_matrix as submit_srs_deliverables_matrix_service,
+    update_project_details as update_bedo_project_details,
+    update_trainer_item as update_bedo_trainer_item,
+)
 from bedo_platform.services.routing_service import ensure_dashboard_access, get_current_user_landing_route
+from bedo_platform.services.security_audit_service import list_security_events_for_user
 from bedo_platform.services.service_auth import require_service_auth, validate_service_request
 from bedo_platform.services.user_management_service import (
     create_user_from_admin,
     disable_user,
     list_users_for_admin,
+    soft_delete_user,
+    update_user_from_admin,
     update_user_roles,
 )
 
@@ -67,8 +102,8 @@ def get_admin_bootstrap():
     if not user:
         frappe.throw("User context is required.", frappe.PermissionError)
     return {
-        "roles": ALL_ROLE_NAMES,
-        "departments": DEPARTMENTS,
+        "roles": VISIBLE_BUSINESS_ROLE_NAMES,
+        "departments": VISIBLE_DEPARTMENTS,
         "technical_desk_roles": sorted(FRAPPE_DESK_TECHNICAL_ROLES),
         "users": list_users_for_admin(user),
     }
@@ -84,6 +119,12 @@ def list_users():
 def create_user(payload):
     user = validate_service_request()
     return create_user_from_admin(_payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def update_user(target_user: str, payload):
+    user = validate_service_request()
+    return update_user_from_admin(target_user, _payload(payload), actor=user)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -103,6 +144,12 @@ def set_user_enabled(target_user: str, enabled: int):
 
 
 @frappe.whitelist(allow_guest=True)
+def delete_user(target_user: str):
+    user = validate_service_request()
+    return soft_delete_user(target_user, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
 def get_my_profile():
     user = validate_service_request()
     return get_current_profile(user)
@@ -115,15 +162,191 @@ def update_my_profile(payload):
 
 
 @frappe.whitelist(allow_guest=True)
-def list_security_events(limit: int = 50):
+def list_security_events(limit: int = 50, filters=None):
     user = validate_service_request()
-    roles = set(frappe.get_roles(user))
-    if not roles & {"BEDO Security Auditor", "BEDO System Administrator", "BEDO User Administrator"}:
-        frappe.throw("You do not have access to BEDO security logs.", frappe.PermissionError)
-    rows = frappe.get_all(
-        "BEDO Security Event",
-        fields=["event_type", "username", "user", "status", "ip_address", "user_agent", "message", "created_at"],
-        order_by="created_at desc",
-        limit_page_length=min(int(limit or 50), 200),
-    )
-    return {"events": rows}
+    payload = _payload(filters)
+    payload.setdefault("limit", limit)
+    return list_security_events_for_user(user, payload)
+
+
+@frappe.whitelist(allow_guest=True)
+def create_project(payload):
+    user = validate_service_request()
+    return create_bedo_project(_payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def update_project_details(project: str, payload):
+    user = validate_service_request()
+    return update_bedo_project_details(project, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def finalize_project_details(project: str):
+    user = validate_service_request()
+    return finalize_bedo_project_details(project, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def add_trainer_item(project: str, payload):
+    user = validate_service_request()
+    return add_bedo_trainer_item(project, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def update_trainer_item(trainer_item: str, payload):
+    user = validate_service_request()
+    return update_bedo_trainer_item(trainer_item, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def delete_trainer_item(trainer_item: str):
+    user = validate_service_request()
+    return delete_bedo_trainer_item(trainer_item, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def release_project_to_srs(project: str):
+    user = validate_service_request()
+    return release_bedo_project_to_srs(project, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_projects_for_user(page: int = 1, page_size: int = 25):
+    user = validate_service_request()
+    return list_projects(user, page=page, page_size=page_size)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_project_detail(project: str):
+    user = validate_service_request()
+    return get_bedo_project_detail(project, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_trainer_items_for_project(project: str):
+    user = validate_service_request()
+    return list_bedo_trainer_items_for_project(project, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_trainer_item_workspace(trainer_item: str):
+    user = validate_service_request()
+    return get_bedo_trainer_item_workspace(trainer_item, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_srs_flowchart_definition():
+    validate_service_request()
+    return get_srs_flowchart_definition_service()
+
+
+@frappe.whitelist(allow_guest=True)
+def get_srs_workflow_instance(trainer_item: str):
+    user = validate_service_request()
+    workspace = get_bedo_trainer_item_workspace(trainer_item, actor=user)
+    return {
+        "workflow": workspace.get("workflow"),
+        "node_states": workspace.get("node_states"),
+        "deadlines": workspace.get("deadlines"),
+        "node_availability": workspace.get("node_availability"),
+        "server_now": workspace.get("server_now"),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def assign_srs_project_owner(trainer_item: str, project_owner: str):
+    user = validate_service_request()
+    return assign_srs_project_owner_service(trainer_item, project_owner, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def select_srs_team(trainer_item: str, users):
+    user = validate_service_request()
+    if isinstance(users, str):
+        users = frappe.parse_json(users)
+    return select_srs_team_service(trainer_item, list(users or []), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_srs_deliverables_matrix(trainer_item: str, payload):
+    user = validate_service_request()
+    return submit_srs_deliverables_matrix_service(trainer_item, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def approve_srs_case_as_gm(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return approve_srs_case_as_gm_service(trainer_item, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def approve_srs_deadline_as_srs_manager(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return approve_srs_deadline_as_srs_manager_service(trainer_item, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str):
+    user = validate_service_request()
+    return submit_srs_bmdp_path_service(trainer_item, bmdp_path, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_srs_trainer_item_audit_trail(trainer_item: str):
+    user = validate_service_request()
+    return get_srs_trainer_item_audit_trail_service(trainer_item, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_deadlines_for_item(trainer_item: str):
+    validate_service_request()
+    return {"deadlines": get_deadlines_for_trainer_item(trainer_item)}
+
+
+@frappe.whitelist(allow_guest=True)
+def run_deadline_reminders():
+    validate_service_request()
+    return run_deadline_reminder_check()
+
+
+@frappe.whitelist(allow_guest=True)
+def run_overdue_deadline_check():
+    validate_service_request()
+    return run_overdue_check()
+
+
+@frappe.whitelist(allow_guest=True)
+def list_notifications(limit: int = 25):
+    user = validate_service_request()
+    return list_my_notifications(user, limit=int(limit or 25))
+
+
+@frappe.whitelist(allow_guest=True)
+def mark_notification_as_read(notification: str):
+    user = validate_service_request()
+    return mark_notification_read(user, notification)
+
+
+@frappe.whitelist(allow_guest=True)
+def mark_all_notifications_as_read():
+    user = validate_service_request()
+    return mark_all_notifications_read(user)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_report_to_candidates():
+    user = validate_service_request()
+    return list_report_to_candidates_service(user)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_eligible_project_owners():
+    user = validate_service_request()
+    return list_eligible_project_owners_service(user)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_eligible_srs_team_members(workflow_instance: str = ""):
+    user = validate_service_request()
+    return list_eligible_srs_team_members_service(user, workflow_instance or None)

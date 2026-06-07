@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bedo_platform.setup import seed_dashboards, seed_departments, seed_initial_users, seed_roles, site_state
+from bedo_platform.setup import seed_dashboards, seed_departments, seed_initial_users, seed_roles, seed_srs_phase, site_state
 
 
 def execute() -> None:
@@ -9,3 +9,4 @@ def execute() -> None:
     seed_roles.execute()
     seed_dashboards.execute()
     seed_initial_users.execute(strict=False)
+    seed_srs_phase.execute()

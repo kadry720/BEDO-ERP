@@ -21,15 +21,6 @@ fixtures = [
                 [
                     "GM Support Office Dashboard",
                     "SRS Dashboard",
-                    "ARD Main Dashboard",
-                    "ARD Blueprint Dashboard",
-                    "ARD Validation Dashboard",
-                    "ARD SCMDP Dashboard",
-                    "ARD Coordination Dashboard",
-                    "Command Center Dashboard",
-                    "Production Dashboard",
-                    "QC Dashboard",
-                    "Operations Dashboard",
                     "BEDO Admin Users",
                 ],
             ]

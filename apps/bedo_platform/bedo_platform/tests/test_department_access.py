@@ -1,20 +1,19 @@
 from bedo_platform.services.routing_service import route_allowed_for_roles
 
 
-def test_ard_user_cannot_open_srs_dashboard():
-    assert route_allowed_for_roles("/srs", ["BEDO Employee", "ARD User"]) is False
+def test_srs_user_can_open_srs_dashboard():
+    assert route_allowed_for_roles("/srs", ["BEDO Employee", "SRS Engineer"]) is True
 
 
-def test_srs_user_cannot_open_ard_dashboard():
-    assert route_allowed_for_roles("/ard", ["BEDO Employee", "SRS User"]) is False
+def test_platform_user_cannot_open_srs_dashboard():
+    assert route_allowed_for_roles("/srs", ["BEDO Employee"]) is False
 
 
-def test_gm_can_open_all_department_dashboards():
+def test_gm_only_opens_gm_dashboard_not_general_srs_dashboard():
     roles = ["BEDO Employee", "General Manager"]
 
-    assert route_allowed_for_roles("/srs", roles) is True
-    assert route_allowed_for_roles("/ard", roles) is True
-    assert route_allowed_for_roles("/production", roles) is True
+    assert route_allowed_for_roles("/gm", roles) is True
+    assert route_allowed_for_roles("/srs", roles) is False
 
 
 def test_admin_dashboard_requires_admin_role():

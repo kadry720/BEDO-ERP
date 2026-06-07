@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut, Shield, UserCircle } from "lucide-react";
+import { Bell, LogOut, Shield, UserCircle } from "lucide-react";
 import { displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
 
 export function Shell({ session, children }: { session: BedoUserContext; children: React.ReactNode }) {
@@ -32,6 +32,9 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
       <div className="lg:pl-72">
         <header className="sticky top-0 z-10 flex min-h-16 items-center justify-end border-b border-gray-200 bg-white px-5">
           <div className="flex items-center gap-3">
+            <Link href="/notifications" className="focus-ring rounded-md p-2 text-gray-600 hover:bg-gray-100" title="Notifications">
+              <Bell className="h-5 w-5" />
+            </Link>
             <Link href="/profile" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-gray-100">
               <UserCircle className="h-4 w-4" />
               {displayName(session)}
