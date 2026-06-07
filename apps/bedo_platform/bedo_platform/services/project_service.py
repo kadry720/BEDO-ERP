@@ -1575,18 +1575,20 @@ def _create_approval(workflow, approval_type: str, actor: str) -> None:
     doc.insert(ignore_permissions=True)
 
 
-def approve_srs_case_as_gm(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+def approve_srs_case_as_gm(trainer_item: str, payload: dict[str, Any], actor: str, approval_name: str | None = None) -> dict[str, Any]:
     import frappe
 
     _require_gm(actor)
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
     _assert_transition_prerequisites("gm_approve", workflow, actor)
-    approval_name = frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "GM_CASE_APPROVAL"}, "name")
+    approval_name = approval_name or frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "GM_CASE_APPROVAL", "status": "WAITING"}, "name")
     if not approval_name or workflow.gm_approved_at:
         frappe.throw("GM approval is not available or has already been completed.", frappe.PermissionError)
     case_classification, deadline_days = _edited_case_and_deadline(workflow, payload)
     approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.status != "WAITING":
+        frappe.throw("Approval has already been completed.", frappe.PermissionError)
     approval.status = "APPROVED_WITH_EDITS" if payload.get("case_classification") or payload.get("deadline_proposal_days") else "APPROVED"
     approval.edited_case_classification = case_classification
     approval.edited_deadline_proposal_days = deadline_days
@@ -1634,18 +1636,20 @@ def _edited_case_and_deadline(workflow, payload: dict[str, Any]) -> tuple[str, i
     return case_classification, deadline_days
 
 
-def approve_srs_deadline_as_srs_manager(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+def approve_srs_deadline_as_srs_manager(trainer_item: str, payload: dict[str, Any], actor: str, approval_name: str | None = None) -> dict[str, Any]:
     import frappe
 
     _require_role(actor, "SRS Manager")
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
     _assert_transition_prerequisites("manager_approve", workflow, actor)
-    approval_name = frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "SRS_MANAGER_DEADLINE_APPROVAL"}, "name")
+    approval_name = approval_name or frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "SRS_MANAGER_DEADLINE_APPROVAL", "status": "WAITING"}, "name")
     if not approval_name or workflow.srs_manager_approved_at:
         frappe.throw("SRS Manager approval is not available or has already been completed.", frappe.PermissionError)
     case_classification, deadline_days = _edited_case_and_deadline(workflow, payload)
     approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.status != "WAITING":
+        frappe.throw("Approval has already been completed.", frappe.PermissionError)
     approval.status = "APPROVED_WITH_EDITS" if payload.get("case_classification") or payload.get("deadline_proposal_days") else "APPROVED"
     approval.edited_case_classification = case_classification
     approval.edited_deadline_proposal_days = deadline_days
@@ -1757,6 +1761,48 @@ def _approval_roles_for_actor(actor: str) -> set[str]:
     return roles
 
 
+def _approval_node_for_type(approval_type: str) -> str:
+    if approval_type == "GM_CASE_APPROVAL":
+        return SRS_NODE_GM_APPROVAL
+    if approval_type == "SRS_MANAGER_DEADLINE_APPROVAL":
+        return SRS_NODE_MANAGER_APPROVAL
+    return ""
+
+
+def _approval_is_actionable(row) -> bool:
+    import frappe
+
+    if row.status != "WAITING":
+        return False
+    target_node = _approval_node_for_type(row.approval_type)
+    if not target_node:
+        return False
+    workflow = frappe.db.get_value(
+        "SRS Workflow Instance",
+        row.workflow_instance,
+        ["current_node", "case_classification"],
+        as_dict=True,
+    )
+    if not workflow or workflow.current_node != target_node:
+        return False
+    node_status = frappe.db.get_value(
+        "SRS Workflow Node State",
+        {"workflow_instance": row.workflow_instance, "node_id": target_node},
+        "status",
+    )
+    if node_status != NODE_STATUS_WAITING_APPROVAL:
+        return False
+    if row.approval_type == "SRS_MANAGER_DEADLINE_APPROVAL" and workflow.case_classification in GM_APPROVAL_CASES:
+        gm_status = frappe.db.get_value(
+            "SRS Workflow Node State",
+            {"workflow_instance": row.workflow_instance, "node_id": SRS_NODE_GM_APPROVAL},
+            "status",
+        )
+        if gm_status != NODE_STATUS_COMPLETED:
+            return False
+    return True
+
+
 def _approval_display_row(row) -> dict[str, Any]:
     import frappe
 
@@ -1785,7 +1831,6 @@ def _approval_display_row(row) -> dict[str, Any]:
         "submitted_by": submitted.get("submitted_by") or "",
         "submitted_by_name": _user_full_name(submitted.get("submitted_by")),
         "submitted_at": to_cairo_iso(submitted.get("submitted_at")),
-        "srs_manager_name": ", ".join(_user_full_name(user) for user in _active_users_with_role("SRS Manager")),
         "project_owner": workflow.get("project_owner") or "",
         "project_owner_name": _user_full_name(workflow.get("project_owner")),
         "current_node": workflow.get("current_node") or "",
@@ -1812,7 +1857,7 @@ def list_my_pending_approvals(actor: str, status: str = "WAITING") -> dict[str, 
         order_by="creation desc",
         page_length=100,
     )
-    approvals = [_approval_display_row(row) for row in rows if can_view_trainer_item(actor, row.trainer_item)]
+    approvals = [_approval_display_row(row) for row in rows if can_view_trainer_item(actor, row.trainer_item) and _approval_is_actionable(row)]
     return {"approvals": approvals, "count": len(approvals)}
 
 
@@ -1828,6 +1873,8 @@ def get_approval_detail(approval: str, actor: str) -> dict[str, Any]:
     doc = frappe.get_doc("SRS Approval", approval)
     if doc.required_role not in _approval_roles_for_actor(actor) or not can_view_trainer_item(actor, doc.trainer_item):
         frappe.throw("You do not have access to this approval.", frappe.PermissionError)
+    if not _approval_is_actionable(doc):
+        frappe.throw("Approval is not currently actionable.", frappe.PermissionError)
     return {"approval": _approval_display_row(doc)}
 
 
@@ -1839,8 +1886,8 @@ def approve_srs_approval(approval: str, actor: str, payload: dict[str, Any] | No
         frappe.throw("Approval has already been completed.", frappe.PermissionError)
     payload = payload or {}
     if detail["approval_type"] == "GM_CASE_APPROVAL":
-        return approve_srs_case_as_gm(detail["trainer_item"], payload, actor)
-    return approve_srs_deadline_as_srs_manager(detail["trainer_item"], payload, actor)
+        return approve_srs_case_as_gm(detail["trainer_item"], payload, actor, approval_name=approval)
+    return approve_srs_deadline_as_srs_manager(detail["trainer_item"], payload, actor, approval_name=approval)
 
 
 def approve_srs_approval_with_edits(approval: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:

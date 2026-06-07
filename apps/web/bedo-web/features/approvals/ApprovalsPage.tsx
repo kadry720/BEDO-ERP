@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ClipboardCheck, Filter, PencilLine, X } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, PencilLine, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import type { ApprovalRow } from "@/features/srs/types";
 import { formatNodeId, formatStatus, statusBadgeClass } from "@/features/srs/workflowPresentation";
@@ -14,13 +14,7 @@ type Props = {
 export function ApprovalsPage({ initialApprovals }: Props) {
   const [approvals, setApprovals] = useState(initialApprovals);
   const [activeApproval, setActiveApproval] = useState<ApprovalRow | null>(null);
-  const [roleFilter, setRoleFilter] = useState("all");
   const [error, setError] = useState("");
-
-  const visibleApprovals = useMemo(() => {
-    if (roleFilter === "all") return approvals;
-    return approvals.filter((approval) => approval.required_role === roleFilter);
-  }, [approvals, roleFilter]);
 
   async function refresh() {
     const response = await fetch("/api/approvals");
@@ -57,14 +51,6 @@ export function ApprovalsPage({ initialApprovals }: Props) {
             <h2 className="mt-2 text-3xl font-black text-slate-950">Pending Approvals</h2>
             <p className="mt-2 text-sm font-medium text-slate-600">Notifications create awareness. Approval decisions happen here.</p>
           </div>
-          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-            <Filter className="h-4 w-4 text-slate-500" />
-            <select className="bg-transparent text-sm font-bold text-slate-700 outline-none" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
-              <option value="all">All approvals</option>
-              <option value="General Manager">GM approvals</option>
-              <option value="SRS Manager">SRS Manager approvals</option>
-            </select>
-          </div>
         </div>
       </header>
 
@@ -73,17 +59,16 @@ export function ApprovalsPage({ initialApprovals }: Props) {
       <div className="rounded-lg border border-slate-200 bg-white shadow-panel">
         <div className="border-b border-slate-200 px-5 py-4">
           <h3 className="text-lg font-black text-slate-950">Approval Queue</h3>
-          <p className="text-sm font-medium text-slate-500">{visibleApprovals.length} item(s)</p>
+          <p className="text-sm font-medium text-slate-500">{approvals.length} item(s)</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[1180px] w-full text-left text-sm">
+          <table className="min-w-[1060px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Approval Type</th>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Trainer Item</th>
                 <th className="px-4 py-3">Submitted By</th>
-                <th className="px-4 py-3">SRS Manager</th>
                 <th className="px-4 py-3">Project Owner</th>
                 <th className="px-4 py-3">Current Node</th>
                 <th className="px-4 py-3">Case</th>
@@ -94,7 +79,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {visibleApprovals.map((approval) => (
+              {approvals.map((approval) => (
                 <tr key={approval.name} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-black text-slate-950">{approval.approval_label}</td>
                   <td className="max-w-[220px] px-4 py-3">
@@ -103,7 +88,6 @@ export function ApprovalsPage({ initialApprovals }: Props) {
                   </td>
                   <td className="max-w-[180px] truncate px-4 py-3 font-semibold text-slate-700">{approval.trainer_item_name}</td>
                   <td className="px-4 py-3 text-slate-600">{approval.submitted_by_name || approval.submitted_by || "-"}</td>
-                  <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">{approval.srs_manager_name || "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{approval.project_owner_name || "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{formatNodeId(approval.current_node)}</td>
                   <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">{approval.case_classification}</td>
@@ -133,7 +117,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
               ))}
             </tbody>
           </table>
-          {!visibleApprovals.length && <div className="m-5 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">No pending approvals.</div>}
+          {!approvals.length && <div className="m-5 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">No pending approvals.</div>}
         </div>
       </div>
 

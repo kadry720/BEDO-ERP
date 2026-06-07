@@ -158,7 +158,6 @@ export type ApprovalRow = {
   submitted_by: string;
   submitted_by_name: string;
   submitted_at: string;
-  srs_manager_name: string;
   project_owner: string;
   project_owner_name: string;
   current_node: string;
