@@ -11,6 +11,10 @@ type Props = {
   initialApprovals: ApprovalRow[];
 };
 
+function routeId(value: string) {
+  return encodeURIComponent(value);
+}
+
 export function ApprovalsPage({ initialApprovals }: Props) {
   const [approvals, setApprovals] = useState(initialApprovals);
   const [activeApproval, setActiveApproval] = useState<ApprovalRow | null>(null);
@@ -108,7 +112,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
                         <PencilLine className="h-4 w-4" />
                         Edit
                       </Button>
-                      <Link className="rounded-md border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50" href={`/srs/projects/${approval.project}/items/${approval.trainer_item}`}>
+                      <Link className="rounded-md border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50" href={`/srs/projects/${routeId(approval.project)}/items/${routeId(approval.trainer_item)}`}>
                         Detail
                       </Link>
                     </div>

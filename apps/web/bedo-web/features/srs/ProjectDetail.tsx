@@ -13,9 +13,13 @@ type Props = {
   mode: "gm" | "srs";
 };
 
+function routeId(value: string) {
+  return encodeURIComponent(value);
+}
+
 export function ProjectDetail({ project, initialItems, mode }: Props) {
   const items = initialItems.trainer_items;
-  const itemRouteBase = mode === "gm" ? `/gm/projects/${project.name}/items` : `/srs/projects/${project.name}/items`;
+  const itemRouteBase = mode === "gm" ? `/gm/projects/${routeId(project.name)}/items` : `/srs/projects/${routeId(project.name)}/items`;
   const stats = useMemo(() => trainerStats(items), [items]);
 
   return (
@@ -103,7 +107,7 @@ function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; ite
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <Link className="focus-ring inline-flex min-h-9 items-center rounded-md bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-700" href={`${itemRouteBase}/${item.name}`}>
+                  <Link className="focus-ring inline-flex min-h-9 items-center rounded-md bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-700" href={`${itemRouteBase}/${routeId(item.name)}`}>
                     Open Workflow
                   </Link>
                 </td>

@@ -13,6 +13,10 @@ type ProjectBucket = BedoProject & {
   done: boolean;
 };
 
+function routeId(value: string) {
+  return encodeURIComponent(value);
+}
+
 export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
   const [projects, setProjects] = useState<ProjectList>(initialProjects);
   const [editing, setEditing] = useState<BedoProject | null>(null);
@@ -33,13 +37,13 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
 
   async function saveProject(project: BedoProject, payload: Record<string, unknown>) {
     setError("");
-    const response = await fetch(`/api/projects/${project.name}`, {
+    const response = await fetch(`/api/projects/${routeId(project.name)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setError("Project could not be updated. Use a project code like 05/26 and complete all fields.");
+      setError("Project could not be updated.");
       return;
     }
     setEditing(null);
@@ -48,7 +52,7 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
 
   async function deleteProject(project: BedoProject) {
     setError("");
-    const response = await fetch(`/api/projects/${project.name}`, { method: "DELETE" });
+    const response = await fetch(`/api/projects/${routeId(project.name)}`, { method: "DELETE" });
     if (!response.ok) {
       setError("Project could not be deleted.");
       return;
@@ -201,7 +205,7 @@ function ProjectTable({
                         </Button>
                       </>
                     )}
-                    <Link className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" href={`${baseRoute}/projects/${project.name}/trainers`}>
+                    <Link className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" href={`${baseRoute}/projects/${routeId(project.name)}/trainers`}>
                       <Eye className="h-4 w-4" />
                       View Trainers Table
                     </Link>
@@ -243,10 +247,10 @@ function EditProjectModal({ project, onClose, onSubmit }: { project: BedoProject
           </button>
         </div>
         <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-          <Field name="project_name" label="Project Name" defaultValue={project.project_name} required />
-          <Field name="project_code" label="Project Code" defaultValue={project.project_code} pattern="\\d{2}/\\d{2}" required />
-          <Field name="end_user" label="End User" defaultValue={project.end_user} required />
-          <Field name="po_deadline_date" label="PO Deadline Date" type="date" defaultValue={project.po_deadline_date} required />
+          <Field name="project_name" label="Project Name" defaultValue={project.project_name} />
+          <Field name="project_code" label="Project Code" defaultValue={project.project_code} />
+          <Field name="end_user" label="End User" defaultValue={project.end_user} />
+          <Field name="po_deadline_date" label="PO Deadline Date" type="date" defaultValue={project.po_deadline_date} />
         </div>
         <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
@@ -284,20 +288,16 @@ function Field({
   name,
   type = "text",
   defaultValue,
-  pattern,
-  required,
 }: {
   label: string;
   name: string;
   type?: string;
   defaultValue?: string;
-  pattern?: string;
-  required?: boolean;
 }) {
   return (
     <label className="block">
       <span className="text-sm font-black text-slate-800">{label}</span>
-      <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" type={type} name={name} defaultValue={defaultValue} pattern={pattern} required={required} />
+      <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" type={type} name={name} defaultValue={defaultValue} />
     </label>
   );
 }

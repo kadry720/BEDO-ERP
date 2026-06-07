@@ -20,6 +20,10 @@ type ProjectFields = {
   po_deadline_date: string;
 };
 
+function routeId(value: string) {
+  return encodeURIComponent(value);
+}
+
 export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] }) {
   const router = useRouter();
   const trainerSectionRef = useRef<HTMLElement>(null);
@@ -39,7 +43,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
 
   async function ensureProject() {
     if (projectId) {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await fetch(`/api/projects/${routeId(projectId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
@@ -83,7 +87,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
 
   async function refreshTrainers(nextProjectId = projectId) {
     if (!nextProjectId) return [];
-    const response = await fetch(`/api/projects/${nextProjectId}/trainer-items`);
+    const response = await fetch(`/api/projects/${routeId(nextProjectId)}/trainer-items`);
     if (!response.ok) return [];
     const data = await response.json();
     const nextTrainers = (data.trainer_items || []) as TrainerItem[];
@@ -95,7 +99,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     setError("");
     const nextProjectId = await ensureProject();
     if (!nextProjectId) return;
-    const response = await fetch(editing ? `/api/trainer-items/${editing.name}` : `/api/projects/${nextProjectId}/trainer-items`, {
+    const response = await fetch(editing ? `/api/trainer-items/${routeId(editing.name)}` : `/api/projects/${routeId(nextProjectId)}/trainer-items`, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -110,7 +114,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   }
 
   async function deleteTrainer(item: TrainerItem) {
-    const response = await fetch(`/api/trainer-items/${item.name}`, { method: "DELETE" });
+    const response = await fetch(`/api/trainer-items/${routeId(item.name)}`, { method: "DELETE" });
     if (response.ok) await refreshTrainers();
   }
 
@@ -123,12 +127,12 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
       setError("Add at least one trainer item before release.");
       return;
     }
-    const response = await fetch(`/api/projects/${nextProjectId}/release-srs`, { method: "POST" });
+    const response = await fetch(`/api/projects/${routeId(nextProjectId)}/release-srs`, { method: "POST" });
     if (!response.ok) {
       setError("Project could not be released to SRS.");
       return;
     }
-    router.push(`/gm/projects/${nextProjectId}/trainers`);
+    router.push(`/gm/projects/${routeId(nextProjectId)}/trainers`);
   }
 
   return (
