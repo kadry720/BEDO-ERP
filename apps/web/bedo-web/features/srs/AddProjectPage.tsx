@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PencilLine, Plus, Rocket, Trash2, X } from "lucide-react";
+import { CheckCircle2, PencilLine, Plus, Rocket, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import type { SafeUser, TrainerItem } from "@/features/srs/types";
 
@@ -21,25 +22,16 @@ type ProjectFields = {
 
 export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] }) {
   const router = useRouter();
-  const detailsRef = useRef<HTMLDivElement>(null);
+  const trainerSectionRef = useRef<HTMLElement>(null);
   const [projectId, setProjectId] = useState("");
   const [fields, setFields] = useState<ProjectFields>({ project_name: "", project_code: "", end_user: "", po_deadline_date: "" });
-  const [detailsReady, setDetailsReady] = useState(false);
+  const [detailsSubmitted, setDetailsSubmitted] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [trainers, setTrainers] = useState<TrainerItem[]>([]);
   const [trainerModal, setTrainerModal] = useState<TrainerItem | "new" | null>(null);
   const [quantityDraft, setQuantityDraft] = useState<TrainerDraft | null>(null);
   const [error, setError] = useState("");
-  const fieldsValid = detailsReady || isValidProjectFields(fields);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const next = readProjectFields(detailsRef.current);
-      if (!next) return;
-      setFields((current) => (sameProjectFields(current, next) ? current : next));
-      setDetailsReady(isValidProjectFields(next));
-    }, 300);
-    return () => window.clearInterval(timer);
-  }, []);
+  const fieldsValid = isValidProjectFields(fields);
 
   const defaultReportTo = useMemo(() => {
     const gm = reportToUsers.find((user) => user.business_role === "General Manager");
@@ -47,12 +39,20 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   }, [reportToUsers]);
 
   async function ensureProject() {
+    if (!fieldsValid) {
+      setError("Complete all project details before continuing. Project code must use the format 05/26.");
+      return "";
+    }
     if (projectId) {
-      await fetch(`/api/projects/${projectId}`, {
+      const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
       });
+      if (!response.ok) {
+        setError("Project details could not be saved. Check required fields and project code format.");
+        return "";
+      }
       return projectId;
     }
     const response = await fetch("/api/projects", {
@@ -69,10 +69,31 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     return data.project as string;
   }
 
+  async function submitProjectDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setSavingDetails(true);
+    try {
+      const nextProjectId = await ensureProject();
+      if (!nextProjectId) return;
+      setDetailsSubmitted(true);
+      await refreshTrainers(nextProjectId);
+      window.requestAnimationFrame(() => trainerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } catch {
+      setError("Project details could not be saved. Check the local server and try again.");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   async function refreshTrainers(nextProjectId = projectId) {
-    if (!nextProjectId) return;
+    if (!nextProjectId) return [];
     const response = await fetch(`/api/projects/${nextProjectId}/trainer-items`);
-    if (response.ok) setTrainers((await response.json()).trainer_items || []);
+    if (!response.ok) return [];
+    const data = await response.json();
+    const nextTrainers = (data.trainer_items || []) as TrainerItem[];
+    setTrainers(nextTrainers);
+    return nextTrainers;
   }
 
   async function saveTrainer(payload: TrainerDraft & { separation_mode?: string }, editing?: TrainerItem) {
@@ -102,8 +123,8 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     setError("");
     const nextProjectId = await ensureProject();
     if (!nextProjectId) return;
-    await refreshTrainers(nextProjectId);
-    if (!trainers.length) {
+    const currentTrainers = await refreshTrainers(nextProjectId);
+    if (!currentTrainers.length) {
       setError("Add at least one trainer item before release.");
       return;
     }
@@ -125,18 +146,36 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
 
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
-      <section ref={detailsRef} className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
-        <h3 className="text-lg font-black text-slate-950">Project Details</h3>
+      <form className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel" onSubmit={submitProjectDetails}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-black text-slate-950">Project Details</h3>
+            <p className="mt-1 text-sm font-medium text-slate-500">Submit project details first. Trainer items open after validation succeeds.</p>
+          </div>
+          {detailsSubmitted && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Details saved
+            </span>
+          )}
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ProjectField label="Project Name" value={fields.project_name} onChange={(value) => setFields((current) => ({ ...current, project_name: value }))} />
           <ProjectField label="Project Code" value={fields.project_code} pattern="05/26" onChange={(value) => setFields((current) => ({ ...current, project_code: value }))} />
           <ProjectField label="End User" value={fields.end_user} onChange={(value) => setFields((current) => ({ ...current, end_user: value }))} />
           <ProjectField label="PO Deadline Date" type="date" value={fields.po_deadline_date} onChange={(value) => setFields((current) => ({ ...current, po_deadline_date: value }))} />
         </div>
-      </section>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+          <p className="text-xs font-bold text-slate-500">Required format: project code like 05/26.</p>
+          <Button type="submit" disabled={!fieldsValid || savingDetails}>
+            <CheckCircle2 className="h-4 w-4" />
+            {savingDetails ? "Saving..." : detailsSubmitted ? "Save Project Details" : "Submit Project Details"}
+          </Button>
+        </div>
+      </form>
 
-      {fieldsValid && (
-        <section className="rounded-lg border border-slate-200 bg-white shadow-panel">
+      {detailsSubmitted && (
+        <section ref={trainerSectionRef} className="rounded-lg border border-slate-200 bg-white shadow-panel">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
             <div>
               <h3 className="text-lg font-black text-slate-950">Trainer Items</h3>
@@ -242,23 +281,8 @@ function labelToFieldName(label: string) {
   return label.toLowerCase().replace(/\s+/g, "_") as keyof ProjectFields;
 }
 
-function readProjectFields(container: HTMLDivElement | null): ProjectFields | null {
-  if (!container) return null;
-  const value = (name: keyof ProjectFields) => container.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value || "";
-  return {
-    project_name: value("project_name"),
-    project_code: value("project_code"),
-    end_user: value("end_user"),
-    po_deadline_date: value("po_deadline_date"),
-  };
-}
-
 function isValidProjectFields(values: ProjectFields) {
   return Boolean(values.project_name.trim() && /^\d{2}\/\d{2}$/.test(values.project_code.trim()) && values.end_user.trim() && values.po_deadline_date);
-}
-
-function sameProjectFields(left: ProjectFields, right: ProjectFields) {
-  return left.project_name === right.project_name && left.project_code === right.project_code && left.end_user === right.end_user && left.po_deadline_date === right.po_deadline_date;
 }
 
 function TrainerModal({
