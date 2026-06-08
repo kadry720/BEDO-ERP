@@ -473,8 +473,14 @@ def _case_group_node_id(case_classification: str) -> str:
     return SRS_NODE_CASES_3_4 if case_classification in {CASE_3, CASE_4} else SRS_NODE_CASES_1_2
 
 
-def _case_path_statuses(case_classification: str, status: str = NODE_STATUS_IN_PROGRESS) -> dict[str, str]:
-    selected_group = _case_group_node_id(case_classification)
+def _case_path_statuses(
+    case_classification: str,
+    status: str = NODE_STATUS_IN_PROGRESS,
+    *,
+    path_group_case_classification: str | None = None,
+    include_gm_not_applicable: bool = True,
+) -> dict[str, str]:
+    selected_group = _case_group_node_id(path_group_case_classification or case_classification)
     selected_case = _case_node_id(case_classification)
     statuses = {
         node_id: NODE_STATUS_NOT_APPLICABLE
@@ -490,13 +496,36 @@ def _case_path_statuses(case_classification: str, status: str = NODE_STATUS_IN_P
     for node_id in {selected_group, selected_case}:
         if node_id:
             statuses[node_id] = status
-    if case_classification not in GM_APPROVAL_CASES:
+    if include_gm_not_applicable and case_classification not in GM_APPROVAL_CASES:
         statuses[SRS_NODE_GM_APPROVAL] = NODE_STATUS_NOT_APPLICABLE
     return statuses
 
 
-def _set_case_path_states(workflow, case_classification: str, actor: str, status: str = NODE_STATUS_IN_PROGRESS) -> None:
-    for node_id, next_status in _case_path_statuses(case_classification, status).items():
+def _existing_case_path_group_case(workflow, default_case_classification: str) -> str:
+    cases_1_2_status = _node_status(workflow, SRS_NODE_CASES_1_2)
+    cases_3_4_status = _node_status(workflow, SRS_NODE_CASES_3_4)
+    if cases_1_2_status != NODE_STATUS_NOT_APPLICABLE and cases_3_4_status == NODE_STATUS_NOT_APPLICABLE:
+        return CASE_1
+    if cases_3_4_status != NODE_STATUS_NOT_APPLICABLE and cases_1_2_status == NODE_STATUS_NOT_APPLICABLE:
+        return CASE_3
+    return default_case_classification
+
+
+def _set_case_path_states(
+    workflow,
+    case_classification: str,
+    actor: str,
+    status: str = NODE_STATUS_IN_PROGRESS,
+    *,
+    path_group_case_classification: str | None = None,
+    include_gm_not_applicable: bool = True,
+) -> None:
+    for node_id, next_status in _case_path_statuses(
+        case_classification,
+        status,
+        path_group_case_classification=path_group_case_classification,
+        include_gm_not_applicable=include_gm_not_applicable,
+    ).items():
         _set_node_state(workflow, node_id, next_status, actor=actor)
 
 
@@ -1632,6 +1661,7 @@ def approve_srs_case_as_gm(trainer_item: str, payload: dict[str, Any], actor: st
     approval_name = approval_name or frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "GM_CASE_APPROVAL", "status": "WAITING"}, "name")
     if not approval_name or workflow.gm_approved_at:
         frappe.throw("GM approval is not available or has already been completed.", frappe.PermissionError)
+    previous_case_classification = workflow.case_classification
     case_classification, deadline_days = _edited_case_and_deadline(workflow, payload)
     approval = frappe.get_doc("SRS Approval", approval_name)
     if approval.status != "WAITING":
@@ -1653,7 +1683,7 @@ def approve_srs_case_as_gm(trainer_item: str, payload: dict[str, Any], actor: st
     workflow.updated_at = datetime.utcnow()
     workflow.flags.ignore_permissions = True
     workflow.save(ignore_permissions=True)
-    _set_case_path_states(workflow, case_classification, actor)
+    _set_case_path_states(workflow, case_classification, actor, path_group_case_classification=previous_case_classification)
     _set_node_state(workflow, SRS_NODE_GM_APPROVAL, NODE_STATUS_COMPLETED, actor=actor)
     _set_node_state(workflow, SRS_NODE_MANAGER_APPROVAL, NODE_STATUS_WAITING_APPROVAL, actor=actor)
     _create_approval(workflow, "SRS_MANAGER_DEADLINE_APPROVAL", actor)
@@ -1693,6 +1723,7 @@ def approve_srs_deadline_as_srs_manager(trainer_item: str, payload: dict[str, An
     approval_name = approval_name or frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "SRS_MANAGER_DEADLINE_APPROVAL", "status": "WAITING"}, "name")
     if not approval_name or workflow.srs_manager_approved_at:
         frappe.throw("SRS Manager approval is not available or has already been completed.", frappe.PermissionError)
+    previous_case_classification = workflow.case_classification
     case_classification, deadline_days = _edited_case_and_deadline(workflow, payload)
     approval = frappe.get_doc("SRS Approval", approval_name)
     if approval.status != "WAITING":
@@ -1717,7 +1748,13 @@ def approve_srs_deadline_as_srs_manager(trainer_item: str, payload: dict[str, An
     workflow.save(ignore_permissions=True)
     _set_node_state(workflow, SRS_NODE_MANAGER_APPROVAL, NODE_STATUS_COMPLETED, actor=actor)
     _set_node_state(workflow, SRS_NODE_DEADLINE_LOCKED, NODE_STATUS_COMPLETED, actor=actor)
-    _set_case_path_states(workflow, case_classification, actor)
+    _set_case_path_states(
+        workflow,
+        case_classification,
+        actor,
+        path_group_case_classification=previous_case_classification,
+        include_gm_not_applicable=False,
+    )
     deadline = create_deadline(
         project=workflow.project,
         trainer_item=trainer_item,
@@ -1773,7 +1810,14 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
     doc.insert(ignore_permissions=True)
     complete_deadlines(trainer_item, SRS_NODE_ACTION_PATHS)
     _set_node_state(workflow, SRS_NODE_ACTION_PATHS, NODE_STATUS_COMPLETED, actor=actor, responsible_user=workflow.project_owner)
-    _set_case_path_states(workflow, workflow.case_classification, actor, NODE_STATUS_COMPLETED)
+    _set_case_path_states(
+        workflow,
+        workflow.case_classification,
+        actor,
+        NODE_STATUS_COMPLETED,
+        path_group_case_classification=_existing_case_path_group_case(workflow, workflow.case_classification),
+        include_gm_not_applicable=False,
+    )
     _set_node_state(workflow, SRS_NODE_BMDP, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
     workflow.bmdp_path = path
     workflow.status = STATE_COMPLETE

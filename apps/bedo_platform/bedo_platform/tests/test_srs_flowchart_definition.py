@@ -125,3 +125,20 @@ def test_case_1_2_route_marks_gm_approval_not_applicable():
     assert case_2_statuses[SRS_NODE_CASE_3] == NODE_STATUS_NOT_APPLICABLE
     assert case_2_statuses[SRS_NODE_CASE_4] == NODE_STATUS_NOT_APPLICABLE
     assert case_2_statuses[SRS_NODE_GM_APPROVAL] == NODE_STATUS_NOT_APPLICABLE
+
+
+def test_manager_edit_from_case_1_2_to_case_3_4_does_not_reopen_coordination_branch():
+    statuses = _case_path_statuses(
+        CASE_4,
+        NODE_STATUS_IN_PROGRESS,
+        path_group_case_classification=CASE_2,
+        include_gm_not_applicable=False,
+    )
+
+    assert statuses[SRS_NODE_CASES_1_2] == NODE_STATUS_IN_PROGRESS
+    assert statuses[SRS_NODE_CASE_4] == NODE_STATUS_IN_PROGRESS
+    assert statuses[SRS_NODE_CASES_3_4] == NODE_STATUS_NOT_APPLICABLE
+    assert statuses[SRS_NODE_CASE_1] == NODE_STATUS_NOT_APPLICABLE
+    assert statuses[SRS_NODE_CASE_2] == NODE_STATUS_NOT_APPLICABLE
+    assert statuses[SRS_NODE_CASE_3] == NODE_STATUS_NOT_APPLICABLE
+    assert SRS_NODE_GM_APPROVAL not in statuses
