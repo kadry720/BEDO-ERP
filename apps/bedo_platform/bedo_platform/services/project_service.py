@@ -836,6 +836,7 @@ def delete_project_cascade(project: str, actor: str) -> dict[str, Any]:
             "SRS Deliverables Matrix",
             "SRS Item Team Member",
             "SRS Workflow Node State",
+            "BEDO Project Assignment",
             "BEDO Security Event",
         ]:
             frappe.db.delete(doctype, {"project": project})
