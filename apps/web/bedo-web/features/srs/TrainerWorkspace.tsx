@@ -359,7 +359,7 @@ function SrsFlowchart({
                         d={path}
                         fill="none"
                         markerEnd="url(#srs-arrow)"
-                        stroke={notApplicable ? "#cbd5e1" : active ? "#16a34a" : "#94a3b8"}
+                        stroke={notApplicable ? "#0e7490" : active ? "#16a34a" : "#94a3b8"}
                         strokeDasharray={notApplicable ? "5 6" : undefined}
                         strokeLinecap="round"
                         strokeWidth={active ? 2.5 : 1.75}
@@ -506,13 +506,13 @@ const TONE_STYLES: Record<ReturnType<typeof statusTone>, { label: string; dot: s
   },
   "not-applicable": {
     label: "Not Applicable",
-    dot: "#94a3b8",
-    chipBg: "rgba(148,163,184,0.18)",
-    chipText: "#64748b",
-    border: "#cbd5e1",
-    bg: "#f1f5f9",
-    accent: "#94a3b8",
-    title: "#475569",
+    dot: "#0e7490",
+    chipBg: "rgba(8,145,178,0.12)",
+    chipText: "#0e7490",
+    border: "#22d3ee",
+    bg: "#ecfeff",
+    accent: "#0891b2",
+    title: "#164e63",
   },
   overdue: {
     label: "Overdue",
