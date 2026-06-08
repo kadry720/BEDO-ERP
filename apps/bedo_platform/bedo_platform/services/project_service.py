@@ -33,7 +33,7 @@ from bedo_platform.constants import (
     SRS_WORKFLOW_TYPE,
 )
 from bedo_platform.services.deadline_service import complete_deadlines, create_deadline, get_deadlines_for_trainer_item, server_now_iso, to_cairo_iso
-from bedo_platform.services.notification_service import notify_many
+from bedo_platform.services.notification_service import notify_many, project_action_url
 from bedo_platform.services.security_audit_service import log_security_event
 from bedo_platform.services.user_profile_service import assert_user_can_login
 
@@ -928,7 +928,7 @@ def release_project_to_srs(project: str, actor: str) -> dict[str, Any]:
         message=f"{project_doc.project_code} is ready for SRS owner assignment.",
         notification_type="PROJECT_RELEASED_TO_SRS",
         project=project,
-        action_url=f"/srs/projects/{project}",
+        action_url=project_action_url("srs", project),
         priority="High",
     )
     _log("project_released_to_srs", actor, project=project, message=f"{len(items)} trainer item(s) released")
@@ -1371,7 +1371,7 @@ def assign_srs_project_owner(trainer_item: str, project_owner: str, actor: str) 
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=SRS_NODE_COORDINATION,
-        action_url=f"/srs/projects/{workflow.project}/items/{trainer_item}",
+        action_url=project_action_url("srs", workflow.project, trainer_item),
         priority="High",
     )
     _log("srs_owner_assigned", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_GATEWAY, target_user=project_owner)
@@ -1572,7 +1572,7 @@ def submit_srs_deliverables_matrix(trainer_item: str, payload: dict[str, Any], a
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=next_node,
-        action_url=f"/srs/projects/{workflow.project}/items/{trainer_item}",
+        action_url=project_action_url("srs", workflow.project, trainer_item),
         priority="High",
     )
     _log("srs_deliverables_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_DELIVERABLES)
@@ -1646,7 +1646,7 @@ def approve_srs_case_as_gm(trainer_item: str, payload: dict[str, Any], actor: st
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=SRS_NODE_MANAGER_APPROVAL,
-        action_url=f"/srs/projects/{workflow.project}/items/{trainer_item}",
+        action_url=project_action_url("srs", workflow.project, trainer_item),
         priority="High",
     )
     _log("srs_gm_approved", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_GM_APPROVAL)
@@ -1717,7 +1717,7 @@ def approve_srs_deadline_as_srs_manager(trainer_item: str, payload: dict[str, An
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=SRS_NODE_ACTION_PATHS,
-        action_url=f"/srs/projects/{workflow.project}/items/{trainer_item}",
+        action_url=project_action_url("srs", workflow.project, trainer_item),
         priority="High",
     )
     _log("srs_manager_approved", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_MANAGER_APPROVAL)
@@ -1772,7 +1772,7 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
         project=workflow.project,
         trainer_item=trainer_item,
         node_id=SRS_NODE_BMDP,
-        action_url=f"/gm/projects/{workflow.project}/items/{trainer_item}",
+        action_url=project_action_url("gm", workflow.project, trainer_item),
         priority="Normal",
     )
     _log("srs_bmdp_path_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_BMDP)

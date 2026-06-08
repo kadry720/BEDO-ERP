@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { normalizeProjectActionUrl } from "@/lib/route-ids";
 import type { NotificationRow } from "@/features/srs/types";
 import { frappeCall } from "@/server/frappe";
 import { requireSession } from "@/server/session";
@@ -18,7 +19,7 @@ export default async function Page() {
         <div className="mb-4 text-sm font-semibold text-muted">{data.unread} unread</div>
         <div className="grid gap-3">
           {data.notifications.map((notification) => (
-            <Link key={notification.name} href={notification.action_url || "/notifications"} className="rounded-md border border-gray-200 bg-white p-4 transition hover:border-slate-300 hover:bg-gray-50">
+            <Link key={notification.name} href={notification.action_url ? normalizeProjectActionUrl(notification.action_url) : "/notifications"} className="rounded-md border border-gray-200 bg-white p-4 transition hover:border-slate-300 hover:bg-gray-50">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="font-bold text-ink">{notification.title}</div>
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${notification.is_read ? "border-gray-200 bg-gray-100 text-gray-600" : "border-blue-200 bg-blue-50 text-blue-800"}`}>

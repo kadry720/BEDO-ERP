@@ -1,7 +1,7 @@
 import { ProjectDetail } from "@/features/srs/ProjectDetail";
 import type { BedoProject, TrainerItemList } from "@/features/srs/types";
 import { frappeCall } from "@/server/frappe";
-import { decodedRouteParam } from "@/server/route-params";
+import { decodedRouteParam } from "@/lib/route-ids";
 import { requireSession } from "@/server/session";
 
 export default async function Page({ params }: { params: Promise<{ projectId: string }> }) {

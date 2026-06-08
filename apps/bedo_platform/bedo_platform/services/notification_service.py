@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote, unquote
 
 
 NOTIFICATION_TYPE_LABELS = {
@@ -24,6 +25,35 @@ NOTIFICATION_TYPE_LABELS = {
 
 def _notification_label(notification_type: str) -> str:
     return NOTIFICATION_TYPE_LABELS.get(notification_type, notification_type.replace("_", " ").title())
+
+
+def route_id(value: str) -> str:
+    return quote(unquote(str(value or "")), safe="")
+
+
+def project_action_url(scope: str, project: str, trainer_item: str = "", suffix: str = "") -> str:
+    base = f"/{scope}/projects/{route_id(project)}"
+    if trainer_item:
+        return f"{base}/items/{route_id(trainer_item)}"
+    return f"{base}{suffix}"
+
+
+def normalize_project_action_url(action_url: str, project: str = "", trainer_item: str = "") -> str:
+    if not action_url.startswith("/"):
+        return action_url
+    for scope in ("gm", "srs"):
+        prefix = f"/{scope}/projects/"
+        if not action_url.startswith(prefix):
+            continue
+        tail = action_url[len(prefix):]
+        if "/items/" in tail:
+            raw_project, raw_item = tail.split("/items/", 1)
+            return project_action_url(scope, project or raw_project, trainer_item or raw_item)
+        if tail.endswith("/trainers"):
+            raw_project = tail[: -len("/trainers")]
+            return project_action_url(scope, project or raw_project, suffix="/trainers")
+        return project_action_url(scope, project or tail)
+    return action_url
 
 
 def create_notification(
@@ -89,6 +119,7 @@ def list_my_notifications(user: str, limit: int = 25) -> dict[str, Any]:
             {
                 **dict(row),
                 "type_label": _notification_label(row.notification_type),
+                "action_url": normalize_project_action_url(row.action_url or "", row.project or "", row.trainer_item or ""),
                 "project_code": (project or {}).get("project_code") or "",
                 "project_name": (project or {}).get("project_name") or "",
                 "trainer_item_name": (trainer or {}).get("trainer_item_name") or "",

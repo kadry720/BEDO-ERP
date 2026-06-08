@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 import { useMemo } from "react";
 import { Activity, AlertTriangle, Clock3, FolderOpen, UserMinus, Users } from "lucide-react";
+import { projectRoute, routeSegment } from "@/lib/route-ids";
 import type { BedoProject, TrainerItem, TrainerItemList } from "@/features/srs/types";
 import { formatDistance, formatNodeId } from "@/features/srs/workflowPresentation";
 
@@ -13,13 +14,9 @@ type Props = {
   mode: "gm" | "srs";
 };
 
-function routeId(value: string) {
-  return encodeURIComponent(value);
-}
-
 export function ProjectDetail({ project, initialItems, mode }: Props) {
   const items = initialItems.trainer_items;
-  const itemRouteBase = mode === "gm" ? `/gm/projects/${routeId(project.name)}/items` : `/srs/projects/${routeId(project.name)}/items`;
+  const itemRouteBase = mode === "gm" ? projectRoute("gm", project.name, "/items") : projectRoute("srs", project.name, "/items");
   const stats = useMemo(() => trainerStats(items), [items]);
 
   return (
@@ -107,7 +104,7 @@ function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; ite
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <Link className="focus-ring inline-flex min-h-9 items-center rounded-md bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-700" href={`${itemRouteBase}/${routeId(item.name)}`}>
+                  <Link className="focus-ring inline-flex min-h-9 items-center rounded-md bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-700" href={`${itemRouteBase}/${routeSegment(item.name)}`}>
                     Open Workflow
                   </Link>
                 </td>

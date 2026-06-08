@@ -2,7 +2,7 @@ import { TrainerWorkspace } from "@/features/srs/TrainerWorkspace";
 import type { SrsFlowchartDefinition, TrainerWorkspace as TrainerWorkspaceData } from "@/features/srs/types";
 import type { BedoUserContext } from "@/lib/routes";
 import { frappeCall } from "@/server/frappe";
-import { decodedRouteParam } from "@/server/route-params";
+import { decodedRouteParam } from "@/lib/route-ids";
 import { requireSession } from "@/server/session";
 
 export default async function Page({ params }: { params: Promise<{ trainerItemId: string }> }) {

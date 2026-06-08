@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from bedo_platform.services.notification_service import project_action_url
+
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
 WORKING_WEEKDAYS = {6, 0, 1, 2, 3}
 WORK_START = time(9, 0)
@@ -169,7 +171,7 @@ def run_deadline_reminder_check() -> dict[str, int]:
             trainer_item=row.trainer_item,
             workflow_type=row.workflow_type,
             node_id=row.node_id,
-            action_url=f"/srs/projects/{row.project}/items/{row.trainer_item}",
+            action_url=project_action_url("srs", row.project, row.trainer_item),
             priority="High",
         )
         frappe.db.set_value("BEDO Deadline", row.name, "reminder_notified_at", to_storage_datetime(now), update_modified=False)
@@ -206,7 +208,7 @@ def run_overdue_check() -> dict[str, int]:
             trainer_item=row.trainer_item,
             workflow_type=row.workflow_type,
             node_id=row.node_id,
-            action_url=f"/srs/projects/{row.project}/items/{row.trainer_item}",
+            action_url=project_action_url("srs", row.project, row.trainer_item),
             priority="High",
         )
         frappe.db.set_value(

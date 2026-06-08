@@ -17,6 +17,7 @@ import {
   UserCircle,
   Users,
 } from "lucide-react";
+import { normalizeProjectActionUrl } from "@/lib/route-ids";
 import { displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
 import type { NotificationRow } from "@/features/srs/types";
 
@@ -231,7 +232,7 @@ function NotificationRowItem({ row, markRead }: { row: NotificationRow; markRead
                 </button>
               )}
               {row.action_url && (
-                <Link className="rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white hover:bg-slate-700" href={row.action_url}>
+                <Link className="rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white hover:bg-slate-700" href={normalizeProjectActionUrl(row.action_url)}>
                   Open
                 </Link>
               )}

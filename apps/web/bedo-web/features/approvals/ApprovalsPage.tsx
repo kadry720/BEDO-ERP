@@ -4,16 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ClipboardCheck, PencilLine, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { trainerItemRoute } from "@/lib/route-ids";
 import type { ApprovalRow } from "@/features/srs/types";
 import { formatNodeId, formatStatus, statusBadgeClass } from "@/features/srs/workflowPresentation";
 
 type Props = {
   initialApprovals: ApprovalRow[];
 };
-
-function routeId(value: string) {
-  return encodeURIComponent(value);
-}
 
 export function ApprovalsPage({ initialApprovals }: Props) {
   const [approvals, setApprovals] = useState(initialApprovals);
@@ -112,7 +109,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
                         <PencilLine className="h-4 w-4" />
                         Edit
                       </Button>
-                      <Link className="rounded-md border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50" href={`/srs/projects/${routeId(approval.project)}/items/${routeId(approval.trainer_item)}`}>
+                      <Link className="rounded-md border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50" href={trainerItemRoute("srs", approval.project, approval.trainer_item)}>
                         Detail
                       </Link>
                     </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ClipboardList, Edit3, Eye, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { routeSegment } from "@/lib/route-ids";
 import type { BedoProject, DashboardProps, ProjectList } from "@/features/srs/types";
 
 type ProjectBucket = BedoProject & {
@@ -12,10 +13,6 @@ type ProjectBucket = BedoProject & {
   progress: number;
   done: boolean;
 };
-
-function routeId(value: string) {
-  return encodeURIComponent(value);
-}
 
 export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
   const [projects, setProjects] = useState<ProjectList>(initialProjects);
@@ -37,7 +34,7 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
 
   async function saveProject(project: BedoProject, payload: Record<string, unknown>) {
     setError("");
-    const response = await fetch(`/api/projects/${routeId(project.name)}`, {
+    const response = await fetch(`/api/projects/${routeSegment(project.name)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -52,7 +49,7 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
 
   async function deleteProject(project: BedoProject) {
     setError("");
-    const response = await fetch(`/api/projects/${routeId(project.name)}`, { method: "DELETE" });
+    const response = await fetch(`/api/projects/${routeSegment(project.name)}`, { method: "DELETE" });
     if (!response.ok) {
       setError("Project could not be deleted.");
       return;
@@ -205,7 +202,7 @@ function ProjectTable({
                         </Button>
                       </>
                     )}
-                    <Link className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" href={`${baseRoute}/projects/${routeId(project.name)}/trainers`}>
+                    <Link className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" href={`${baseRoute}/projects/${routeSegment(project.name)}/trainers`}>
                       <Eye className="h-4 w-4" />
                       View Trainers Table
                     </Link>
