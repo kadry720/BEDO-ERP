@@ -225,8 +225,10 @@ function SrsFlowchart({
   const activeNodeState = workspace.workflow?.current_node ? states.get(workspace.workflow.current_node) : null;
   const diagramWidth = FLOWCHART_DIMENSIONS.laneLabelWidth + FLOWCHART_DIMENSIONS.canvasWidth;
   const diagramHeight = FLOWCHART_DIMENSIONS.deadlineHeaderHeight + FLOWCHART_DIMENSIONS.canvasHeight;
-  const completeCount = workspace.node_states.filter((state) => state.status === "COMPLETED").length;
-  const progress = flowchart.nodes.length ? Math.round((completeCount / flowchart.nodes.length) * 100) : 0;
+  const notApplicableNodeIds = new Set(workspace.node_states.filter((state) => state.status === "NOT_APPLICABLE").map((state) => state.node_id));
+  const applicableNodeCount = flowchart.nodes.filter((node) => !notApplicableNodeIds.has(node.id)).length;
+  const completeCount = workspace.node_states.filter((state) => state.status === "COMPLETED" && !notApplicableNodeIds.has(state.node_id)).length;
+  const progress = applicableNodeCount ? Math.round((completeCount / applicableNodeCount) * 100) : 0;
   const activeDeadlineState = isActiveDeadlineState(activeNodeState || undefined) ? activeNodeState || undefined : undefined;
 
   useLayoutEffect(() => {
@@ -270,7 +272,7 @@ function SrsFlowchart({
 
       <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-slate-200 bg-white px-4 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Legend</span>
-        {(["complete", "in-progress", "pending", "awaiting-approval", "locked", "overdue"] as const).map((tone) => (
+        {(["complete", "in-progress", "pending", "awaiting-approval", "locked", "not-applicable", "overdue"] as const).map((tone) => (
           <span key={tone} className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TONE_STYLES[tone].dot }} />
             <span className="text-xs font-medium text-slate-600">{TONE_STYLES[tone].label}</span>
@@ -348,14 +350,17 @@ function SrsFlowchart({
                   {flowchart.edges.map((edge) => {
                     const path = edgePath(edge.from, edge.to);
                     const sourceStatus = states.get(edge.from)?.status;
-                    const active = sourceStatus === "COMPLETED";
+                    const targetStatus = states.get(edge.to)?.status;
+                    const notApplicable = sourceStatus === "NOT_APPLICABLE" || targetStatus === "NOT_APPLICABLE";
+                    const active = sourceStatus === "COMPLETED" && !notApplicable;
                     return (
                       <path
                         key={`${edge.from}-${edge.to}`}
                         d={path}
                         fill="none"
                         markerEnd="url(#srs-arrow)"
-                        stroke={active ? "#16a34a" : "#94a3b8"}
+                        stroke={notApplicable ? "#cbd5e1" : active ? "#16a34a" : "#94a3b8"}
+                        strokeDasharray={notApplicable ? "5 6" : undefined}
                         strokeLinecap="round"
                         strokeWidth={active ? 2.5 : 1.75}
                       />
@@ -499,6 +504,16 @@ const TONE_STYLES: Record<ReturnType<typeof statusTone>, { label: string; dot: s
     accent: "#94a3b8",
     title: "#475569",
   },
+  "not-applicable": {
+    label: "Not Applicable",
+    dot: "#94a3b8",
+    chipBg: "rgba(148,163,184,0.18)",
+    chipText: "#64748b",
+    border: "#cbd5e1",
+    bg: "#f1f5f9",
+    accent: "#94a3b8",
+    title: "#475569",
+  },
   overdue: {
     label: "Overdue",
     dot: "#dc2626",
@@ -517,6 +532,7 @@ const STATUS_ICONS: Record<ReturnType<typeof statusTone>, FlowIcon> = {
   pending: Clock3,
   "awaiting-approval": ShieldCheck,
   locked: Lock,
+  "not-applicable": X,
   overdue: AlertTriangle,
 };
 

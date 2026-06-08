@@ -1,4 +1,7 @@
 from bedo_platform.constants import (
+    NODE_STATUS_COMPLETED,
+    NODE_STATUS_IN_PROGRESS,
+    NODE_STATUS_NOT_APPLICABLE,
     SRS_NODE_ACTION_PATHS,
     SRS_NODE_BMDP,
     SRS_NODE_CASE_1,
@@ -15,7 +18,7 @@ from bedo_platform.constants import (
     SRS_NODE_MANAGER_APPROVAL,
     SRS_NODE_PRODUCT_DIGITAL_RELEASE,
 )
-from bedo_platform.services.project_service import get_srs_flowchart_definition
+from bedo_platform.services.project_service import CASE_2, CASE_4, _case_path_statuses, get_srs_flowchart_definition
 
 
 def test_srs_flowchart_stops_at_bmdp_and_has_no_post_bmdp_nodes():
@@ -98,3 +101,27 @@ def test_srs_flowchart_has_lanes_deadline_columns_and_edges():
     assert {"from": SRS_NODE_CASES_1_2, "to": SRS_NODE_GM_APPROVAL} not in edges
     assert {"from": SRS_NODE_CASE_1, "to": SRS_NODE_GM_APPROVAL} not in edges
     assert {"from": SRS_NODE_CASE_2, "to": SRS_NODE_GM_APPROVAL} not in edges
+
+
+def test_unselected_case_route_nodes_are_not_applicable():
+    case_4_statuses = _case_path_statuses(CASE_4, NODE_STATUS_COMPLETED)
+
+    assert case_4_statuses[SRS_NODE_CASES_3_4] == NODE_STATUS_COMPLETED
+    assert case_4_statuses[SRS_NODE_CASE_4] == NODE_STATUS_COMPLETED
+    assert case_4_statuses[SRS_NODE_CASES_1_2] == NODE_STATUS_NOT_APPLICABLE
+    assert case_4_statuses[SRS_NODE_CASE_1] == NODE_STATUS_NOT_APPLICABLE
+    assert case_4_statuses[SRS_NODE_CASE_2] == NODE_STATUS_NOT_APPLICABLE
+    assert case_4_statuses[SRS_NODE_CASE_3] == NODE_STATUS_NOT_APPLICABLE
+    assert SRS_NODE_GM_APPROVAL not in case_4_statuses
+
+
+def test_case_1_2_route_marks_gm_approval_not_applicable():
+    case_2_statuses = _case_path_statuses(CASE_2, NODE_STATUS_IN_PROGRESS)
+
+    assert case_2_statuses[SRS_NODE_CASES_1_2] == NODE_STATUS_IN_PROGRESS
+    assert case_2_statuses[SRS_NODE_CASE_2] == NODE_STATUS_IN_PROGRESS
+    assert case_2_statuses[SRS_NODE_CASES_3_4] == NODE_STATUS_NOT_APPLICABLE
+    assert case_2_statuses[SRS_NODE_CASE_1] == NODE_STATUS_NOT_APPLICABLE
+    assert case_2_statuses[SRS_NODE_CASE_3] == NODE_STATUS_NOT_APPLICABLE
+    assert case_2_statuses[SRS_NODE_CASE_4] == NODE_STATUS_NOT_APPLICABLE
+    assert case_2_statuses[SRS_NODE_GM_APPROVAL] == NODE_STATUS_NOT_APPLICABLE

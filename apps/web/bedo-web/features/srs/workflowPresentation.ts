@@ -7,7 +7,7 @@ export type ConnectorRoute = {
   toSide: ConnectorSide;
 };
 
-export type StatusTone = "complete" | "in-progress" | "pending" | "awaiting-approval" | "locked" | "overdue";
+export type StatusTone = "complete" | "in-progress" | "pending" | "awaiting-approval" | "locked" | "not-applicable" | "overdue";
 
 export const FLOWCHART_DIMENSIONS = {
   laneLabelWidth: 200,
@@ -25,6 +25,7 @@ export const STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "In Progress",
   LOCKED: "Locked",
   NOT_STARTED: "Not Started",
+  NOT_APPLICABLE: "Not Applicable",
   OVERDUE: "Overdue",
   PENDING: "Pending",
   READY: "Pending",
@@ -49,6 +50,7 @@ export function statusBadgeClass(status?: string | null) {
   if (label === "In Progress" || label === "Active" || label.includes("Progress")) return "border-amber-200 bg-amber-50 text-amber-800";
   if (label.includes("Awaiting")) return "border-blue-200 bg-blue-50 text-blue-800";
   if (label === "Overdue") return "border-red-200 bg-red-50 text-red-800";
+  if (label === "Not Applicable") return "border-slate-200 bg-slate-100 text-slate-500";
   if (label === "Locked") return "border-gray-200 bg-gray-100 text-gray-600";
   return "border-gray-200 bg-white text-gray-700";
 }
@@ -59,6 +61,7 @@ export function nodeStatusClass(status?: string | null, canOpen = false) {
   if (label === "In Progress" || label.includes("Progress") || label === "Active") return "border-amber-300 bg-amber-50 shadow-sm";
   if (label.includes("Awaiting")) return "border-blue-300 bg-blue-50 shadow-sm";
   if (label === "Overdue") return "border-red-300 bg-red-50 shadow-sm";
+  if (label === "Not Applicable") return "border-slate-200 bg-slate-100";
   if (canOpen) return "border-slate-300 bg-white shadow-sm";
   return "border-gray-200 bg-gray-100";
 }
@@ -160,6 +163,7 @@ export function statusTone(status?: string | null): StatusTone {
   const label = formatStatus(status);
   if (label === "Complete" || label === "SRS Complete") return "complete";
   if (label === "Overdue") return "overdue";
+  if (label === "Not Applicable") return "not-applicable";
   if (label.includes("Awaiting")) return "awaiting-approval";
   if (label === "In Progress" || label.includes("Progress") || label === "Active") return "in-progress";
   if (label === "Locked") return "locked";

@@ -10,6 +10,7 @@ from bedo_platform.constants import (
     NODE_STATUS_COMPLETED,
     NODE_STATUS_IN_PROGRESS,
     NODE_STATUS_LOCKED,
+    NODE_STATUS_NOT_APPLICABLE,
     NODE_STATUS_READY,
     NODE_STATUS_WAITING_APPROVAL,
     SRS_FUNCTIONAL_NODES,
@@ -472,11 +473,30 @@ def _case_group_node_id(case_classification: str) -> str:
     return SRS_NODE_CASES_3_4 if case_classification in {CASE_3, CASE_4} else SRS_NODE_CASES_1_2
 
 
-def _set_case_path_states(workflow, case_classification: str, actor: str, status: str = NODE_STATUS_IN_PROGRESS) -> None:
+def _case_path_statuses(case_classification: str, status: str = NODE_STATUS_IN_PROGRESS) -> dict[str, str]:
     selected_group = _case_group_node_id(case_classification)
     selected_case = _case_node_id(case_classification)
-    for node_id in [SRS_NODE_CASES_1_2, SRS_NODE_CASES_3_4, SRS_NODE_CASE_1, SRS_NODE_CASE_2, SRS_NODE_CASE_3, SRS_NODE_CASE_4]:
-        next_status = status if node_id in {selected_group, selected_case} else NODE_STATUS_LOCKED
+    statuses = {
+        node_id: NODE_STATUS_NOT_APPLICABLE
+        for node_id in [
+            SRS_NODE_CASES_1_2,
+            SRS_NODE_CASES_3_4,
+            SRS_NODE_CASE_1,
+            SRS_NODE_CASE_2,
+            SRS_NODE_CASE_3,
+            SRS_NODE_CASE_4,
+        ]
+    }
+    for node_id in {selected_group, selected_case}:
+        if node_id:
+            statuses[node_id] = status
+    if case_classification not in GM_APPROVAL_CASES:
+        statuses[SRS_NODE_GM_APPROVAL] = NODE_STATUS_NOT_APPLICABLE
+    return statuses
+
+
+def _set_case_path_states(workflow, case_classification: str, actor: str, status: str = NODE_STATUS_IN_PROGRESS) -> None:
+    for node_id, next_status in _case_path_statuses(case_classification, status).items():
         _set_node_state(workflow, node_id, next_status, actor=actor)
 
 

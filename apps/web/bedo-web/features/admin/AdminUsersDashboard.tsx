@@ -6,6 +6,16 @@ import { Button } from "@/components/Button";
 import type { AdminBootstrap, AdminUser, SecurityEvent } from "@/features/admin/types";
 
 const tabs = ["Users", "Security Logs"];
+const hiddenAdminTableUsers = new Set(["administrator", "guest", "systemadmin", "useradmin", "securityauditor", "globalviewer"]);
+
+function isHiddenAdminTableUser(user: AdminUser) {
+  return [user.user, user.username, user.email]
+    .filter(Boolean)
+    .some((value) => {
+      const normalized = value.toLowerCase();
+      return hiddenAdminTableUsers.has(normalized) || hiddenAdminTableUsers.has(normalized.split("@")[0]);
+    });
+}
 
 type UserFormMode = "create" | "edit";
 
@@ -37,7 +47,7 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
 
   const filtered = useMemo(() => {
     const needle = query.toLowerCase().trim();
-    const visibleUsers = users.filter((user) => user.user !== "Administrator");
+    const visibleUsers = users.filter((user) => !isHiddenAdminTableUser(user));
     if (!needle) return visibleUsers;
     return visibleUsers.filter((user) =>
       [user.username, user.first_name, user.last_name, user.email, user.primary_department, user.roles.join(" ")]
