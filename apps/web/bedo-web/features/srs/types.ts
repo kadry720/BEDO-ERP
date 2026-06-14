@@ -132,9 +132,73 @@ export type TrainerWorkspace = {
   report_to_users: string[];
   team_members: Array<{ user: string; full_name: string; is_project_owner?: number; selected_by?: string; selected_at?: string }>;
   approvals: Array<Record<string, string | number>>;
+  command_center_handoff?: CommandCenterHandoff | null;
+  supplier_files?: SupplierFile[];
   audit_events: Array<{ event_type: string; user: string; target_user?: string; node_id?: string; message?: string; created_at: string }>;
   tabs: string[];
   deadline_unit_label?: string;
+};
+
+export type WorkflowDeadline = {
+  name?: string;
+  workflow_type?: string;
+  node_id?: string;
+  start_at?: string;
+  due_at?: string;
+  deadline_days?: number;
+  status?: string;
+  server_now?: string;
+};
+
+export type CommandCenterHandoff = {
+  name: string;
+  project: string;
+  trainer_item: string;
+  srs_workflow_instance: string;
+  handoff_type: string;
+  status: string;
+  command_center_case: string;
+  deadline_days: number;
+  approved_deadline_days: number;
+  deadline: string;
+  deadline_detail?: WorkflowDeadline;
+  responsible_user: string;
+  responsible_name: string;
+  submitted_by: string;
+  submitted_by_name: string;
+  submitted_at: string;
+  gm_approval: string;
+  gm_approved_by: string;
+  gm_approved_by_name: string;
+  gm_approved_at: string;
+  completed_by: string;
+  completed_by_name: string;
+  completed_at: string;
+  notes: string;
+  can_submit_decision: boolean;
+  can_complete_case_1: boolean;
+};
+
+export type SupplierFile = {
+  name: string;
+  project: string;
+  trainer_item: string;
+  source_type: string;
+  source_handoff: string;
+  status: string;
+  responsible_user: string;
+  responsible_name: string;
+  deadline: string;
+  deadline_detail?: WorkflowDeadline;
+  deadline_days: number;
+  started_at: string;
+  completed_by: string;
+  completed_by_name: string;
+  completed_at: string;
+  details: string;
+  latest_extension_approval: string;
+  can_deliver: boolean;
+  can_request_extension: boolean;
 };
 
 export type NotificationRow = {
@@ -173,6 +237,8 @@ export type ApprovalRow = {
   project_owner: string;
   project_owner_name: string;
   current_node: string;
+  command_center_handoff?: string;
+  supplier_file?: string;
   deadline?: string;
   target_node?: string;
   target_node_label?: string;

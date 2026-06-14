@@ -6,6 +6,8 @@ from typing import Any
 
 from bedo_platform.constants import (
     CASE_CLASSIFICATIONS,
+    COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
+    COMMAND_CENTER_WORKFLOW_TYPE,
     COMMAND_CENTER_ROLES,
     GLOBAL_DEADLINE_EXTENSION_APPROVAL,
     GLOBAL_VIEW_ROLES,
@@ -44,6 +46,8 @@ from bedo_platform.constants import (
     SRS_PLACEHOLDER_NODES,
     SRS_ROLES,
     SRS_WORKFLOW_TYPE,
+    SUPPLIER_DEADLINE_EXTENSION_APPROVAL,
+    SUPPLIERS_WORKFLOW_TYPE,
 )
 from bedo_platform.services.deadline_service import (
     complete_deadlines,
@@ -97,6 +101,23 @@ COMMAND_CENTER_CASES = {
     "Case 2 - Buy Critical Components then deliver to ARD": "Buy Critical Components then deliver to ARD",
     "Case 3 - Deliver to ARD directly": "Deliver to ARD directly",
 }
+
+COMMAND_CENTER_CASE_1 = "Case 1 - Save for later"
+COMMAND_CENTER_CASE_2 = "Case 2 - Buy Critical Components then deliver to ARD"
+COMMAND_CENTER_CASE_3 = "Case 3 - Deliver to ARD directly"
+COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD = "SRS_TO_ARD"
+COMMAND_CENTER_HANDOFF_PENDING = "PENDING_COMMAND_CENTER"
+COMMAND_CENTER_HANDOFF_WAITING_GM = "WAITING_GM_APPROVAL"
+COMMAND_CENTER_HANDOFF_IN_PROGRESS = "COMMAND_CENTER_IN_PROGRESS"
+COMMAND_CENTER_HANDOFF_ROUTED_TO_SUPPLIERS = "ROUTED_TO_SUPPLIERS"
+COMMAND_CENTER_HANDOFF_READY_FOR_ARD = "READY_FOR_ARD"
+COMMAND_CENTER_HANDOFF_COMPLETED = "COMPLETED"
+SUPPLIER_FILE_IN_PROGRESS = "IN_PROGRESS"
+SUPPLIER_FILE_WAITING_EXTENSION = "WAITING_EXTENSION_APPROVAL"
+SUPPLIER_FILE_OVERDUE = "OVERDUE"
+SUPPLIER_FILE_COMPLETED = "COMPLETED"
+COMMAND_CENTER_CASE_1_NODE = "COMMAND_CENTER_CASE_1"
+SUPPLIER_CASE_2_NODE = "SUPPLIER_CASE_2_DELIVERY"
 
 
 def _utcnow() -> datetime:
@@ -267,27 +288,6 @@ SRS_FLOWCHART_NODE_DEFINITIONS: list[dict[str, Any]] = [
         "clickable": True,
         "requiredPreviousNodes": [SRS_NODE_DUAL_GATE_APPROVAL, SRS_NODE_DEADLINE_LOCKED, SRS_NODE_ACTION_PATHS, SRS_NODE_PMDP],
     },
-    {
-        "id": SRS_NODE_COMMAND_CENTER_APPROVAL,
-        "label": "Command Center Approval",
-        "lane": "study_phase",
-        "column": "deadline_4",
-        "kind": "action",
-        "clickable": True,
-        "requiredRoles": ["Command Center Representative"],
-        "requiredPreviousNodes": [SRS_NODE_BMDP],
-    },
-    {
-        "id": SRS_NODE_FINAL_GM_APPROVAL,
-        "label": "GM Approval",
-        "lane": "study_phase",
-        "column": "deadline_4",
-        "kind": "approval",
-        "clickable": False,
-        "requiredRoles": ["General Manager"],
-        "requiredPreviousNodes": [SRS_NODE_COMMAND_CENTER_APPROVAL],
-        "isTerminal": True,
-    },
 ]
 
 SRS_FLOWCHART_EDGES = [
@@ -312,8 +312,6 @@ SRS_FLOWCHART_EDGES = [
     [SRS_NODE_SRS_DIRECTOR_APPROVAL, SRS_NODE_PHYSICAL_BUILD_TEST],
     [SRS_NODE_PHYSICAL_BUILD_TEST, SRS_NODE_PMDP],
     [SRS_NODE_PMDP, SRS_NODE_BMDP],
-    [SRS_NODE_BMDP, SRS_NODE_COMMAND_CENTER_APPROVAL],
-    [SRS_NODE_COMMAND_CENTER_APPROVAL, SRS_NODE_FINAL_GM_APPROVAL],
 ]
 
 
@@ -443,6 +441,88 @@ def _workflow_for_item(trainer_item: str):
     return frappe.get_doc("SRS Workflow Instance", name)
 
 
+def _ensure_command_center_handoff(workflow, *, actor: str, notify: bool = False):
+    import frappe
+
+    name = frappe.db.get_value(
+        "BEDO Command Center Handoff",
+        {
+            "srs_workflow_instance": workflow.name,
+            "trainer_item": workflow.trainer_item,
+            "handoff_type": COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+            "is_active": 1,
+        },
+        "name",
+    )
+    if name:
+        return frappe.get_doc("BEDO Command Center Handoff", name)
+
+    doc = frappe.get_doc(
+        {
+            "doctype": "BEDO Command Center Handoff",
+            "project": workflow.project,
+            "trainer_item": workflow.trainer_item,
+            "srs_workflow_instance": workflow.name,
+            "handoff_type": COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+            "status": COMMAND_CENTER_HANDOFF_PENDING,
+            "submitted_by": actor,
+            "submitted_at": _utcnow(),
+            "is_active": 1,
+        }
+    )
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+    if notify:
+        notify_many(
+            _active_users_with_role("Command Center Representative"),
+            title="SRS to ARD handoff ready",
+            message="BMDP is complete. Command Center decision is required for the SRS to ARD handoff.",
+            notification_type="COMMAND_CENTER_HANDOFF_READY",
+            project=workflow.project,
+            trainer_item=workflow.trainer_item,
+            workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+            node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+            action_url=project_action_url("command-center", workflow.project, workflow.trainer_item),
+            priority="High",
+        )
+    _log_workflow(
+        "command_center_handoff_created",
+        actor,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        project=workflow.project,
+        trainer_item=workflow.trainer_item,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+    )
+    return doc
+
+
+def _handoff_for_item(trainer_item: str):
+    import frappe
+
+    name = frappe.db.get_value(
+        "BEDO Command Center Handoff",
+        {"trainer_item": trainer_item, "handoff_type": COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD, "is_active": 1},
+        "name",
+    )
+    return frappe.get_doc("BEDO Command Center Handoff", name) if name else None
+
+
+def _handoff_or_throw(handoff: str):
+    import frappe
+
+    if not handoff or not frappe.db.exists("BEDO Command Center Handoff", handoff):
+        frappe.throw("Command Center handoff not found.", frappe.DoesNotExistError)
+    return frappe.get_doc("BEDO Command Center Handoff", handoff)
+
+
+def _supplier_file_or_throw(supplier_file: str):
+    import frappe
+
+    if not supplier_file or not frappe.db.exists("BEDO Supplier File", supplier_file):
+        frappe.throw("Supplier file not found.", frappe.DoesNotExistError)
+    return frappe.get_doc("BEDO Supplier File", supplier_file)
+
+
 def _node_state(workflow: str, node_id: str):
     import frappe
 
@@ -504,6 +584,30 @@ def _log(event_type: str, actor: str, *, project: str = "", trainer_item: str = 
     )
 
 
+def _log_workflow(
+    event_type: str,
+    actor: str,
+    *,
+    workflow_type: str,
+    project: str = "",
+    trainer_item: str = "",
+    node_id: str = "",
+    message: str = "",
+    target_user: str = "",
+) -> None:
+    log_security_event(
+        event_type,
+        user=actor,
+        target_user=target_user or None,
+        project=project or None,
+        trainer_item=trainer_item or None,
+        workflow_type=workflow_type,
+        node_id=node_id or None,
+        status="Success",
+        message=message,
+    )
+
+
 def _audit_invalid_transition_attempt(actor: str, workflow, node_id: str, message: str) -> None:
     log_security_event(
         "invalid_srs_transition_attempt",
@@ -537,22 +641,19 @@ def _backfill_completed_srs_terminal_nodes(workflow) -> None:
     if not workflow or workflow.status != STATE_COMPLETE or not _node_completed(workflow, SRS_NODE_BMDP):
         return
     actor = workflow.get("gm_approved_by") or workflow.get("srs_manager_approved_by") or workflow.get("project_owner") or "Administrator"
-    if not _node_completed(workflow, SRS_NODE_COMMAND_CENTER_APPROVAL):
-        _set_node_state(workflow, SRS_NODE_COMMAND_CENTER_APPROVAL, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
-    if not _node_completed(workflow, SRS_NODE_FINAL_GM_APPROVAL):
-        _set_node_state(workflow, SRS_NODE_FINAL_GM_APPROVAL, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
-    if workflow.current_node != SRS_NODE_FINAL_GM_APPROVAL:
+    if workflow.current_node in {SRS_NODE_COMMAND_CENTER_APPROVAL, SRS_NODE_FINAL_GM_APPROVAL}:
         import frappe
 
-        workflow.current_node = SRS_NODE_FINAL_GM_APPROVAL
+        workflow.current_node = SRS_NODE_BMDP
         workflow.updated_at = _utcnow()
         workflow.flags.ignore_permissions = True
         workflow.save(ignore_permissions=True)
         frappe.db.set_value(
             "BEDO Trainer Item",
             workflow.trainer_item,
-            {"current_node": SRS_NODE_FINAL_GM_APPROVAL, "status": ITEM_STATUS_SRS_COMPLETE},
+            {"current_node": SRS_NODE_BMDP, "status": ITEM_STATUS_SRS_COMPLETE},
         )
+    _ensure_command_center_handoff(workflow, actor=actor, notify=False)
 
 
 def _assert_node_completed(workflow, node_id: str, actor: str, target_node: str) -> None:
@@ -1456,6 +1557,126 @@ def _safe_node_state(row, display_data: dict[str, Any] | None = None) -> dict[st
     }
 
 
+def _safe_deadline(deadline_name: str) -> dict[str, Any]:
+    import frappe
+
+    if not deadline_name:
+        return {}
+    row = frappe.db.get_value(
+        "BEDO Deadline",
+        deadline_name,
+        ["name", "workflow_type", "node_id", "start_at", "due_at", "deadline_days", "status"],
+        as_dict=True,
+    )
+    if not row:
+        return {}
+    return {
+        **dict(row),
+        "start_at": to_cairo_iso(row.start_at),
+        "due_at": to_cairo_iso(row.due_at),
+        "server_now": server_now_iso(),
+    }
+
+
+def _safe_command_center_handoff(handoff, actor: str) -> dict[str, Any] | None:
+    if not handoff:
+        return None
+    deadline = _safe_deadline(handoff.deadline)
+    return {
+        "name": handoff.name,
+        "project": handoff.project,
+        "trainer_item": handoff.trainer_item,
+        "srs_workflow_instance": handoff.srs_workflow_instance,
+        "handoff_type": handoff.handoff_type,
+        "status": handoff.status,
+        "command_center_case": handoff.command_center_case or "",
+        "deadline_days": handoff.deadline_days or 0,
+        "approved_deadline_days": handoff.approved_deadline_days or 0,
+        "deadline": handoff.deadline or "",
+        "deadline_detail": deadline,
+        "responsible_user": handoff.responsible_user or "",
+        "responsible_name": _user_full_name(handoff.responsible_user),
+        "submitted_by": handoff.submitted_by or "",
+        "submitted_by_name": _user_full_name(handoff.submitted_by),
+        "submitted_at": to_cairo_iso(handoff.submitted_at),
+        "gm_approval": handoff.gm_approval or "",
+        "gm_approved_by": handoff.gm_approved_by or "",
+        "gm_approved_by_name": _user_full_name(handoff.gm_approved_by),
+        "gm_approved_at": to_cairo_iso(handoff.gm_approved_at),
+        "completed_by": handoff.completed_by or "",
+        "completed_by_name": _user_full_name(handoff.completed_by),
+        "completed_at": to_cairo_iso(handoff.completed_at),
+        "notes": handoff.notes or "",
+        "can_submit_decision": _is_command_center_representative(actor) and handoff.status == COMMAND_CENTER_HANDOFF_PENDING,
+        "can_complete_case_1": handoff.responsible_user == actor and handoff.command_center_case == COMMAND_CENTER_CASE_1 and handoff.status == COMMAND_CENTER_HANDOFF_IN_PROGRESS,
+    }
+
+
+def _safe_supplier_file(row, actor: str) -> dict[str, Any]:
+    deadline = _safe_deadline(row.deadline)
+    return {
+        "name": row.name,
+        "project": row.project,
+        "trainer_item": row.trainer_item,
+        "source_type": row.source_type,
+        "source_handoff": row.source_handoff,
+        "status": row.status,
+        "responsible_user": row.responsible_user,
+        "responsible_name": _user_full_name(row.responsible_user),
+        "deadline": row.deadline or "",
+        "deadline_detail": deadline,
+        "deadline_days": row.deadline_days or 0,
+        "started_at": to_cairo_iso(row.started_at),
+        "completed_by": row.completed_by or "",
+        "completed_by_name": _user_full_name(row.completed_by),
+        "completed_at": to_cairo_iso(row.completed_at),
+        "details": row.details or "",
+        "latest_extension_approval": row.latest_extension_approval or "",
+        "can_deliver": row.responsible_user == actor and row.status != SUPPLIER_FILE_COMPLETED,
+        "can_request_extension": row.responsible_user == actor and row.status not in {SUPPLIER_FILE_COMPLETED, SUPPLIER_FILE_WAITING_EXTENSION},
+    }
+
+
+def _supplier_files_for_item(trainer_item: str) -> list[Any]:
+    import frappe
+
+    return frappe.get_all(
+        "BEDO Supplier File",
+        filters={"trainer_item": trainer_item, "is_active": 1},
+        fields=[
+            "name",
+            "project",
+            "trainer_item",
+            "source_type",
+            "source_handoff",
+            "status",
+            "responsible_user",
+            "deadline",
+            "deadline_days",
+            "started_at",
+            "completed_by",
+            "completed_at",
+            "details",
+            "latest_extension_approval",
+        ],
+        order_by="creation asc",
+    )
+
+
+def get_command_center_handoff_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
+    _assert_item_access(actor, trainer_item)
+    workflow = _workflow_for_item(trainer_item)
+    handoff = _handoff_for_item(trainer_item)
+    if not handoff and workflow.status == STATE_COMPLETE and workflow.current_node == SRS_NODE_BMDP:
+        handoff = _ensure_command_center_handoff(workflow, actor=actor)
+    return {"handoff": _safe_command_center_handoff(handoff, actor)}
+
+
+def get_supplier_files_for_trainer_item(trainer_item: str, actor: str) -> dict[str, Any]:
+    _assert_item_access(actor, trainer_item)
+    return {"supplier_files": [_safe_supplier_file(row, actor) for row in _supplier_files_for_item(trainer_item)]}
+
+
 def _node_display_data(workflow, team_members: list[dict[str, Any]], approvals: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if not workflow:
         return {}
@@ -1661,12 +1882,26 @@ def get_trainer_item_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
         order_by="created_at desc",
         page_length=50,
     )
+    handoff = _handoff_for_item(trainer_item)
+    if not handoff and workflow and workflow.status == STATE_COMPLETE and workflow.current_node == SRS_NODE_BMDP:
+        handoff = _ensure_command_center_handoff(workflow, actor=actor)
+    supplier_files = [_safe_supplier_file(row, actor) for row in _supplier_files_for_item(trainer_item)]
     if _is_gm(actor):
-        tabs = ["SRS", "ARD", "Command Center", "Production", "QC", "Operations", "Audit Log"]
+        tabs = ["SRS", "ARD", "Production", "QC", "Operations", "Command Center"]
+        if supplier_files:
+            tabs.append("Suppliers")
+        tabs.append("Audit Log")
+    elif _is_command_center_representative(actor):
+        tabs = ["Command Center"]
+        if supplier_files or any(row.get("responsible_user") == actor for row in supplier_files):
+            tabs.append("Suppliers")
+        tabs.append("SRS")
     elif _is_srs_manager(actor):
         tabs = ["SRS", "Audit Log"]
     else:
         tabs = ["SRS"]
+        if any(row.get("responsible_user") == actor for row in supplier_files):
+            tabs.append("Suppliers")
     return {
         "project": _safe_project(project),
         "trainer_item": _safe_item(item, include_price=_is_gm(actor)),
@@ -1678,6 +1913,8 @@ def get_trainer_item_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
         "report_to_users": [row.user for row in report_to],
         "team_members": team_members,
         "approvals": list(approvals.values()),
+        "command_center_handoff": _safe_command_center_handoff(handoff, actor),
+        "supplier_files": supplier_files,
         "audit_events": [dict(row) for row in audit],
         "tabs": tabs,
         "deadline_unit_label": deadline_unit_label(),
@@ -2023,7 +2260,19 @@ def _create_approval(
 
     if frappe.db.exists("SRS Approval", {"workflow_instance": workflow.name, "approval_type": approval_type, "status": "WAITING"}):
         return
-    required_role = "General Manager" if approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "SRS Manager"
+    required_role = (
+        "General Manager"
+        if approval_type
+        in {
+            "GM_CASE_APPROVAL",
+            "PMDP_DUAL_GATE_GM_APPROVAL",
+            "COMMAND_CENTER_GM_APPROVAL",
+            COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
+            SUPPLIER_DEADLINE_EXTENSION_APPROVAL,
+            GLOBAL_DEADLINE_EXTENSION_APPROVAL,
+        }
+        else "SRS Manager"
+    )
     doc = frappe.get_doc(
         {
             "doctype": "SRS Approval",
@@ -2449,131 +2698,490 @@ def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str, actor: str) -> dict[
     complete_deadlines(trainer_item, SRS_NODE_BMDP)
     _set_completed_case_states(workflow, workflow.case_classification, actor)
     _set_node_state(workflow, SRS_NODE_BMDP, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
-    _set_node_state(workflow, SRS_NODE_COMMAND_CENTER_APPROVAL, NODE_STATUS_IN_PROGRESS, actor=actor)
     workflow.bmdp_path = path
-    workflow.status = STATE_COMMAND_CENTER_APPROVAL
-    workflow.current_node = SRS_NODE_COMMAND_CENTER_APPROVAL
-    workflow.updated_at = _utcnow()
+    workflow.status = STATE_COMPLETE
+    workflow.current_node = SRS_NODE_BMDP
+    workflow.completed_at = _utcnow()
+    workflow.updated_at = workflow.completed_at
     workflow.flags.ignore_permissions = True
     workflow.save(ignore_permissions=True)
-    frappe.db.set_value("BEDO Trainer Item", trainer_item, {"current_node": SRS_NODE_COMMAND_CENTER_APPROVAL, "current_responsible_user": ""})
-    recipients = _active_users_with_role("Command Center Representative")
+    frappe.db.set_value(
+        "BEDO Trainer Item",
+        trainer_item,
+        {"status": ITEM_STATUS_SRS_COMPLETE, "current_node": SRS_NODE_BMDP, "current_responsible_user": ""},
+    )
+    _ensure_command_center_handoff(workflow, actor=actor, notify=True)
+    report_to = frappe.get_all("BEDO Trainer Item Report To", filters={"trainer_item": trainer_item}, pluck="user")
     notify_many(
-        recipients,
-        title="Command Center approval required",
-        message="BMDP is submitted. Command Center review is required.",
-        notification_type="BMDP_SUBMITTED",
+        report_to,
+        title="SRS complete",
+        message="BMDP is submitted. SRS is complete and the Command Center handoff is ready.",
+        notification_type="SRS_WORKFLOW_COMPLETED",
         project=workflow.project,
         trainer_item=trainer_item,
-        node_id=SRS_NODE_COMMAND_CENTER_APPROVAL,
-        action_url=project_action_url("srs", workflow.project, trainer_item),
-        priority="High",
+        node_id=SRS_NODE_BMDP,
+        action_url=project_action_url("gm", workflow.project, trainer_item),
+        priority="Normal",
     )
     _log("srs_bmdp_path_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_BMDP)
     return {"success": True, "trainer_item": trainer_item}
 
 
-def submit_command_center_approval(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+def _command_center_case_and_deadline(payload: dict[str, Any], *, fallback_case: str = "", fallback_deadline: Any = None) -> tuple[str, int]:
+    command_case = str(payload.get("command_center_case") or payload.get("case_classification") or fallback_case or "").strip()
+    if command_case not in COMMAND_CENTER_CASES:
+        raise ValueError("Select a valid Command Center Case.")
+    if command_case == COMMAND_CENTER_CASE_3:
+        return command_case, 0
+    deadline_source = payload.get("deadline_days") or payload.get("deadline_proposal_days") or fallback_deadline
+    return command_case, _required_int_for_storage(deadline_source, "Deadline")
+
+
+def submit_command_center_srs_ard_decision(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
     import frappe
 
     _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
     if not _is_command_center_representative(actor):
         frappe.throw("Command Center Representative access is required.", frappe.PermissionError)
-    _assert_transition_prerequisites("submit_command_center", workflow, actor)
-    if frappe.db.exists("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "COMMAND_CENTER_GM_APPROVAL"}):
-        frappe.throw("Command Center approval has already been submitted.", frappe.PermissionError)
-    command_case = _required_text(payload.get("command_center_case"), "Command Center Case")
-    if command_case not in COMMAND_CENTER_CASES:
-        raise ValueError("Select a valid Command Center Case.")
-    deadline_days = _required_int_for_storage(payload.get("deadline_days"), "Deadline")
+    if workflow.status != STATE_COMPLETE or workflow.current_node != SRS_NODE_BMDP:
+        frappe.throw("SRS must be complete at BMDP before Command Center handoff decisions.", frappe.PermissionError)
+    handoff = _handoff_for_item(trainer_item) or _ensure_command_center_handoff(workflow, actor=actor)
+    if handoff.status != COMMAND_CENTER_HANDOFF_PENDING:
+        frappe.throw("Command Center decision is not available for this handoff.", frappe.PermissionError)
+    if frappe.db.exists(
+        "SRS Approval",
+        {
+            "command_center_handoff": handoff.name,
+            "approval_type": COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
+            "status": "WAITING",
+        },
+    ):
+        frappe.throw("A GM approval is already waiting for this handoff.", frappe.PermissionError)
+
+    command_case, deadline_days = _command_center_case_and_deadline(payload)
+    notes = str(payload.get("notes") or payload.get("comments") or "")[:500]
+    now = _utcnow()
     approval = frappe.get_doc(
         {
             "doctype": "SRS Approval",
             "workflow_instance": workflow.name,
             "project": workflow.project,
             "trainer_item": trainer_item,
-            "approval_type": "COMMAND_CENTER_GM_APPROVAL",
+            "command_center_handoff": handoff.name,
+            "approval_type": COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
             "status": "WAITING",
             "required_role": "General Manager",
             "assigned_to_user": actor,
             "original_case_classification": command_case,
             "original_deadline_proposal_days": deadline_days,
-            "comments": "Command Center decision approval for SRS completion.",
+            "comments": notes or "Command Center SRS to ARD handoff decision.",
         }
     )
     approval.flags.ignore_permissions = True
     approval.insert(ignore_permissions=True)
-    _set_node_state(workflow, SRS_NODE_COMMAND_CENTER_APPROVAL, NODE_STATUS_COMPLETED, actor=actor, responsible_user=actor)
-    _set_node_state(workflow, SRS_NODE_FINAL_GM_APPROVAL, NODE_STATUS_WAITING_APPROVAL, actor=actor)
-    workflow.status = STATE_WAITING_FINAL_GM
-    workflow.current_node = SRS_NODE_FINAL_GM_APPROVAL
-    workflow.updated_at = _utcnow()
-    workflow.flags.ignore_permissions = True
-    workflow.save(ignore_permissions=True)
-    frappe.db.set_value("BEDO Trainer Item", trainer_item, {"current_node": SRS_NODE_FINAL_GM_APPROVAL, "current_responsible_user": ""})
+
+    handoff.command_center_case = command_case
+    handoff.deadline_days = deadline_days
+    handoff.responsible_user = actor
+    handoff.submitted_by = actor
+    handoff.submitted_at = now
+    handoff.gm_approval = approval.name
+    handoff.status = COMMAND_CENTER_HANDOFF_WAITING_GM
+    handoff.notes = notes
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+
     notify_many(
         _active_users_with_role("General Manager"),
-        title="Final SRS GM approval required",
-        message="Command Center decision approval for SRS completion is waiting.",
+        title="Command Center handoff approval required",
+        message="A Command Center SRS to ARD handoff decision is waiting for GM approval.",
         notification_type="GM_APPROVAL_REQUIRED",
         project=workflow.project,
         trainer_item=trainer_item,
-        node_id=SRS_NODE_FINAL_GM_APPROVAL,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
         action_url="/approvals",
         priority="High",
     )
-    _log("srs_command_center_submitted", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_COMMAND_CENTER_APPROVAL)
-    return {"success": True, "trainer_item": trainer_item}
+    _log_workflow(
+        "command_center_srs_ard_decision_submitted",
+        actor,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        project=workflow.project,
+        trainer_item=trainer_item,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+        message=command_case,
+    )
+    return {"success": True, "trainer_item": trainer_item, "handoff": handoff.name}
+
+
+def submit_command_center_approval(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    return submit_command_center_srs_ard_decision(trainer_item, payload, actor)
+
+
+def _create_command_center_deadline(handoff, actor: str, deadline_days: int) -> dict[str, Any]:
+    deadline = create_deadline(
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        node_id=COMMAND_CENTER_CASE_1_NODE,
+        triggered_by=actor,
+        deadline_days=deadline_days,
+    )
+    handoff.deadline = deadline["name"]
+    handoff.approved_deadline_days = deadline_days
+    handoff.status = COMMAND_CENTER_HANDOFF_IN_PROGRESS
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+    return deadline
+
+
+def _create_supplier_file_for_handoff(handoff, actor: str, deadline_days: int):
+    import frappe
+
+    deadline = create_deadline(
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        workflow_type=SUPPLIERS_WORKFLOW_TYPE,
+        node_id=SUPPLIER_CASE_2_NODE,
+        triggered_by=actor,
+        deadline_days=deadline_days,
+    )
+    existing = frappe.db.get_value("BEDO Supplier File", {"source_handoff": handoff.name, "is_active": 1}, "name")
+    supplier = frappe.get_doc("BEDO Supplier File", existing) if existing else frappe.new_doc("BEDO Supplier File")
+    supplier.project = handoff.project
+    supplier.trainer_item = handoff.trainer_item
+    supplier.source_type = "COMMAND_CENTER_SRS_TO_ARD"
+    supplier.source_handoff = handoff.name
+    supplier.status = SUPPLIER_FILE_IN_PROGRESS
+    supplier.responsible_user = handoff.responsible_user
+    supplier.deadline = deadline["name"]
+    supplier.deadline_days = deadline_days
+    supplier.started_at = supplier.started_at or _utcnow()
+    supplier.details = handoff.notes or ""
+    supplier.is_active = 1
+    supplier.flags.ignore_permissions = True
+    if existing:
+        supplier.save(ignore_permissions=True)
+    else:
+        supplier.insert(ignore_permissions=True)
+
+    handoff.deadline = deadline["name"]
+    handoff.approved_deadline_days = deadline_days
+    handoff.status = COMMAND_CENTER_HANDOFF_ROUTED_TO_SUPPLIERS
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+    return supplier, deadline
+
+
+def approve_command_center_srs_ard_gm_approval(approval_name: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _require_gm(actor)
+    approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.approval_type not in {COMMAND_CENTER_SRS_ARD_GM_APPROVAL, "COMMAND_CENTER_GM_APPROVAL"}:
+        frappe.throw("Unsupported approval type.", frappe.PermissionError)
+    if approval.status != "WAITING":
+        frappe.throw("Approval has already been completed.", frappe.PermissionError)
+    _assert_item_access(actor, approval.trainer_item)
+    workflow = _workflow_for_item(approval.trainer_item)
+    handoff_name = getattr(approval, "command_center_handoff", "") or frappe.db.get_value(
+        "BEDO Command Center Handoff",
+        {"trainer_item": approval.trainer_item, "is_active": 1},
+        "name",
+    )
+    handoff = frappe.get_doc("BEDO Command Center Handoff", handoff_name) if handoff_name else _ensure_command_center_handoff(workflow, actor=actor)
+    if handoff.status not in {COMMAND_CENTER_HANDOFF_WAITING_GM, COMMAND_CENTER_HANDOFF_PENDING}:
+        frappe.throw("This handoff is not waiting for GM approval.", frappe.PermissionError)
+
+    command_case, deadline_days = _command_center_case_and_deadline(
+        payload,
+        fallback_case=approval.original_case_classification or handoff.command_center_case,
+        fallback_deadline=approval.original_deadline_proposal_days or handoff.deadline_days,
+    )
+    now = _utcnow()
+    approval.status = "APPROVED_WITH_EDITS" if payload.get("case_classification") or payload.get("command_center_case") or payload.get("deadline_proposal_days") or payload.get("deadline_days") else "APPROVED"
+    approval.edited_case_classification = command_case
+    approval.edited_deadline_proposal_days = deadline_days
+    approval.comments = str(payload.get("comments") or approval.comments or "")[:500]
+    approval.approved_by = actor
+    approval.approved_at = now
+    approval.command_center_handoff = handoff.name
+    approval.flags.ignore_permissions = True
+    approval.save(ignore_permissions=True)
+
+    handoff.command_center_case = command_case
+    handoff.deadline_days = handoff.deadline_days or int(approval.original_deadline_proposal_days or 0)
+    handoff.approved_deadline_days = deadline_days
+    handoff.gm_approval = approval.name
+    handoff.gm_approved_by = actor
+    handoff.gm_approved_at = now
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+
+    if command_case == COMMAND_CENTER_CASE_1:
+        _create_command_center_deadline(handoff, actor, deadline_days)
+        title = "Command Center execution approved"
+        message = f"GM approved Case 1 with {deadline_quantity_label(deadline_days)}."
+    elif command_case == COMMAND_CENTER_CASE_2:
+        supplier, _deadline = _create_supplier_file_for_handoff(handoff, actor, deadline_days)
+        approval.supplier_file = supplier.name
+        approval.flags.ignore_permissions = True
+        approval.save(ignore_permissions=True)
+        title = "Supplier delivery file opened"
+        message = f"GM approved Case 2 with {deadline_quantity_label(deadline_days)}. Supplier tracking is active."
+    else:
+        handoff.status = COMMAND_CENTER_HANDOFF_READY_FOR_ARD
+        handoff.completed_by = actor
+        handoff.completed_at = now
+        handoff.deadline = ""
+        handoff.approved_deadline_days = 0
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+        title = "Handoff ready for ARD"
+        message = "GM approved direct delivery to ARD. No Command Center or Supplier deadline is required."
+
+    notify_many(
+        [handoff.responsible_user],
+        title=title,
+        message=message,
+        notification_type="COMMAND_CENTER_GM_APPROVED",
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+        action_url=project_action_url("command-center", handoff.project, handoff.trainer_item),
+        priority="High",
+    )
+    _log_workflow(
+        "command_center_srs_ard_gm_approved",
+        actor,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+        message=f"{command_case}; deadline={deadline_days}",
+        target_user=handoff.responsible_user,
+    )
+    return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name}
 
 
 def approve_srs_final_gm_approval(trainer_item: str, payload: dict[str, Any], actor: str, approval_name: str | None = None) -> dict[str, Any]:
     import frappe
 
-    _require_gm(actor)
-    _assert_item_access(actor, trainer_item)
     workflow = _workflow_for_item(trainer_item)
-    approval_name = approval_name or frappe.db.get_value("SRS Approval", {"workflow_instance": workflow.name, "approval_type": "COMMAND_CENTER_GM_APPROVAL", "status": "WAITING"}, "name")
+    approval_name = approval_name or frappe.db.get_value(
+        "SRS Approval",
+        {"workflow_instance": workflow.name, "approval_type": "COMMAND_CENTER_GM_APPROVAL", "status": "WAITING"},
+        "name",
+    )
     if not approval_name:
         frappe.throw("Final GM approval is not available or has already been completed.", frappe.PermissionError)
-    _assert_node_completed(workflow, SRS_NODE_COMMAND_CENTER_APPROVAL, actor, SRS_NODE_FINAL_GM_APPROVAL)
-    _assert_current_node(workflow, SRS_NODE_FINAL_GM_APPROVAL, actor)
-    _assert_node_status(workflow, SRS_NODE_FINAL_GM_APPROVAL, {NODE_STATUS_WAITING_APPROVAL}, actor)
+    return approve_command_center_srs_ard_gm_approval(approval_name, payload, actor)
+
+
+def complete_command_center_case_1(trainer_item: str, actor: str) -> dict[str, Any]:
+    import frappe
+
+    _assert_item_access(actor, trainer_item)
+    handoff = _handoff_for_item(trainer_item)
+    if not handoff:
+        frappe.throw("Command Center handoff not found.", frappe.DoesNotExistError)
+    if handoff.responsible_user != actor:
+        frappe.throw("Only the responsible Command Center user can complete this handoff.", frappe.PermissionError)
+    if handoff.command_center_case != COMMAND_CENTER_CASE_1 or handoff.status != COMMAND_CENTER_HANDOFF_IN_PROGRESS:
+        frappe.throw("Case 1 completion is not available for this handoff.", frappe.PermissionError)
+    if handoff.deadline:
+        complete_deadlines(trainer_item, COMMAND_CENTER_CASE_1_NODE)
+    now = _utcnow()
+    handoff.status = COMMAND_CENTER_HANDOFF_COMPLETED
+    handoff.completed_by = actor
+    handoff.completed_at = now
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+    notify_many(
+        _active_users_with_role("General Manager"),
+        title="Command Center Case 1 complete",
+        message="Command Center completed the Case 1 SRS to ARD handoff.",
+        notification_type="COMMAND_CENTER_CASE_COMPLETE",
+        project=handoff.project,
+        trainer_item=trainer_item,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        node_id=COMMAND_CENTER_CASE_1_NODE,
+        action_url=project_action_url("gm", handoff.project, trainer_item),
+        priority="Normal",
+    )
+    _log_workflow("command_center_case_1_completed", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=trainer_item, node_id=COMMAND_CENTER_CASE_1_NODE)
+    return {"success": True, "trainer_item": trainer_item, "handoff": handoff.name}
+
+
+def deliver_supplier_file(supplier_file: str, actor: str) -> dict[str, Any]:
+    import frappe
+
+    doc = _supplier_file_or_throw(supplier_file)
+    _assert_item_access(actor, doc.trainer_item)
+    if doc.responsible_user != actor:
+        frappe.throw("Only the responsible user can deliver this Supplier file.", frappe.PermissionError)
+    if doc.status == SUPPLIER_FILE_COMPLETED:
+        frappe.throw("Supplier file has already been delivered.", frappe.PermissionError)
+    now = _utcnow()
+    if doc.deadline:
+        complete_deadlines(doc.trainer_item, SUPPLIER_CASE_2_NODE)
+    doc.status = SUPPLIER_FILE_COMPLETED
+    doc.completed_by = actor
+    doc.completed_at = now
+    doc.flags.ignore_permissions = True
+    doc.save(ignore_permissions=True)
+    if doc.source_handoff:
+        handoff = _handoff_or_throw(doc.source_handoff)
+        handoff.status = COMMAND_CENTER_HANDOFF_READY_FOR_ARD
+        handoff.completed_by = actor
+        handoff.completed_at = now
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+    notify_many(
+        _active_users_with_role("General Manager"),
+        title="Supplier delivery complete",
+        message="Supplier delivery for the SRS to ARD handoff has been completed.",
+        notification_type="SUPPLIER_FILE_DELIVERED",
+        project=doc.project,
+        trainer_item=doc.trainer_item,
+        workflow_type=SUPPLIERS_WORKFLOW_TYPE,
+        node_id=SUPPLIER_CASE_2_NODE,
+        action_url=project_action_url("gm", doc.project, doc.trainer_item),
+        priority="Normal",
+    )
+    _log_workflow("supplier_file_delivered", actor, workflow_type=SUPPLIERS_WORKFLOW_TYPE, project=doc.project, trainer_item=doc.trainer_item, node_id=SUPPLIER_CASE_2_NODE)
+    return {"success": True, "trainer_item": doc.trainer_item, "supplier_file": doc.name}
+
+
+def request_supplier_deadline_extension(supplier_file: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    doc = _supplier_file_or_throw(supplier_file)
+    _assert_item_access(actor, doc.trainer_item)
+    if doc.responsible_user != actor:
+        frappe.throw("Only the responsible user can request a Supplier deadline extension.", frappe.PermissionError)
+    if doc.status == SUPPLIER_FILE_COMPLETED:
+        frappe.throw("Completed Supplier files cannot request extensions.", frappe.PermissionError)
+    if not doc.deadline:
+        frappe.throw("This Supplier file does not have an active deadline.", frappe.PermissionError)
+    if frappe.db.exists(
+        "SRS Approval",
+        {
+            "supplier_file": doc.name,
+            "deadline": doc.deadline,
+            "approval_type": SUPPLIER_DEADLINE_EXTENSION_APPROVAL,
+            "status": "WAITING",
+        },
+    ):
+        frappe.throw("A Supplier extension request is already waiting for approval.", frappe.PermissionError)
+    extension_units = _required_int_for_storage(payload.get("extension_days") or payload.get("deadline_proposal_days"), "Extension")
+    reason = _required_text(payload.get("reason") or payload.get("comment"), "Extension reason")
+    workflow = _workflow_for_item(doc.trainer_item)
+    approval = frappe.get_doc(
+        {
+            "doctype": "SRS Approval",
+            "workflow_instance": workflow.name,
+            "project": doc.project,
+            "trainer_item": doc.trainer_item,
+            "supplier_file": doc.name,
+            "deadline": doc.deadline,
+            "node_id": SUPPLIER_CASE_2_NODE,
+            "approval_type": SUPPLIER_DEADLINE_EXTENSION_APPROVAL,
+            "status": "WAITING",
+            "required_role": "General Manager",
+            "assigned_to_user": actor,
+            "original_deadline_proposal_days": extension_units,
+            "comments": reason[:500],
+        }
+    )
+    approval.flags.ignore_permissions = True
+    approval.insert(ignore_permissions=True)
+    doc.status = SUPPLIER_FILE_WAITING_EXTENSION
+    doc.latest_extension_approval = approval.name
+    doc.flags.ignore_permissions = True
+    doc.save(ignore_permissions=True)
+    notify_many(
+        _active_users_with_role("General Manager"),
+        title="Supplier deadline extension requested",
+        message="A Supplier deadline extension request is waiting for GM approval.",
+        notification_type="SUPPLIER_EXTENSION_APPROVAL_REQUIRED",
+        project=doc.project,
+        trainer_item=doc.trainer_item,
+        workflow_type=SUPPLIERS_WORKFLOW_TYPE,
+        node_id=SUPPLIER_CASE_2_NODE,
+        action_url="/approvals",
+        priority="High",
+    )
+    _log_workflow("supplier_extension_requested", actor, workflow_type=SUPPLIERS_WORKFLOW_TYPE, project=doc.project, trainer_item=doc.trainer_item, node_id=SUPPLIER_CASE_2_NODE, message=reason)
+    return {"success": True, "trainer_item": doc.trainer_item, "supplier_file": doc.name, "approval": approval.name}
+
+
+def approve_supplier_deadline_extension(approval_name: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _require_gm(actor)
     approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.approval_type != SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        frappe.throw("Unsupported approval type.", frappe.PermissionError)
     if approval.status != "WAITING":
         frappe.throw("Approval has already been completed.", frappe.PermissionError)
-    edited_case = str(payload.get("case_classification") or approval.original_case_classification or "").strip()
-    edited_deadline = payload.get("deadline_proposal_days") or approval.original_deadline_proposal_days
-    approval.status = "APPROVED_WITH_EDITS" if payload.get("case_classification") or payload.get("deadline_proposal_days") else "APPROVED"
-    approval.edited_case_classification = edited_case
-    approval.edited_deadline_proposal_days = _required_int_for_storage(edited_deadline, "Deadline")
-    approval.comments = str(payload.get("comments") or approval.comments or "")[:500]
+    supplier = _supplier_file_or_throw(getattr(approval, "supplier_file", ""))
+    _assert_item_access(actor, supplier.trainer_item)
+    if str(payload.get("action") or "").lower() == "deny":
+        approval.status = "DENIED"
+        approval.approved_by = actor
+        approval.approved_at = _utcnow()
+        approval.comments = str(payload.get("comments") or approval.comments or "")[:500]
+        approval.flags.ignore_permissions = True
+        approval.save(ignore_permissions=True)
+        deadline_status = frappe.db.get_value("BEDO Deadline", supplier.deadline, "status") if supplier.deadline else ""
+        supplier.status = SUPPLIER_FILE_OVERDUE if deadline_status == "OVERDUE" else SUPPLIER_FILE_IN_PROGRESS
+        supplier.flags.ignore_permissions = True
+        supplier.save(ignore_permissions=True)
+        notify_many(
+            [supplier.responsible_user],
+            title="Supplier extension denied",
+            message="GM denied the Supplier deadline extension request.",
+            notification_type="SUPPLIER_EXTENSION_DENIED",
+            project=supplier.project,
+            trainer_item=supplier.trainer_item,
+            workflow_type=SUPPLIERS_WORKFLOW_TYPE,
+            node_id=SUPPLIER_CASE_2_NODE,
+            action_url=project_action_url("command-center", supplier.project, supplier.trainer_item),
+            priority="High",
+        )
+        _log_workflow("supplier_extension_denied", actor, workflow_type=SUPPLIERS_WORKFLOW_TYPE, project=supplier.project, trainer_item=supplier.trainer_item, node_id=SUPPLIER_CASE_2_NODE, target_user=supplier.responsible_user)
+        return {"success": True, "trainer_item": supplier.trainer_item, "supplier_file": supplier.name}
+
+    extension_units = _required_int_for_storage(payload.get("deadline_proposal_days") or payload.get("extension_units") or approval.original_deadline_proposal_days, "Extension")
+    result = extend_deadline_by_name(approval.deadline, extension_units)
+    approval.status = "APPROVED_WITH_EDITS" if payload.get("deadline_proposal_days") or payload.get("extension_units") else "APPROVED"
+    approval.edited_deadline_proposal_days = extension_units
     approval.approved_by = actor
     approval.approved_at = _utcnow()
     approval.flags.ignore_permissions = True
     approval.save(ignore_permissions=True)
-    _set_node_state(workflow, SRS_NODE_FINAL_GM_APPROVAL, NODE_STATUS_COMPLETED, actor=actor)
-    workflow.status = STATE_COMPLETE
-    workflow.current_node = SRS_NODE_FINAL_GM_APPROVAL
-    workflow.completed_at = approval.approved_at
-    workflow.updated_at = approval.approved_at
-    workflow.flags.ignore_permissions = True
-    workflow.save(ignore_permissions=True)
-    frappe.db.set_value("BEDO Trainer Item", trainer_item, {"status": ITEM_STATUS_SRS_COMPLETE, "current_node": SRS_NODE_FINAL_GM_APPROVAL})
-    report_to = frappe.get_all("BEDO Trainer Item Report To", filters={"trainer_item": trainer_item}, pluck="user")
+    supplier.status = SUPPLIER_FILE_IN_PROGRESS
+    supplier.deadline_days = int(supplier.deadline_days or 0) + extension_units
+    supplier.flags.ignore_permissions = True
+    supplier.save(ignore_permissions=True)
     notify_many(
-        report_to,
-        title="SRS complete",
-        message="Final GM approval is complete. SRS Complete.",
-        notification_type="GM_APPROVAL_COMPLETED",
-        project=workflow.project,
-        trainer_item=trainer_item,
-        node_id=SRS_NODE_FINAL_GM_APPROVAL,
-        action_url=project_action_url("gm", workflow.project, trainer_item),
-        priority="Normal",
+        [supplier.responsible_user],
+        title="Supplier extension approved",
+        message=f"GM approved {deadline_quantity_label(extension_units)}. {deadline_quantity_label(result.get('effective_units')) or 'No time'} remain.",
+        notification_type="SUPPLIER_EXTENSION_APPROVED",
+        project=supplier.project,
+        trainer_item=supplier.trainer_item,
+        workflow_type=SUPPLIERS_WORKFLOW_TYPE,
+        node_id=SUPPLIER_CASE_2_NODE,
+        action_url=project_action_url("command-center", supplier.project, supplier.trainer_item),
+        priority="High",
     )
-    _log("srs_final_gm_approved", actor, project=workflow.project, trainer_item=trainer_item, node_id=SRS_NODE_FINAL_GM_APPROVAL)
-    return {"success": True, "trainer_item": trainer_item}
+    _log_workflow("supplier_extension_approved", actor, workflow_type=SUPPLIERS_WORKFLOW_TYPE, project=supplier.project, trainer_item=supplier.trainer_item, node_id=SUPPLIER_CASE_2_NODE, message=f"Approved {deadline_quantity_label(extension_units)}", target_user=supplier.responsible_user)
+    return {"success": True, "trainer_item": supplier.trainer_item, "supplier_file": supplier.name, "deadline": approval.deadline}
 
 
 def approve_global_deadline_extension(approval_name: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
@@ -2659,6 +3267,8 @@ def _approval_roles_for_actor(actor: str) -> set[str]:
 def _approval_node_for_type(approval_type: str) -> str:
     if approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return ""
+    if approval_type in {COMMAND_CENTER_SRS_ARD_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL}:
+        return ""
     if approval_type in {"GM_CASE_APPROVAL", "SRS_MANAGER_DEADLINE_APPROVAL"}:
         return SRS_NODE_DUAL_GATE_APPROVAL
     if approval_type in {"PMDP_DUAL_GATE_SRS_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL"}:
@@ -2675,6 +3285,22 @@ def _approval_is_actionable(row) -> bool:
 
     if row.status != "WAITING":
         return False
+    if row.approval_type == COMMAND_CENTER_SRS_ARD_GM_APPROVAL:
+        handoff_name = getattr(row, "command_center_handoff", "") or frappe.db.get_value(
+            "BEDO Command Center Handoff",
+            {"trainer_item": row.trainer_item, "is_active": 1},
+            "name",
+        )
+        if not handoff_name:
+            return False
+        status = frappe.db.get_value("BEDO Command Center Handoff", handoff_name, "status")
+        return status == COMMAND_CENTER_HANDOFF_WAITING_GM
+    if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        supplier_file = getattr(row, "supplier_file", "")
+        if not supplier_file:
+            return False
+        status = frappe.db.get_value("BEDO Supplier File", supplier_file, "status")
+        return status == SUPPLIER_FILE_WAITING_EXTENSION
     if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         deadline_name = getattr(row, "deadline", None)
         if not deadline_name:
@@ -2731,6 +3357,10 @@ def _approval_label(approval_type: str) -> str:
         return "Extension Deadline Approval"
     if approval_type == "COMMAND_CENTER_GM_APPROVAL":
         return "Command Center Decision Approval"
+    if approval_type == COMMAND_CENTER_SRS_ARD_GM_APPROVAL:
+        return "Command Center SRS to ARD Approval"
+    if approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        return "Supplier Deadline Extension Approval"
     if approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return "Overdue Deadline Extension"
     return approval_type.replace("_", " ").title()
@@ -2750,7 +3380,10 @@ def _approval_display_row(row) -> dict[str, Any]:
     submitted = frappe.db.get_value("SRS Deliverables Matrix", {"workflow_instance": row.workflow_instance}, ["submitted_by", "submitted_at"], as_dict=True) or {}
     submitted_by = submitted.get("submitted_by") or ""
     submitted_at = submitted.get("submitted_at")
-    if row.approval_type == "COMMAND_CENTER_GM_APPROVAL":
+    if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL}:
+        submitted_by = row.assigned_to_user or ""
+        submitted_at = row.creation
+    if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
         submitted_by = row.assigned_to_user or ""
         submitted_at = row.creation
     if row.approval_type in {"PMDP_DUAL_GATE_SRS_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL"}:
@@ -2775,6 +3408,11 @@ def _approval_display_row(row) -> dict[str, Any]:
         responsible_user = state.get("responsible_user") or row.assigned_to_user or workflow.get("project_owner") or ""
         submitted_by = responsible_user
         submitted_at = row.creation
+    if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        deadline_name = getattr(row, "deadline", "")
+        deadline = frappe.db.get_value("BEDO Deadline", deadline_name, ["node_id", "due_at", "status", "deadline_days"], as_dict=True) if deadline_name else {}
+        target_node = getattr(row, "node_id", "") or (deadline or {}).get("node_id") or SUPPLIER_CASE_2_NODE
+        responsible_user = row.assigned_to_user or ""
     return {
         "name": row.name,
         "approval_type": row.approval_type,
@@ -2788,6 +3426,8 @@ def _approval_display_row(row) -> dict[str, Any]:
         "po_deadline_date": str(project.get("po_deadline_date") or ""),
         "trainer_item": row.trainer_item,
         "trainer_item_name": item.get("trainer_item_name") or "",
+        "command_center_handoff": getattr(row, "command_center_handoff", "") or "",
+        "supplier_file": getattr(row, "supplier_file", "") or "",
         "submitted_by": submitted_by,
         "submitted_by_name": _user_full_name(submitted_by),
         "submitted_at": to_cairo_iso(submitted_at),
@@ -2800,10 +3440,10 @@ def _approval_display_row(row) -> dict[str, Any]:
         "responsible_user": responsible_user,
         "responsible_user_name": _user_full_name(responsible_user),
         "deadline_due_at": to_cairo_iso((deadline or {}).get("due_at")),
-        "case_classification": row.edited_case_classification or (row.original_case_classification if row.approval_type == "COMMAND_CENTER_GM_APPROVAL" else workflow.get("case_classification")) or row.original_case_classification or "",
-        "deadline_proposal_days": 0 if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL else row.edited_deadline_proposal_days or (row.original_deadline_proposal_days if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", "PMDP_EXTENSION_APPROVAL"} else workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days")) or row.original_deadline_proposal_days or 0,
+        "case_classification": row.edited_case_classification or (row.original_case_classification if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL} else workflow.get("case_classification")) or row.original_case_classification or "",
+        "deadline_proposal_days": 0 if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL else row.edited_deadline_proposal_days or (row.original_deadline_proposal_days if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, "PMDP_EXTENSION_APPROVAL", SUPPLIER_DEADLINE_EXTENSION_APPROVAL} else workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days")) or row.original_deadline_proposal_days or 0,
         "deadline_unit_label": deadline_unit_label(),
-        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
+        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
         "comments": row.comments or "",
         "created_at": to_cairo_iso(row.creation),
     }
@@ -2826,6 +3466,8 @@ def list_my_pending_approvals(actor: str, status: str = "WAITING") -> dict[str, 
             "workflow_instance",
             "project",
             "trainer_item",
+            "command_center_handoff",
+            "supplier_file",
             "deadline",
             "node_id",
             "approval_type",
@@ -2882,6 +3524,10 @@ def approve_srs_approval(approval: str, actor: str, payload: dict[str, Any] | No
         return approve_pmdp_extension_as_srs_manager(detail["trainer_item"], payload, actor, approval_name=approval)
     if detail["approval_type"] == "COMMAND_CENTER_GM_APPROVAL":
         return approve_srs_final_gm_approval(detail["trainer_item"], payload, actor, approval_name=approval)
+    if detail["approval_type"] == COMMAND_CENTER_SRS_ARD_GM_APPROVAL:
+        return approve_command_center_srs_ard_gm_approval(approval, payload, actor)
+    if detail["approval_type"] == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        return approve_supplier_deadline_extension(approval, payload, actor)
     if detail["approval_type"] == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return approve_global_deadline_extension(approval, payload, actor)
     frappe.throw("Unsupported approval type.", frappe.PermissionError)

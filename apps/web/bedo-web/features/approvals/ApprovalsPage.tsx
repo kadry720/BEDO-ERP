@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, ClipboardCheck, PencilLine, Search, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { COMMAND_CENTER_CASE_3, commandCenterDecisionRequiresDeadline } from "@/features/srs/commandCenterRules";
 import type { ApprovalRow } from "@/features/srs/types";
 import { formatStatus, statusBadgeClass } from "@/features/srs/workflowPresentation";
 
@@ -156,7 +157,8 @@ export function ApprovalsPage({ initialApprovals }: Props) {
 
 function ApprovalCard({ approval, onApprove, onDeny, onEdit }: { approval: ApprovalRow; onApprove: () => void; onDeny: () => void; onEdit: () => void }) {
   const globalExtension = isGlobalDeadlineExtensionApproval(approval);
-  const canDeny = isPmdpDualGateApproval(approval);
+  const supplierExtension = isSupplierExtensionApproval(approval);
+  const canDeny = isPmdpDualGateApproval(approval) || supplierExtension;
   const canEdit = !canDeny && !globalExtension;
   return (
     <article className="rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300">
@@ -315,6 +317,7 @@ function formatApprovalDateTime(value?: string) {
 
 function formatDeadlineAmount(approval: ApprovalRow) {
   if (isGlobalDeadlineExtensionApproval(approval)) return "Set by GM";
+  if (isCommandCenterApproval(approval) && approval.case_classification === COMMAND_CENTER_CASE_3) return "No deadline";
   const amount = Number(approval.deadline_proposal_days || 0);
   const unit = approval.deadline_unit_label || "day(s)";
   return `${amount} ${unit}`;
@@ -325,11 +328,19 @@ function isPmdpDualGateApproval(approval: ApprovalRow) {
 }
 
 function isExtensionApproval(approval: ApprovalRow) {
-  return approval.approval_type === "PMDP_EXTENSION_APPROVAL" || isGlobalDeadlineExtensionApproval(approval);
+  return approval.approval_type === "PMDP_EXTENSION_APPROVAL" || isGlobalDeadlineExtensionApproval(approval) || isSupplierExtensionApproval(approval);
 }
 
 function isGlobalDeadlineExtensionApproval(approval: ApprovalRow) {
   return approval.approval_type === "GLOBAL_DEADLINE_EXTENSION_APPROVAL";
+}
+
+function isSupplierExtensionApproval(approval: ApprovalRow) {
+  return approval.approval_type === "SUPPLIER_DEADLINE_EXTENSION_APPROVAL";
+}
+
+function isCommandCenterApproval(approval: ApprovalRow) {
+  return approval.approval_type === "COMMAND_CENTER_GM_APPROVAL" || approval.approval_type === "COMMAND_CENTER_SRS_ARD_GM_APPROVAL";
 }
 
 function ApproveWithEditsModal({
@@ -343,6 +354,9 @@ function ApproveWithEditsModal({
 }) {
   const extensionApproval = isExtensionApproval(approval);
   const globalExtension = isGlobalDeadlineExtensionApproval(approval);
+  const commandCenterApproval = isCommandCenterApproval(approval);
+  const [selectedCase, setSelectedCase] = useState(approval.case_classification || "");
+  const requiresDeadline = extensionApproval || !commandCenterApproval || commandCenterDecisionRequiresDeadline(selectedCase);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
       <form
@@ -352,7 +366,7 @@ function ApproveWithEditsModal({
           const form = new FormData(event.currentTarget);
           const payload: Record<string, unknown> = {
             with_edits: true,
-            deadline_proposal_days: String(form.get("deadline_proposal_days") || ""),
+            deadline_proposal_days: requiresDeadline ? String(form.get("deadline_proposal_days") || "") : "",
           };
           if (!extensionApproval) {
             payload.case_classification = form.get("case_classification");
@@ -378,17 +392,21 @@ function ApproveWithEditsModal({
           {!extensionApproval && (
             <label className="block">
               <span className="text-sm font-black text-slate-800">Case Classification</span>
-              <select className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="case_classification" defaultValue={approval.case_classification} required>
-                {(approval.approval_type === "COMMAND_CENTER_GM_APPROVAL" ? commandCenterCaseOptions : srsCaseOptions).map((option) => (
+              <select className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="case_classification" value={selectedCase} onChange={(event) => setSelectedCase(event.target.value)} required>
+                {(commandCenterApproval ? commandCenterCaseOptions : srsCaseOptions).map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
             </label>
           )}
-          <label className="block">
-            <span className="text-sm font-black text-slate-800">{extensionApproval ? "Extension Duration" : "Deadline Proposal"}</span>
-            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="deadline_proposal_days" type="number" min={1} step={1} defaultValue={approval.deadline_proposal_days || ""} required />
-          </label>
+          {requiresDeadline ? (
+            <label className="block">
+              <span className="text-sm font-black text-slate-800">{extensionApproval ? "Extension Duration" : "Deadline Proposal"}</span>
+              <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="deadline_proposal_days" type="number" min={1} step={1} defaultValue={approval.deadline_proposal_days || ""} required />
+            </label>
+          ) : (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">Case 3 routes directly to ARD and does not require a deadline.</div>
+          )}
           {extensionApproval && approval.comments && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="text-xs font-black uppercase tracking-wide text-slate-500">{globalExtension ? "Overdue Details" : "Requester Comment"}</div>
