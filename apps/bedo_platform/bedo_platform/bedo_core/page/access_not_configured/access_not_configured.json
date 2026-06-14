@@ -1,0 +1,19 @@
+{
+  "content": null,
+  "creation": "2026-06-04 00:00:00.000000",
+  "docstatus": 0,
+  "doctype": "Page",
+  "icon": "warning",
+  "idx": 0,
+  "modified": "2026-06-04 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "access-not-configured",
+  "owner": "Administrator",
+  "page_name": "access-not-configured",
+  "roles": [{"role": "Desk User"}],
+  "script": null,
+  "standard": "Yes",
+  "style": null,
+  "system_page": 0,
+  "title": "Access Not Configured"
+}

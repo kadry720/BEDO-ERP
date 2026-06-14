@@ -4,48 +4,46 @@ The Phase 1 schema is implemented with Frappe DocTypes.
 
 ## BEDO Department
 
-- `department_code`: Data, required, unique
+- `department_key`: Data, required, unique
 - `department_name`: Data, required
-- `description`: Small Text
+- `pillar_number`: Int
+- `dashboard_route`: Data
 - `is_active`: Check
-- `parent_department`: Link to BEDO Department
+- `is_global_access_department`: Check
 
-## BEDO User Profile
+## BEDO Role Catalog
 
-- `user`: Link to User, required, unique
-- `full_name`: Data
-- `email`: Data
-- `employee_code`: Data
-- `department`: Link to BEDO Department
-- `job_title`: Data
-- `auth_source`: Select, Local or LDAP
-- `ldap_username`: Data
-- `ldap_dn`: Data
-- `is_created_from_ldap`: Check
-- `is_active_in_bedo_erp`: Check
-- `last_successful_login`: Datetime
-- `last_failed_login`: Datetime
-
-## BEDO LDAP Group Role Mapping
-
-- `ldap_group_name`: Data, required
-- `ldap_group_dn`: Data
+- `role_key`: Data, required, unique
+- `role_name`: Data, required
 - `frappe_role`: Link to Role, required
-- `priority`: Int
+- `department`: Link to BEDO Department
+- `role_category`: Select
+- `is_managerial`: Check
+- `is_active`: Check
+- `description`: Small Text
+
+## BEDO User Role Assignment
+
+- `user`: Link to User, required
+- `department`: Link to BEDO Department
+- `role_catalog`: Link to BEDO Role Catalog, required
+- `is_primary_department`: Check
 - `is_active`: Check
 
-## BEDO Access Audit Log
+## BEDO Module Access
 
+- `department`: Link to BEDO Department, required
+- `dashboard_route`: Data, required
+- `allowed_role`: Link to Role
+- `is_active`: Check
+
+## BEDO Security Event
+
+- `event_type`: Data, required
+- `username`: Data
 - `user`: Link to User
-- `event_type`: Select
-- `auth_source`: Select
-- `success`: Check
-- `failure_reason`: Small Text
+- `status`: Select
 - `ip_address`: Data
-- `user_agent`: Small Text
-- `session_id`: Data
+- `user_agent`: Data
+- `message`: Small Text
 - `created_at`: Datetime
-
-## BEDO Security Settings
-
-Singleton DocType with LDAP login flags, local login flags, default LDAP role, failed login thresholds, lockout duration, session timeout, active profile requirement, and audit logging switch.

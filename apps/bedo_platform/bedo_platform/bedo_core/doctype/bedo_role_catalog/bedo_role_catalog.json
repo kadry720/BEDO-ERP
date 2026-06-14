@@ -1,0 +1,98 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "field:role_key",
+  "creation": "2026-06-04 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "role_key",
+    "role_name",
+    "frappe_role",
+    "department",
+    "role_category",
+    "is_managerial",
+    "is_active",
+    "description"
+  ],
+  "fields": [
+    {
+      "fieldname": "role_key",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Role Key",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "role_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Role Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "frappe_role",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Frappe Role",
+      "options": "Role",
+      "reqd": 1
+    },
+    {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Department",
+      "options": "BEDO Department"
+    },
+    {
+      "fieldname": "role_category",
+      "fieldtype": "Select",
+      "label": "Role Category",
+      "options": "Platform\nDepartment\nTeam"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_managerial",
+      "fieldtype": "Check",
+      "label": "Is Managerial"
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Is Active"
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "label": "Description"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-06-04 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "BEDO Role Catalog",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

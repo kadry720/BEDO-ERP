@@ -1,0 +1,28 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-06-07 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["workflow_instance", "project", "trainer_item", "user", "selected_by", "selected_at", "is_project_owner"],
+  "fields": [
+    {"fieldname": "workflow_instance", "fieldtype": "Link", "in_list_view": 1, "label": "Workflow Instance", "options": "SRS Workflow Instance", "reqd": 1},
+    {"fieldname": "project", "fieldtype": "Link", "label": "Project", "options": "BEDO Project", "reqd": 1},
+    {"fieldname": "trainer_item", "fieldtype": "Link", "label": "Trainer Item", "options": "BEDO Trainer Item", "reqd": 1},
+    {"fieldname": "user", "fieldtype": "Link", "in_list_view": 1, "label": "User", "options": "User", "reqd": 1},
+    {"fieldname": "selected_by", "fieldtype": "Link", "label": "Selected By", "options": "User", "reqd": 1},
+    {"fieldname": "selected_at", "fieldtype": "Datetime", "label": "Selected At", "reqd": 1},
+    {"default": "0", "fieldname": "is_project_owner", "fieldtype": "Check", "label": "Is Project Owner"}
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-07 00:00:00.000000",
+  "module": "SRS",
+  "name": "SRS Item Team Member",
+  "owner": "Administrator",
+  "permissions": [{"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}],
+  "sort_field": "selected_at",
+  "sort_order": "ASC",
+  "states": []
+}

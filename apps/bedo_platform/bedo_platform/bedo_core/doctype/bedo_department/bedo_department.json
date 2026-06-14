@@ -1,0 +1,81 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "field:department_key",
+  "creation": "2026-06-04 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "department_key",
+    "department_name",
+    "pillar_number",
+    "dashboard_route",
+    "is_active",
+    "is_global_access_department"
+  ],
+  "fields": [
+    {
+      "fieldname": "department_key",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Department Key",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "department_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Department Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pillar_number",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Pillar Number"
+    },
+    {
+      "fieldname": "dashboard_route",
+      "fieldtype": "Data",
+      "label": "Dashboard Route"
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Is Active"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_global_access_department",
+      "fieldtype": "Check",
+      "label": "Is Global Access Department"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-06-04 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "BEDO Department",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

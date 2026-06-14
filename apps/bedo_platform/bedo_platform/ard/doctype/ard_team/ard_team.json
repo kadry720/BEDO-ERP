@@ -1,0 +1,78 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "field:team_key",
+  "creation": "2026-06-05 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "team_key",
+    "team_name",
+    "section",
+    "team_leader",
+    "is_active"
+  ],
+  "fields": [
+    {
+      "fieldname": "team_key",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Team Key",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "team_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Team Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "section",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Section",
+      "reqd": 1
+    },
+    {
+      "fieldname": "team_leader",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Team Leader",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "default": "1",
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Is Active"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-05 00:00:00.000000",
+  "module": "ARD",
+  "name": "ARD Team",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
