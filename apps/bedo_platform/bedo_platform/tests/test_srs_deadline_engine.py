@@ -6,6 +6,12 @@ from bedo_platform.services.deadline_service import calculate_next_working_start
 CAIRO = ZoneInfo("Africa/Cairo")
 
 
+def setup_function():
+    import os
+
+    os.environ.pop("BEDO_SRS_DEADLINE_MODE", None)
+
+
 def test_sunday_action_starts_monday_9am():
     start = calculate_next_working_start(datetime(2026, 6, 7, 10, 0, tzinfo=CAIRO))
 

@@ -1733,6 +1733,20 @@ def _node_disabled_reason(actor: str, workflow, node_id: str) -> str:
     for previous in definition.get("requiredPreviousNodes") or []:
         if node_id == SRS_NODE_BMDP and workflow.case_classification != CASE_3 and previous == SRS_NODE_PMDP:
             continue
+        if (
+            node_id == SRS_NODE_GATE_2_PMDP
+            and previous == SRS_NODE_CASE_3
+            and workflow.case_classification == CASE_3
+            and _node_status(workflow, SRS_NODE_CASE_3) in {NODE_STATUS_IN_PROGRESS, NODE_STATUS_COMPLETED}
+        ):
+            continue
+        if (
+            node_id == SRS_NODE_PMDP
+            and previous == SRS_NODE_PHYSICAL_BUILD_TEST
+            and workflow.case_classification == CASE_3
+            and _node_status(workflow, SRS_NODE_PHYSICAL_BUILD_TEST) in {NODE_STATUS_IN_PROGRESS, NODE_STATUS_COMPLETED}
+        ):
+            continue
         if not _node_completed(workflow, previous):
             return "Complete the previous step first."
     if node_id in {SRS_NODE_GATE_2_PMDP, SRS_NODE_PMDP, SRS_NODE_PHYSICAL_BUILD_TEST} and workflow.case_classification != CASE_3:

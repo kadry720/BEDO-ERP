@@ -71,6 +71,7 @@ export function TrainerWorkspace({
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [activeTab, setActiveTab] = useState(initialWorkspace.tabs[0] || "SRS");
   const [activeNode, setActiveNode] = useState<string | null>(null);
+  const now = useServerClock(workspace.server_now);
 
   const states = useMemo(() => {
     return new Map(workspace.node_states.map((state) => [state.node_id, state]));
@@ -78,6 +79,7 @@ export function TrainerWorkspace({
 
   const activeDeadline = workspace.node_states.find((state) => isActiveDeadlineState(state));
   const currentStage = currentStageLabel(workspace);
+  const srsTabState = useMemo(() => getSrsTabState(workspace, flowchart, now), [workspace, flowchart, now]);
 
   return (
     <section className="space-y-6">
@@ -100,19 +102,25 @@ export function TrainerWorkspace({
       </header>
 
       <div className="flex flex-wrap gap-2">
-        {workspace.tabs.map((tab) => (
-          <button
-            key={tab}
-            className={`focus-ring inline-flex items-center gap-2 rounded-t-lg border px-4 py-2 text-sm font-black transition ${
-              activeTab === tab ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-          >
-            <span className={`h-2 w-2 rounded-full ${activeTab === tab ? "bg-amber-400" : "bg-slate-300"}`} />
-            {tab}
-          </button>
-        ))}
+        {workspace.tabs.map((tab) => {
+          const tabState = tab === "SRS" ? srsTabState : "normal";
+          return (
+            <button
+              key={tab}
+              className={tabButtonClass(activeTab === tab, tabState)}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+            >
+              <span className={`h-2 w-2 rounded-full ${tabDotClass(activeTab === tab, tabState)}`} />
+              {tab}
+              {tabState === "awaiting-approval" && (
+                <span className="absolute -right-2 -top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white shadow-sm">
+                  !!
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === "Overview" && <Overview workspace={workspace} />}
@@ -138,6 +146,35 @@ function currentStageLabel(workspace: TrainerWorkspaceData) {
   const status = workspace.workflow?.status || workspace.trainer_item.status;
   if (status === "SRS_COMPLETE" || status === "COMPLETED" || status === "COMPLETE") return "Completed";
   return formatNodeId(workspace.workflow?.current_node || workspace.trainer_item.current_node);
+}
+
+type SrsTabState = "normal" | "complete" | "overdue" | "awaiting-approval";
+
+function getSrsTabState(workspace: TrainerWorkspaceData, flowchart: SrsFlowchartDefinition, now: Date): SrsTabState {
+  const flowchartNodeIds = new Set(flowchart.nodes.map((node) => node.id));
+  const relevantStates = workspace.node_states.filter((state) => flowchartNodeIds.has(state.node_id));
+  if (relevantStates.some((state) => isDeadlineOverdue(state, now))) return "overdue";
+  const notApplicableNodeIds = new Set(relevantStates.filter((state) => state.status === "NOT_APPLICABLE").map((state) => state.node_id));
+  const applicableNodeCount = flowchart.nodes.filter((node) => !notApplicableNodeIds.has(node.id)).length;
+  const completeCount = relevantStates.filter((state) => state.status === "COMPLETED" && !notApplicableNodeIds.has(state.node_id)).length;
+  if (applicableNodeCount > 0 && completeCount === applicableNodeCount) return "complete";
+  if (relevantStates.some((state) => state.status === "WAITING_APPROVAL") || String(workspace.workflow?.status || "").includes("WAITING")) {
+    return "awaiting-approval";
+  }
+  return "normal";
+}
+
+function tabButtonClass(active: boolean, state: SrsTabState) {
+  const base = "focus-ring relative inline-flex items-center gap-2 rounded-t-lg border px-4 py-2 text-sm font-black transition";
+  if (state === "complete") return `${base} border-emerald-700 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700`;
+  if (state === "overdue") return `${base} border-red-700 bg-red-700 text-white shadow-sm hover:bg-red-800`;
+  if (active) return `${base} border-slate-900 bg-slate-900 text-white`;
+  return `${base} border-slate-200 bg-white text-slate-600 hover:bg-slate-50`;
+}
+
+function tabDotClass(active: boolean, state: SrsTabState) {
+  if (state === "complete" || state === "overdue") return "bg-white/90";
+  return active ? "bg-amber-400" : "bg-slate-300";
 }
 
 function Overview({ workspace }: { workspace: TrainerWorkspaceData }) {
@@ -318,20 +355,22 @@ function SrsFlowchart({
       >
         <div style={{ minWidth: diagramWidth * scale, width: "100%", height: diagramHeight * scale }}>
           <div style={{ width: diagramWidth, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-            <div className="flex border-b border-slate-200 bg-slate-100">
-              <div className="shrink-0 border-r border-slate-200" style={{ width: FLOWCHART_DIMENSIONS.laneLabelWidth }} />
-              <div className="relative" style={{ width: FLOWCHART_DIMENSIONS.canvasWidth, height: FLOWCHART_DIMENSIONS.deadlineHeaderHeight }}>
-                {DEADLINE_BANDS.map((column, index) => (
-                  <div
-                    key={column.id}
-                    className={`absolute top-0 h-full ${index > 0 ? "border-l border-slate-300" : ""}`}
-                    style={{ left: column.x, width: column.w }}
-                  >
-                    <DeadlineHeader label={deadlineColumnMeta.get(column.id)?.label || column.label} detail={deadlineColumnMeta.get(column.id)?.detail || column.detail} />
-                  </div>
-                ))}
+            {FLOWCHART_DIMENSIONS.deadlineHeaderHeight > 0 && DEADLINE_BANDS.length > 0 && (
+              <div className="flex border-b border-slate-200 bg-slate-100">
+                <div className="shrink-0 border-r border-slate-200" style={{ width: FLOWCHART_DIMENSIONS.laneLabelWidth }} />
+                <div className="relative" style={{ width: FLOWCHART_DIMENSIONS.canvasWidth, height: FLOWCHART_DIMENSIONS.deadlineHeaderHeight }}>
+                  {DEADLINE_BANDS.map((column, index) => (
+                    <div
+                      key={column.id}
+                      className={`absolute top-0 h-full ${index > 0 ? "border-l border-slate-300" : ""}`}
+                      style={{ left: column.x, width: column.w }}
+                    >
+                      <DeadlineHeader label={deadlineColumnMeta.get(column.id)?.label || column.label} detail={deadlineColumnMeta.get(column.id)?.detail || column.detail} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex">
               <div className="relative shrink-0 border-r border-slate-200" style={{ width: FLOWCHART_DIMENSIONS.laneLabelWidth, height: FLOWCHART_DIMENSIONS.canvasHeight }}>
@@ -341,7 +380,10 @@ function SrsFlowchart({
                     className={`absolute left-0 flex w-full items-center justify-center px-4 text-center ${index > 0 ? "border-t border-slate-700/40" : ""}`}
                     style={{ top: lane.y, height: lane.h, backgroundColor: index % 2 === 0 ? "#1e293b" : "#0f172a" }}
                   >
-                    <span className="text-[13px] font-semibold uppercase tracking-wide text-slate-100">{lane.label}</span>
+                    <span>
+                      <span className="block text-[13px] font-semibold uppercase tracking-wide text-slate-100">{lane.label}</span>
+                      <span className="mt-1 block text-[11px] font-medium leading-snug text-slate-300">{deadlineColumnMeta.get(lane.id)?.detail || lane.detail}</span>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -821,7 +863,7 @@ function NodeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col rounded-md bg-white shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-md bg-white shadow-xl">
         <div className="border-b border-gray-200 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -854,7 +896,7 @@ function NodeModal({
             </div>
           )}
         </div>
-        <div className="min-h-0 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 overflow-hidden px-6 py-5">
           {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
           {readOnly ? (
             <NodeOutputSummary nodeId={nodeId} state={state} workspace={workspace} />
@@ -1022,30 +1064,34 @@ function OwnerForm({ owners, loadOwners, onSubmit }: { owners: Record<string, Sa
   }, []);
   return (
     <div className="space-y-4">
-      {Object.entries(owners || {}).map(([group, users]) => (
-        <section key={group} className="rounded-md border border-gray-200 bg-panel p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-xs font-bold uppercase text-muted">{group}</div>
-            <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-muted">{users.length}</span>
-          </div>
-          <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-            {users.map((user) => (
-              <label
-                key={user.user}
-                className={`flex cursor-pointer items-start gap-3 rounded-md border bg-white p-3 transition ${
-                  selected === user.user ? "border-ember ring-2 ring-orange-100" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <input className="mt-1 accent-ember" name="project_owner" type="radio" checked={selected === user.user} onChange={() => setSelected(user.user)} />
-                <span>
-                  <span className="block font-semibold text-ink">{user.full_name}</span>
-                  <span className="text-xs text-muted">{user.business_role || "BEDO User"} | {user.department}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="max-h-[38vh] overflow-y-auto pr-1">
+        <div className="grid gap-3">
+          {Object.entries(owners || {}).map(([group, users]) => (
+            <section key={group} className="rounded-md border border-gray-200 bg-panel p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-xs font-bold uppercase text-muted">{group}</div>
+                <span className="rounded bg-white px-2 py-1 text-xs font-semibold text-muted">{users.length}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {users.map((user) => (
+                  <label
+                    key={user.user}
+                    className={`flex cursor-pointer items-start gap-3 rounded-md border bg-white p-2.5 transition ${
+                      selected === user.user ? "border-ember ring-2 ring-orange-100" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <input className="mt-1 accent-ember" name="project_owner" type="radio" checked={selected === user.user} onChange={() => setSelected(user.user)} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-ink">{user.full_name}</span>
+                      <span className="block truncate text-xs text-muted">{user.business_role || "BEDO User"} | {user.department}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
       <Button type="button" disabled={!selected} onClick={() => onSubmit(selected)}>Assign Project Owner</Button>
     </div>
   );
@@ -1067,14 +1113,14 @@ function TeamForm({
   const groupedMembers = useMemo(() => groupSrsUsers(teamMembers), [teamMembers]);
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
+      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
         <div>
           <div className="text-sm font-bold text-ink">Select SRS team members</div>
           <div className="text-xs text-muted">Grouped by section and department role.</div>
         </div>
         <span className="rounded bg-orange-50 px-2 py-1 text-xs font-bold text-ink">{selected.length} selected</span>
       </div>
-      <div className="grid max-h-[52vh] gap-3 overflow-y-auto pr-1">
+      <div className="grid max-h-[38vh] gap-3 overflow-y-auto pr-1">
         {groupedMembers.map((group) => (
           <section key={group.label} className="rounded-md border border-gray-200 bg-panel p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1088,7 +1134,7 @@ function TeamForm({
               {group.users.map((user) => (
                 <label
                   key={user.user}
-                  className={`flex cursor-pointer items-start gap-3 rounded-md border bg-white p-3 transition ${
+                  className={`flex cursor-pointer items-start gap-3 rounded-md border bg-white p-2.5 transition ${
                     selected.includes(user.user) ? "border-ember ring-2 ring-orange-100" : "border-gray-200 hover:border-gray-300"
                   }`}
                 >

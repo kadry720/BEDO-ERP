@@ -11,10 +11,10 @@ export type ConnectorRoute = {
 export type StatusTone = "complete" | "in-progress" | "pending" | "awaiting-approval" | "locked" | "not-applicable" | "overdue";
 
 export const FLOWCHART_DIMENSIONS = {
-  laneLabelWidth: 0,
-  canvasWidth: 2100,
-  canvasHeight: 1320,
-  deadlineHeaderHeight: 64,
+  laneLabelWidth: 170,
+  canvasWidth: 1700,
+  canvasHeight: 1100,
+  deadlineHeaderHeight: 0,
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -75,26 +75,26 @@ export function nodeStatusClass(status?: string | null, canOpen = false) {
 }
 
 export const NODE_POSITIONS: Record<string, { x: number; y: number; w: number; h: number }> = {
-  PRODUCT_DIGITAL_RELEASE: { x: 44, y: 80, w: 230, h: 96 },
-  SRS_GATEWAY: { x: 44, y: 275, w: 230, h: 104 },
-  MANDATORY_COORDINATION_MEETING: { x: 350, y: 80, w: 285, h: 118 },
-  DELIVERABLES_MATRIX: { x: 350, y: 245, w: 285, h: 118 },
-  DUAL_GATE_APPROVAL: { x: 680, y: 245, w: 270, h: 116 },
-  DEADLINE_LOCKED_IN_ERP: { x: 1010, y: 245, w: 260, h: 104 },
-  ACTION_PATHS: { x: 1315, y: 250, w: 240, h: 96 },
-  CASE_1: { x: 955, y: 460, w: 118, h: 90 },
-  CASE_2: { x: 1085, y: 460, w: 118, h: 90 },
-  CASE_3: { x: 1215, y: 460, w: 118, h: 90 },
-  CASE_4: { x: 1345, y: 460, w: 118, h: 90 },
-  GATE_2_PMDP: { x: 1120, y: 635, w: 270, h: 104 },
-  PMDP_DUAL_GATE_APPROVAL: { x: 1120, y: 785, w: 270, h: 112 },
-  SRS_DIRECTOR_APPROVAL: { x: 1510, y: 650, w: 240, h: 104 },
-  PHYSICAL_BUILD_TEST: { x: 1510, y: 810, w: 270, h: 112 },
-  EXTENSION_DEADLINE: { x: 1840, y: 810, w: 230, h: 104 },
-  PMDP: { x: 1510, y: 990, w: 230, h: 96 },
-  BMDP: { x: 1120, y: 1145, w: 270, h: 104 },
-  COMMAND_CENTER_APPROVAL: { x: 1800, y: 1045, w: 260, h: 112 },
-  FINAL_GM_APPROVAL: { x: 1800, y: 1190, w: 260, h: 112 },
+  PRODUCT_DIGITAL_RELEASE: { x: 70, y: 52, w: 230, h: 96 },
+  SRS_GATEWAY: { x: 370, y: 48, w: 230, h: 104 },
+  MANDATORY_COORDINATION_MEETING: { x: 70, y: 245, w: 285, h: 118 },
+  DELIVERABLES_MATRIX: { x: 405, y: 245, w: 285, h: 118 },
+  DUAL_GATE_APPROVAL: { x: 740, y: 246, w: 270, h: 116 },
+  DEADLINE_LOCKED_IN_ERP: { x: 1060, y: 252, w: 260, h: 104 },
+  ACTION_PATHS: { x: 1380, y: 256, w: 240, h: 96 },
+  CASE_1: { x: 145, y: 500, w: 122, h: 92 },
+  CASE_2: { x: 305, y: 500, w: 122, h: 92 },
+  CASE_3: { x: 465, y: 500, w: 122, h: 92 },
+  CASE_4: { x: 625, y: 500, w: 122, h: 92 },
+  GATE_2_PMDP: { x: 465, y: 632, w: 270, h: 104 },
+  PMDP_DUAL_GATE_APPROVAL: { x: 795, y: 632, w: 270, h: 112 },
+  BMDP: { x: 1160, y: 625, w: 270, h: 104 },
+  PHYSICAL_BUILD_TEST: { x: 795, y: 820, w: 270, h: 112 },
+  EXTENSION_DEADLINE: { x: 1125, y: 790, w: 230, h: 104 },
+  SRS_DIRECTOR_APPROVAL: { x: 1125, y: 925, w: 240, h: 104 },
+  PMDP: { x: 795, y: 980, w: 230, h: 96 },
+  COMMAND_CENTER_APPROVAL: { x: 1450, y: 800, w: 230, h: 112 },
+  FINAL_GM_APPROVAL: { x: 1450, y: 950, w: 230, h: 112 },
 };
 
 export const NODE_LABELS: Record<string, string> = {
@@ -124,38 +124,38 @@ export const NODE_LABELS: Record<string, string> = {
   SRS_GATEWAY: "SRS Gateway",
 };
 
-export const LANE_BANDS: Array<{ id: string; label: string; y: number; h: number }> = [];
-
-export const DEADLINE_BANDS = [
-  { id: "deadline_1", label: "Deadline 1", detail: "1 Day", x: 0, w: 305 },
-  { id: "deadline_2", label: "Deadline 2", detail: "2 Days", x: 305, w: 630 },
-  { id: "deadline_3", label: "Deadline 3", detail: "Depending on SRS Manager Approval", x: 935, w: 520 },
-  { id: "deadline_4", label: "Deadline 4", detail: "Depending on GM Approval", x: 1455, w: 645 },
+export const LANE_BANDS: Array<{ id: string; label: string; detail: string; y: number; h: number }> = [
+  { id: "deadline_1", label: "Deadline 1", detail: "1 Day", y: 0, h: 190 },
+  { id: "deadline_2", label: "Deadline 2", detail: "2 Days", y: 190, h: 240 },
+  { id: "deadline_3", label: "Deadline 3", detail: "SRS / GM approved duration", y: 430, h: 330 },
+  { id: "deadline_4", label: "Deadline 4", detail: "Build, PMDP, command center", y: 760, h: 340 },
 ];
 
+export const DEADLINE_BANDS: Array<{ id: string; label: string; detail: string; x: number; w: number }> = [];
+
 export const CONNECTOR_ROUTES: Record<string, ConnectorRoute> = {
-  "PRODUCT_DIGITAL_RELEASE->SRS_GATEWAY": { fromSide: "bottom", toSide: "top" },
-  "SRS_GATEWAY->MANDATORY_COORDINATION_MEETING": { fromSide: "right", toSide: "left", points: [{ x: 318, y: 327 }, { x: 318, y: 139 }] },
-  "MANDATORY_COORDINATION_MEETING->DELIVERABLES_MATRIX": { fromSide: "bottom", toSide: "top" },
+  "PRODUCT_DIGITAL_RELEASE->SRS_GATEWAY": { fromSide: "right", toSide: "left" },
+  "SRS_GATEWAY->MANDATORY_COORDINATION_MEETING": { fromSide: "bottom", toSide: "top", points: [{ x: 485, y: 205 }, { x: 213, y: 205 }] },
+  "MANDATORY_COORDINATION_MEETING->DELIVERABLES_MATRIX": { fromSide: "right", toSide: "left" },
   "DELIVERABLES_MATRIX->DUAL_GATE_APPROVAL": { fromSide: "right", toSide: "left" },
   "DUAL_GATE_APPROVAL->DEADLINE_LOCKED_IN_ERP": { fromSide: "right", toSide: "left" },
   "DEADLINE_LOCKED_IN_ERP->ACTION_PATHS": { fromSide: "right", toSide: "left" },
-  "ACTION_PATHS->CASE_1": { fromSide: "bottom", toSide: "top", points: [{ x: 1435, y: 410 }, { x: 1014, y: 410 }] },
-  "ACTION_PATHS->CASE_2": { fromSide: "bottom", toSide: "top" },
-  "ACTION_PATHS->CASE_3": { fromSide: "bottom", toSide: "top" },
-  "ACTION_PATHS->CASE_4": { fromSide: "bottom", toSide: "top", points: [{ x: 1435, y: 410 }, { x: 1404, y: 410 }] },
-  "CASE_1->BMDP": { fromSide: "bottom", toSide: "top", points: [{ x: 1014, y: 1110 }, { x: 1255, y: 1110 }] },
-  "CASE_2->BMDP": { fromSide: "bottom", toSide: "top", points: [{ x: 1144, y: 1110 }] },
-  "CASE_4->BMDP": { fromSide: "bottom", toSide: "top", points: [{ x: 1404, y: 1110 }, { x: 1255, y: 1110 }] },
+  "ACTION_PATHS->CASE_1": { fromSide: "bottom", toSide: "top", points: [{ x: 1500, y: 455 }, { x: 206, y: 455 }] },
+  "ACTION_PATHS->CASE_2": { fromSide: "bottom", toSide: "top", points: [{ x: 1500, y: 470 }, { x: 366, y: 470 }] },
+  "ACTION_PATHS->CASE_3": { fromSide: "bottom", toSide: "top", points: [{ x: 1500, y: 485 }, { x: 526, y: 485 }] },
+  "ACTION_PATHS->CASE_4": { fromSide: "bottom", toSide: "top", points: [{ x: 1500, y: 500 }, { x: 686, y: 500 }] },
+  "CASE_1->BMDP": { fromSide: "right", toSide: "left", points: [{ x: 900, y: 546 }, { x: 900, y: 677 }] },
+  "CASE_2->BMDP": { fromSide: "right", toSide: "left", points: [{ x: 945, y: 546 }, { x: 945, y: 677 }] },
+  "CASE_4->BMDP": { fromSide: "right", toSide: "left", points: [{ x: 990, y: 546 }, { x: 990, y: 677 }] },
   "CASE_3->GATE_2_PMDP": { fromSide: "bottom", toSide: "top" },
-  "GATE_2_PMDP->PMDP_DUAL_GATE_APPROVAL": { fromSide: "bottom", toSide: "top" },
-  "PMDP_DUAL_GATE_APPROVAL->PHYSICAL_BUILD_TEST": { fromSide: "right", toSide: "left" },
+  "GATE_2_PMDP->PMDP_DUAL_GATE_APPROVAL": { fromSide: "right", toSide: "left" },
+  "PMDP_DUAL_GATE_APPROVAL->PHYSICAL_BUILD_TEST": { fromSide: "bottom", toSide: "top", points: [{ x: 930, y: 780 }] },
   "PHYSICAL_BUILD_TEST->EXTENSION_DEADLINE": { fromSide: "right", toSide: "left" },
-  "EXTENSION_DEADLINE->SRS_DIRECTOR_APPROVAL": { fromSide: "top", toSide: "right", points: [{ x: 1955, y: 700 }] },
-  "SRS_DIRECTOR_APPROVAL->PHYSICAL_BUILD_TEST": { fromSide: "bottom", toSide: "top" },
+  "EXTENSION_DEADLINE->SRS_DIRECTOR_APPROVAL": { fromSide: "bottom", toSide: "top" },
+  "SRS_DIRECTOR_APPROVAL->PHYSICAL_BUILD_TEST": { fromSide: "left", toSide: "right", points: [{ x: 1090, y: 977 }, { x: 1090, y: 876 }] },
   "PHYSICAL_BUILD_TEST->PMDP": { fromSide: "bottom", toSide: "top" },
-  "PMDP->BMDP": { fromSide: "left", toSide: "right", points: [{ x: 1445, y: 1038 }, { x: 1445, y: 1197 }] },
-  "BMDP->COMMAND_CENTER_APPROVAL": { fromSide: "right", toSide: "left", points: [{ x: 1500, y: 1197 }, { x: 1500, y: 1101 }] },
+  "PMDP->BMDP": { fromSide: "right", toSide: "bottom", points: [{ x: 1085, y: 1028 }, { x: 1085, y: 760 }, { x: 1295, y: 760 }] },
+  "BMDP->COMMAND_CENTER_APPROVAL": { fromSide: "right", toSide: "left", points: [{ x: 1440, y: 677 }, { x: 1440, y: 856 }] },
   "COMMAND_CENTER_APPROVAL->FINAL_GM_APPROVAL": { fromSide: "bottom", toSide: "top" },
 };
 

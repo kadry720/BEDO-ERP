@@ -4,11 +4,16 @@ from types import SimpleNamespace
 from bedo_platform.constants import (
     GLOBAL_DEADLINE_EXTENSION_APPROVAL,
     NODE_STATUS_COMPLETED,
+    NODE_STATUS_IN_PROGRESS,
     NODE_STATUS_WAITING_APPROVAL,
     SRS_NODE_BMDP,
+    SRS_NODE_CASE_3,
     SRS_NODE_COMMAND_CENTER_APPROVAL,
     SRS_NODE_DUAL_GATE_APPROVAL,
     SRS_NODE_FINAL_GM_APPROVAL,
+    SRS_NODE_GATE_2_PMDP,
+    SRS_NODE_PHYSICAL_BUILD_TEST,
+    SRS_NODE_PMDP,
     SRS_NODE_PMDP_DUAL_GATE_APPROVAL,
 )
 from bedo_platform.services import project_service
@@ -164,3 +169,38 @@ def test_global_deadline_extension_is_actionable_only_for_overdue_live_node(monk
     )
     monkeypatch.setitem(sys.modules, "frappe", fake_frappe)
     assert project_service._approval_is_actionable(row) is False
+
+
+def test_case_3_gate_2_pmdp_is_available_while_case_3_remains_in_progress(monkeypatch):
+    workflow = SimpleNamespace(
+        name="workflow-1",
+        project_owner="owner",
+        case_classification=project_service.CASE_3,
+        current_node=SRS_NODE_GATE_2_PMDP,
+        pmdp_gate_path="",
+        pmdp_path="",
+        bmdp_path="",
+    )
+    statuses = {SRS_NODE_CASE_3: NODE_STATUS_IN_PROGRESS, SRS_NODE_GATE_2_PMDP: NODE_STATUS_IN_PROGRESS}
+    monkeypatch.setattr(project_service, "_node_status", lambda _workflow, node_id: statuses.get(node_id, "LOCKED"))
+
+    assert project_service._node_disabled_reason("owner", workflow, SRS_NODE_GATE_2_PMDP) == ""
+
+
+def test_case_3_pmdp_is_available_while_physical_build_remains_in_progress(monkeypatch):
+    workflow = SimpleNamespace(
+        name="workflow-1",
+        project_owner="owner",
+        case_classification=project_service.CASE_3,
+        current_node=SRS_NODE_PMDP,
+        pmdp_gate_path="path/to/gate2.pdf",
+        pmdp_path="",
+        bmdp_path="",
+    )
+    statuses = {
+        SRS_NODE_PHYSICAL_BUILD_TEST: NODE_STATUS_IN_PROGRESS,
+        SRS_NODE_PMDP: NODE_STATUS_IN_PROGRESS,
+    }
+    monkeypatch.setattr(project_service, "_node_status", lambda _workflow, node_id: statuses.get(node_id, NODE_STATUS_COMPLETED))
+
+    assert project_service._node_disabled_reason("owner", workflow, SRS_NODE_PMDP) == ""

@@ -40,7 +40,7 @@ NODE_LABELS = {
 
 
 def deadline_mode() -> str:
-    configured = os.environ.get(DEADLINE_MODE_ENV, DEADLINE_MODE_MINUTES).strip().lower()
+    configured = os.environ.get(DEADLINE_MODE_ENV, DEADLINE_MODE_WORKING_DAYS).strip().lower()
     return DEADLINE_MODE_WORKING_DAYS if configured == DEADLINE_MODE_WORKING_DAYS else DEADLINE_MODE_MINUTES
 
 

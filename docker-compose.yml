@@ -67,6 +67,7 @@ services:
       BEDO_SEED_ARD_MANAGER_PASSWORD: ${BEDO_SEED_ARD_MANAGER_PASSWORD:-replace-me-local-seed-password}
       BEDO_WEB_PUBLIC_URL: ${BEDO_WEB_PUBLIC_URL:-http://localhost:3000}
       BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:-replace-me-shared-bff-secret}
+      BEDO_SRS_DEADLINE_MODE: ${BEDO_SRS_DEADLINE_MODE:-working_days}
     volumes:
       - .:/workspace/BEDO-ERP
       - bench-data:/workspace/frappe-bench
