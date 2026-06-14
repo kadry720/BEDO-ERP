@@ -1,6 +1,6 @@
 import pytest
 
-from bedo_platform.services.user_management_service import validate_user_payload
+from bedo_platform.services.user_management_service import is_protected_system_user_identifier, validate_user_payload
 
 
 def test_create_user_validates_required_fields():
@@ -51,3 +51,9 @@ def test_create_user_rejects_unknown_roles():
 
     with pytest.raises(ValueError):
         validate_user_payload(payload, creating=True)
+
+
+def test_system_account_identifiers_are_protected():
+    assert is_protected_system_user_identifier("systemadmin") is True
+    assert is_protected_system_user_identifier("globalviewer") is True
+    assert is_protected_system_user_identifier("normal.srs.user") is False

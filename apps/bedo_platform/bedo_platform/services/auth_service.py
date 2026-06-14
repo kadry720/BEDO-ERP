@@ -19,35 +19,53 @@ def validate_username(username: str) -> str:
     return username
 
 
-def is_rate_limited(username: str) -> bool:
+def _request_ip() -> str:
+    try:
+        import frappe
+
+        request = getattr(frappe.local, "request", None)
+        forwarded = request.headers.get("X-Forwarded-For", "") if request else ""
+        return (forwarded.split(",")[0].strip() or getattr(frappe.local, "request_ip", "") or "")[:64]
+    except Exception:
+        return ""
+
+
+def _rate_limit_keys(username: str, ip_address: str = "") -> list[str]:
+    keys = [f"bedo_login_failures:{username}"]
+    if ip_address:
+        keys.append(f"bedo_login_failures:{username}:{ip_address}")
+    return keys
+
+
+def is_rate_limited(username: str, ip_address: str = "") -> bool:
     try:
         import frappe
 
         cache = frappe.cache()
-        key = f"bedo_login_failures:{username}"
-        failures = int(cache.get_value(key) or 0)
-        return failures >= 5
+        return any(int(cache.get_value(key) or 0) >= 5 for key in _rate_limit_keys(username, ip_address))
     except Exception:
         return False
 
 
-def record_failed_attempt(username: str) -> None:
+def record_failed_attempt(username: str, ip_address: str = "") -> None:
     try:
         import frappe
 
         cache = frappe.cache()
-        key = f"bedo_login_failures:{username}"
-        failures = int(cache.get_value(key) or 0) + 1
-        cache.set_value(key, failures, expires_in_sec=900)
+        for key in _rate_limit_keys(username, ip_address):
+            failures = int(cache.get_value(key) or 0) + 1
+            cache.set_value(key, failures, expires_in_sec=900)
     except Exception:
         return
 
 
-def clear_failed_attempts(username: str) -> None:
+def clear_failed_attempts(username: str, ip_address: str = "") -> None:
     try:
         import frappe
 
-        frappe.cache().delete_value(f"bedo_login_failures:{username}")
+        cache = frappe.cache()
+        for key in _rate_limit_keys(username, ip_address):
+            cache.delete_value(key)
     except Exception:
         return
 
@@ -121,6 +139,7 @@ def get_safe_user_context(user: str) -> dict[str, Any]:
 
 def login_for_web(username: str, password: str) -> dict[str, Any]:
     username = validate_username(username)
+    ip_address = _request_ip()
     if username.lower() in {"administrator", "admin"}:
         log_security_event(
             "login_failure",
@@ -130,33 +149,33 @@ def login_for_web(username: str, password: str) -> dict[str, Any]:
         )
         return {"success": False, "message": "Invalid username or password."}
     if not password:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Missing password")
         return {"success": False, "message": "Invalid username or password."}
-    if is_rate_limited(username):
+    if is_rate_limited(username, ip_address):
         log_security_event("login_failure", username=username, status="Failure", message="Rate limit exceeded")
         return {"success": False, "message": "Invalid username or password."}
 
     try:
         ldap_user = ldap_service.authenticate(username, password)
     except Exception:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="LDAP authentication failed")
         return {"success": False, "message": "Invalid username or password."}
 
     if not ldap_user:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Invalid credentials")
         return {"success": False, "message": "Invalid username or password."}
 
     existing_user = find_user_for_login(username, ldap_user.email or f"{username}@bedo.local")
     if existing_user and not assert_user_can_login(existing_user):
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, user=existing_user, status="Failure", message="Inactive BEDO account")
         return {"success": False, "message": "Invalid username or password."}
 
     user = sync_frappe_user(ldap_user)
-    clear_failed_attempts(username)
+    clear_failed_attempts(username, ip_address)
     log_security_event("login_success", username=username, user=user, status="Success")
     return {"success": True, "context": get_safe_user_context(user)}
 
@@ -165,12 +184,13 @@ def login(username: str, password: str) -> dict[str, Any]:
     import frappe
 
     username = validate_username(username)
+    ip_address = _request_ip()
     if not password:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Missing password")
         return {"success": False, "message": "Invalid username or password."}
 
-    if is_rate_limited(username):
+    if is_rate_limited(username, ip_address):
         log_security_event("login_failure", username=username, status="Failure", message="Rate limit exceeded")
         return {"success": False, "message": "Too many login attempts. Try again later."}
 
@@ -178,11 +198,11 @@ def login(username: str, password: str) -> dict[str, Any]:
         try:
             frappe.local.login_manager.authenticate(user="Administrator", pwd=password)
             frappe.local.login_manager.post_login()
-            clear_failed_attempts(username)
+            clear_failed_attempts(username, ip_address)
             log_security_event("login_success", username="Administrator", user="Administrator", status="Success")
             return {"success": True, "route": "/app"}
         except Exception:
-            record_failed_attempt(username)
+            record_failed_attempt(username, ip_address)
             log_security_event(
                 "login_failure",
                 username="Administrator",
@@ -194,23 +214,23 @@ def login(username: str, password: str) -> dict[str, Any]:
     try:
         ldap_user = ldap_service.authenticate(username, password)
     except Exception:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="LDAP authentication failed")
         return {"success": False, "message": "Invalid username or password."}
 
     if not ldap_user:
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Invalid credentials")
         return {"success": False, "message": "Invalid username or password."}
 
     existing_user = find_user_for_login(username, ldap_user.email or f"{username}@bedo.local")
     if existing_user and not assert_user_can_login(existing_user):
-        record_failed_attempt(username)
+        record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, user=existing_user, status="Failure", message="Inactive BEDO account")
         return {"success": False, "message": "Invalid username or password."}
 
     user = sync_frappe_user(ldap_user)
-    clear_failed_attempts(username)
+    clear_failed_attempts(username, ip_address)
     frappe.flags.bedo_ldap_login = True
     frappe.local.login_manager.login_as(user)
     route = get_current_user_landing_route(user)

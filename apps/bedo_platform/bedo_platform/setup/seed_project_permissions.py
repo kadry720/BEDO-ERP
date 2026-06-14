@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
+
+
+"""
+Deprecated ARD permission seed utility.
+
+This script targets legacy ARD permission test data and is intentionally not
+called by seed_all. It remains here only for historical reference and must be
+explicitly enabled with BEDO_ENABLE_LEGACY_ARD_PERMISSION_SEED=1 before use.
+"""
 
 
 def _utcnow() -> datetime:
@@ -191,6 +201,12 @@ def seed_permission_test_project() -> None:
 
 def execute() -> None:
     import frappe
+
+    if os.environ.get("BEDO_ENABLE_LEGACY_ARD_PERMISSION_SEED") != "1":
+        frappe.logger("bedo_platform").warning(
+            "Skipped deprecated ARD permission seed. Set BEDO_ENABLE_LEGACY_ARD_PERMISSION_SEED=1 to run it explicitly."
+        )
+        return
 
     ensure_indexes()
     _upsert_team("ARD-TL-1", "ARD Team Leader 1 Team", "Electronics", "ardteamleader1", ["ardengineer1", "ardengineer2"])

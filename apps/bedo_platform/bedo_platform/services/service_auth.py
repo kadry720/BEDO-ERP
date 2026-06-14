@@ -7,6 +7,8 @@ import time
 from functools import wraps
 from typing import Any, Callable
 
+from bedo_platform.services.config_validation import require_configured_secret
+
 
 SERVICE_HEADER = "X-BEDO-Service"
 USER_HEADER = "X-BEDO-User"
@@ -22,10 +24,10 @@ def _get_secret() -> str:
 
         value = frappe.conf.get("BEDO_WEB_SERVICE_SECRET") or frappe.conf.get("bedo_web_service_secret")
         if value:
-            return str(value)
+            return require_configured_secret("BEDO_WEB_SERVICE_SECRET", str(value))
     except Exception:
         pass
-    return os.environ.get("BEDO_WEB_SERVICE_SECRET", "")
+    return require_configured_secret("BEDO_WEB_SERVICE_SECRET", os.environ.get("BEDO_WEB_SERVICE_SECRET", ""))
 
 
 def _request_body() -> bytes:
@@ -52,14 +54,24 @@ def _request_path() -> str:
     return ""
 
 
-def _cache_nonce(nonce: str) -> None:
+def _cache_set_if_absent(cache: Any, key: str) -> bool:
+    redis_client = getattr(cache, "_redis", None) or getattr(cache, "redis_server", None)
+    if redis_client and hasattr(redis_client, "set"):
+        result = redis_client.set(key, "1", nx=True, ex=MAX_CLOCK_SKEW_SECONDS)
+        return bool(result)
+    if cache.get_value(key):
+        return False
+    cache.set_value(key, "1", expires_in_sec=MAX_CLOCK_SKEW_SECONDS)
+    return True
+
+
+def _mark_nonce_used(nonce: str) -> None:
     import frappe
 
     cache = frappe.cache()
     key = f"bedo_web_nonce:{nonce}"
-    if cache.get_value(key):
+    if not _cache_set_if_absent(cache, key):
         frappe.throw("Invalid service request.", frappe.PermissionError)
-    cache.set_value(key, "1", expires_in_sec=MAX_CLOCK_SKEW_SECONDS)
 
 
 def _expected_signature(
@@ -80,6 +92,10 @@ def _expected_signature(
 
 def validate_service_request() -> str:
     import frappe
+
+    cached_user = getattr(frappe.local, "bedo_service_auth_user", None)
+    if cached_user is not None:
+        return str(cached_user)
 
     secret = _get_secret()
     if not secret:
@@ -104,7 +120,6 @@ def validate_service_request() -> str:
     if abs(int(time.time()) - request_time) > MAX_CLOCK_SKEW_SECONDS:
         frappe.throw("Invalid service request.", frappe.PermissionError)
 
-    _cache_nonce(nonce)
     expected = _expected_signature(
         secret=secret,
         service=service,
@@ -118,10 +133,13 @@ def validate_service_request() -> str:
     if not hmac.compare_digest(expected, signature):
         frappe.throw("Invalid service request.", frappe.PermissionError)
 
+    _mark_nonce_used(nonce)
+
     if user:
         enabled = frappe.db.get_value("User", user, "enabled")
         if not enabled:
             frappe.throw("Invalid service user context.", frappe.PermissionError)
+    frappe.local.bedo_service_auth_user = user
     return user
 
 
@@ -131,4 +149,5 @@ def require_service_auth(fn: Callable[..., Any]) -> Callable[..., Any]:
         validate_service_request()
         return fn(*args, **kwargs)
 
+    wrapper.bedo_requires_service_auth = True  # type: ignore[attr-defined]
     return wrapper

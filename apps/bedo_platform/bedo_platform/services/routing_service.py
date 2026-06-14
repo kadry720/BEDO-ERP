@@ -64,10 +64,10 @@ def route_allowed_for_roles(route: str, role_names: Iterable[str] | None) -> boo
     department_key = dashboard.get("department_key")
     if not department_key:
         return True
-    if "General Manager" in roles and department_key != "GM_SUPPORT":
-        return False
     if "BEDO Global Viewer" in roles:
         return True
+    if "General Manager" in roles and department_key != "GM_SUPPORT":
+        return False
     return roles_can_access_department(roles, department_key)
 
 

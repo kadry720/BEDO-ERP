@@ -132,6 +132,25 @@ def create_notification(
 ) -> str:
     import frappe
 
+    metadata_payload = metadata or {}
+    metadata_json = json.dumps(metadata_payload, sort_keys=True)
+    if metadata_payload.get("event_key"):
+        existing = frappe.db.get_value(
+            "BEDO Notification",
+            {
+                "recipient_user": recipient_user,
+                "notification_type": notification_type,
+                "project": project,
+                "trainer_item": trainer_item,
+                "node_id": node_id,
+                "metadata_safe_json": metadata_json,
+                "is_read": 0,
+            },
+            "name",
+        )
+        if existing:
+            return existing
+
     doc = frappe.get_doc(
         {
             "doctype": "BEDO Notification",
@@ -147,7 +166,7 @@ def create_notification(
             "priority": priority,
             "is_read": 0,
             "created_at": _utcnow(),
-            "metadata_safe_json": json.dumps(metadata or {}, sort_keys=True),
+            "metadata_safe_json": metadata_json,
         }
     )
     doc.flags.ignore_permissions = True

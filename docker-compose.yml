@@ -6,6 +6,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --skip-character-set-client-handshake
     environment:
+      BEDO_ENV: ${BEDO_ENV:-local}
       MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-this-root-password}
       MYSQL_DATABASE: ${MARIADB_DATABASE:-frappe}
       MYSQL_USER: ${MARIADB_USER:-frappe}
@@ -40,6 +41,7 @@ services:
     working_dir: /workspace/BEDO-ERP
     command: bash /workspace/BEDO-ERP/infrastructure/scripts/start_frappe.sh
     environment:
+      BEDO_ENV: ${BEDO_ENV:-local}
       FRAPPE_BRANCH: ${FRAPPE_BRANCH:-version-15}
       FRAPPE_BENCH_PATH: ${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}
       BEDO_APP_NAME: ${BEDO_APP_NAME:-bedo_platform}
@@ -62,9 +64,8 @@ services:
       LDAP_TIMEOUT: ${LDAP_TIMEOUT:-5}
       BEDO_LDAP_ADAPTER: ${BEDO_LDAP_ADAPTER:-mock}
       BEDO_MOCK_LDAP_PASSWORD_GM: ${BEDO_MOCK_LDAP_PASSWORD_GM:-replace-me-local-dev-password}
-      BEDO_MOCK_LDAP_PASSWORD_ARD_MANAGER: ${BEDO_MOCK_LDAP_PASSWORD_ARD_MANAGER:-replace-me-local-dev-password}
-      BEDO_SEED_GM_PASSWORD: ${BEDO_SEED_GM_PASSWORD:-replace-me-local-seed-password}
-      BEDO_SEED_ARD_MANAGER_PASSWORD: ${BEDO_SEED_ARD_MANAGER_PASSWORD:-replace-me-local-seed-password}
+      BEDO_SEED_DEFAULT_PASSWORD: ${BEDO_SEED_DEFAULT_PASSWORD:-replace-me-local-seed-password}
+      BEDO_SEED_GM_PASSWORD: ${BEDO_SEED_GM_PASSWORD:-}
       BEDO_WEB_PUBLIC_URL: ${BEDO_WEB_PUBLIC_URL:-http://localhost:3000}
       BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:-replace-me-shared-bff-secret}
       BEDO_SRS_DEADLINE_MODE: ${BEDO_SRS_DEADLINE_MODE:-working_days}
@@ -82,7 +83,9 @@ services:
     working_dir: /workspace/BEDO-ERP/apps/web/bedo-web
     command: sh -lc "npm install && npm run dev"
     environment:
+      BEDO_ENV: ${BEDO_ENV:-local}
       FRAPPE_INTERNAL_URL: ${FRAPPE_INTERNAL_URL:-http://frappe:8000}
+      BEDO_SESSION_REDIS_URL: ${BEDO_SESSION_REDIS_URL:-redis://redis-cache:6379}
       NEXT_PUBLIC_BEDO_APP_NAME: ${NEXT_PUBLIC_BEDO_APP_NAME:-BEDO}
       BEDO_WEB_SESSION_SECRET: ${BEDO_WEB_SESSION_SECRET:-replace-me-long-next-session-secret}
       BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:-replace-me-shared-bff-secret}

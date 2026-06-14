@@ -28,9 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid username or password." }, { status: 401 });
     }
     const sessionId = randomUUID();
-    const activeSession = getActiveSession(result.context.user);
+    const activeSession = await getActiveSession(result.context.user);
     if (activeSession) {
-      const challenge = createLoginChallenge(result.context, sessionId, randomUUID());
+      const challenge = await createLoginChallenge(result.context, sessionId, randomUUID());
       if (!isJson) redirect("/login?error=already_signed_in");
       return NextResponse.json(
         {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       );
     }
     const context = { ...result.context, session_id: sessionId };
-    activateSession(context.user, sessionId);
+    await activateSession(context.user, sessionId);
     await setSession(context);
     if (!isJson) redirect(context.landing_route || "/access-not-configured");
     return NextResponse.json({ route: context.landing_route || "/access-not-configured" });

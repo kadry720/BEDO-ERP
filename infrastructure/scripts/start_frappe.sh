@@ -3,6 +3,9 @@ set -euo pipefail
 
 FRAPPE_BENCH_PATH="${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}"
 FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME:-bedo.localhost}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+bash "${SCRIPT_DIR}/validate_secrets.sh"
 BEDO_APP_NAME="${BEDO_APP_NAME:-bedo_platform}"
 BEDO_APP_PATH="${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_platform}"
 MARIADB_HOST="${MARIADB_HOST:-mariadb}"

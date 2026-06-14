@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bedo_platform.constants import ALL_ROLE_NAMES, ROLE_CATALOG
+from bedo_platform.constants import ALL_ROLE_NAMES, FRAPPE_DESK_TECHNICAL_ROLES, ROLE_CATALOG
 
 
 def execute() -> None:
@@ -9,17 +9,23 @@ def execute() -> None:
     allowed_roles = set(ALL_ROLE_NAMES)
 
     for role in ROLE_CATALOG:
+        desk_access = 1 if role["frappe_role"] in FRAPPE_DESK_TECHNICAL_ROLES else 0
         if not frappe.db.exists("Role", role["frappe_role"]):
             frappe.get_doc(
                 {
                     "doctype": "Role",
                     "role_name": role["frappe_role"],
-                    "desk_access": 1,
+                    "desk_access": desk_access,
                     "disabled": 0,
                 }
             ).insert(ignore_permissions=True)
         else:
-            frappe.db.set_value("Role", role["frappe_role"], {"desk_access": 1, "disabled": 0}, update_modified=False)
+            frappe.db.set_value(
+                "Role",
+                role["frappe_role"],
+                {"desk_access": desk_access, "disabled": 0},
+                update_modified=False,
+            )
 
         department_name = None
         if role["department_key"]:

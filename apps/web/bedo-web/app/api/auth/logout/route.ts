@@ -7,7 +7,7 @@ export async function POST() {
   const session = await getSession();
   if (session) {
     await frappeCall("bedo_platform.api.web.logout", {}, session.user).catch(() => null);
-    retireSession(session.user, session.session_id);
+    await retireSession(session.user, session.session_id);
   }
   await clearSession();
   redirect("/login");

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!challengeId || !["allow", "deny"].includes(action)) {
     return NextResponse.json({ error: "Invalid session conflict action." }, { status: 400 });
   }
-  const success = action === "allow" ? allowLoginChallenge(challengeId, session) : denyLoginChallenge(challengeId, session);
+  const success = action === "allow" ? await allowLoginChallenge(challengeId, session) : await denyLoginChallenge(challengeId, session);
   if (!success) return NextResponse.json({ error: "Login request is no longer available." }, { status: 404 });
   return NextResponse.json({ success: true, logout: action === "allow" });
 }

@@ -49,8 +49,11 @@ def ensure_indexes() -> None:
     _ensure_index("tabSRS Workflow Instance", "idx_srs_instance_trainer_item", "trainer_item")
     _ensure_index("tabSRS Workflow Node State", "idx_srs_node_workflow_node_status_user", "workflow_instance, node_id, status, responsible_user")
     _ensure_index("tabBEDO Deadline", "idx_bedo_deadline_item_node_status_due", "trainer_item, node_id, status, due_at")
+    _ensure_index("tabBEDO Deadline", "idx_bedo_deadline_status_due_overdue", "status, due_at, overdue_notified_at")
+    _ensure_index("tabBEDO Deadline", "idx_bedo_deadline_status_start_due_reminder", "status, start_at, due_at, reminder_notified_at")
     _ensure_index("tabBEDO Notification", "idx_bedo_notification_user_read_created", "recipient_user, is_read, created_at")
     _ensure_index("tabBEDO Security Event", "idx_bedo_audit_project_item_event_created", "project, trainer_item, event_type, created_at")
+    _ensure_index("tabBEDO Security Event", "idx_bedo_audit_created_status_event", "created_at, status, event_type")
     _ensure_index("tabSRS Team", "idx_srs_team_leader_active", "team_leader_user, is_active")
     _ensure_index("tabSRS Team Member", "idx_srs_team_member_team_user_active", "team, engineer_user, is_active")
 

@@ -1,7 +1,11 @@
+import Redis from "ioredis";
 import type { BedoUserContext } from "@/lib/routes";
+import { isLocalMode, optionalRedisUrl } from "@/server/config";
 
 const activeTtlMs = 8 * 60 * 60 * 1000;
 const challengeTtlMs = 2 * 60 * 1000;
+const activeTtlSeconds = Math.floor(activeTtlMs / 1000);
+const challengeTtlSeconds = Math.floor(challengeTtlMs / 1000);
 
 type ActiveSession = {
   user: string;
@@ -10,7 +14,7 @@ type ActiveSession = {
   challengeId?: string;
 };
 
-type LoginChallenge = {
+export type LoginChallenge = {
   challengeId: string;
   user: string;
   requestedSessionId: string;
@@ -29,22 +33,24 @@ declare global {
   var __bedoSessionRegistry: Registry | undefined;
 }
 
-function registry() {
+let redisPromise: Promise<Redis | null> | null = null;
+
+function now() {
+  return Date.now();
+}
+
+function memoryRegistry() {
   if (!globalThis.__bedoSessionRegistry) {
     globalThis.__bedoSessionRegistry = {
       activeSessions: new Map<string, ActiveSession>(),
       challenges: new Map<string, LoginChallenge>(),
     };
   }
-  cleanupExpired();
+  cleanupExpiredMemory();
   return globalThis.__bedoSessionRegistry;
 }
 
-function now() {
-  return Date.now();
-}
-
-function cleanupExpired() {
+function cleanupExpiredMemory() {
   const store = globalThis.__bedoSessionRegistry;
   if (!store) return;
   const current = now();
@@ -63,23 +69,96 @@ function cleanupExpired() {
   }
 }
 
-export function activateSession(user: string, sessionId: string) {
-  registry().activeSessions.set(user, { user, sessionId, lastSeen: now() });
+function activeKey(user: string) {
+  return `bedo:session:active:${user}`;
 }
 
-export function retireSession(user: string, sessionId?: string) {
-  const store = registry();
-  const active = store.activeSessions.get(user);
+function challengeKey(challengeId: string) {
+  return `bedo:session:challenge:${challengeId}`;
+}
+
+async function redis() {
+  const url = optionalRedisUrl();
+  if (!url || process.env.BEDO_DISABLE_SESSION_REDIS === "1") return null;
+  if (!redisPromise) {
+    redisPromise = (async () => {
+      try {
+        const client = new Redis(url, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          enableOfflineQueue: false,
+        });
+        await client.connect();
+        await client.ping();
+        return client;
+      } catch (error) {
+        if (!isLocalMode()) {
+          console.error("BEDO session Redis is unavailable.", error);
+        }
+        return null;
+      }
+    })();
+  }
+  return redisPromise;
+}
+
+async function readJson<T>(key: string) {
+  const client = await redis();
+  if (!client) return null;
+  const raw = await client.get(key).catch(() => null);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    await client.del(key).catch(() => null);
+    return null;
+  }
+}
+
+async function writeJson(key: string, value: unknown, ttlSeconds: number) {
+  const client = await redis();
+  if (!client) return false;
+  try {
+    await client.set(key, JSON.stringify(value), "EX", ttlSeconds);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteKey(key: string) {
+  const client = await redis();
+  if (!client) return false;
+  try {
+    await client.del(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function activateSession(user: string, sessionId: string) {
+  const session: ActiveSession = { user, sessionId, lastSeen: now() };
+  if (await writeJson(activeKey(user), session, activeTtlSeconds)) return;
+  memoryRegistry().activeSessions.set(user, session);
+}
+
+export async function retireSession(user: string, sessionId?: string) {
+  const active = await getActiveSession(user);
   if (!active) return;
-  if (!sessionId || active.sessionId === sessionId) store.activeSessions.delete(user);
+  if (sessionId && active.sessionId !== sessionId) return;
+  if (await deleteKey(activeKey(user))) return;
+  memoryRegistry().activeSessions.delete(user);
 }
 
-export function getActiveSession(user: string) {
-  return registry().activeSessions.get(user) || null;
+export async function getActiveSession(user: string) {
+  const active = await readJson<ActiveSession>(activeKey(user));
+  if (active && now() - active.lastSeen <= activeTtlMs) return active;
+  if (active) await deleteKey(activeKey(user));
+  return memoryRegistry().activeSessions.get(user) || null;
 }
 
-export function createLoginChallenge(context: BedoUserContext, requestedSessionId: string, challengeId: string) {
-  const store = registry();
+export async function createLoginChallenge(context: BedoUserContext, requestedSessionId: string, challengeId: string) {
   const challenge: LoginChallenge = {
     challengeId,
     user: context.user,
@@ -88,62 +167,81 @@ export function createLoginChallenge(context: BedoUserContext, requestedSessionI
     createdAt: now(),
     status: "pending",
   };
+  const active = await getActiveSession(context.user);
+  if (await writeJson(challengeKey(challengeId), challenge, challengeTtlSeconds)) {
+    if (active) await writeJson(activeKey(context.user), { ...active, challengeId }, activeTtlSeconds);
+    return challenge;
+  }
+  const store = memoryRegistry();
   store.challenges.set(challengeId, challenge);
-  const active = store.activeSessions.get(context.user);
   if (active) store.activeSessions.set(context.user, { ...active, challengeId });
   return challenge;
 }
 
-export function getLoginChallenge(challengeId: string) {
-  return registry().challenges.get(challengeId) || null;
+export async function getLoginChallenge(challengeId: string) {
+  const challenge = await readJson<LoginChallenge>(challengeKey(challengeId));
+  if (challenge) return challenge;
+  return memoryRegistry().challenges.get(challengeId) || null;
 }
 
-export function consumeLoginChallenge(challengeId: string) {
-  registry().challenges.delete(challengeId);
+export async function consumeLoginChallenge(challengeId: string) {
+  if (await deleteKey(challengeKey(challengeId))) return;
+  memoryRegistry().challenges.delete(challengeId);
 }
 
-export function allowLoginChallenge(challengeId: string, currentSession: BedoUserContext) {
-  const store = registry();
-  const challenge = store.challenges.get(challengeId);
-  const active = store.activeSessions.get(currentSession.user);
+export async function allowLoginChallenge(challengeId: string, currentSession: BedoUserContext) {
+  const challenge = await getLoginChallenge(challengeId);
+  const active = await getActiveSession(currentSession.user);
   if (!challenge || challenge.user !== currentSession.user || !active || active.sessionId !== currentSession.session_id) return false;
-  challenge.status = "allowed";
-  store.challenges.set(challengeId, challenge);
-  store.activeSessions.set(challenge.user, {
-    user: challenge.user,
-    sessionId: challenge.requestedSessionId,
-    lastSeen: now(),
-  });
+  const nextChallenge = { ...challenge, status: "allowed" as const };
+  await writeJson(challengeKey(challengeId), nextChallenge, challengeTtlSeconds);
+  await activateSession(challenge.user, challenge.requestedSessionId);
+  if (!(await redis())) {
+    memoryRegistry().challenges.set(challengeId, nextChallenge);
+  }
   return true;
 }
 
-export function denyLoginChallenge(challengeId: string, currentSession: BedoUserContext) {
-  const store = registry();
-  const challenge = store.challenges.get(challengeId);
-  const active = store.activeSessions.get(currentSession.user);
+export async function denyLoginChallenge(challengeId: string, currentSession: BedoUserContext) {
+  const challenge = await getLoginChallenge(challengeId);
+  const active = await getActiveSession(currentSession.user);
   if (!challenge || challenge.user !== currentSession.user || !active || active.sessionId !== currentSession.session_id) return false;
-  challenge.status = "denied";
-  store.challenges.set(challengeId, challenge);
+  const nextChallenge = { ...challenge, status: "denied" as const };
   const nextActive: ActiveSession = { ...active };
   delete nextActive.challengeId;
-  store.activeSessions.set(currentSession.user, nextActive);
+  await writeJson(challengeKey(challengeId), nextChallenge, challengeTtlSeconds);
+  await writeJson(activeKey(currentSession.user), nextActive, activeTtlSeconds);
+  if (!(await redis())) {
+    const store = memoryRegistry();
+    store.challenges.set(challengeId, nextChallenge);
+    store.activeSessions.set(currentSession.user, nextActive);
+  }
   return true;
 }
 
-export function sessionStatus(session: BedoUserContext) {
+export async function sessionStatus(session: BedoUserContext) {
   if (!session.session_id) return { valid: false as const, reason: "missing_session" };
-  const store = registry();
-  const active = store.activeSessions.get(session.user);
+  const active = await getActiveSession(session.user);
   if (!active) {
-    activateSession(session.user, session.session_id);
+    await activateSession(session.user, session.session_id);
     return { valid: true as const };
   }
   if (active.sessionId !== session.session_id) return { valid: false as const, reason: "replaced_session" };
-  active.lastSeen = now();
-  store.activeSessions.set(session.user, active);
-  const challenge = active.challengeId ? store.challenges.get(active.challengeId) : null;
+  const refreshed = { ...active, lastSeen: now() };
+  const challenge = refreshed.challengeId ? await getLoginChallenge(refreshed.challengeId) : null;
+  if (refreshed.challengeId && !challenge) delete refreshed.challengeId;
+  await writeJson(activeKey(session.user), refreshed, activeTtlSeconds);
+  if (!(await redis())) memoryRegistry().activeSessions.set(session.user, refreshed);
   return {
     valid: true as const,
     conflict: challenge?.status === "pending" ? { challengeId: challenge.challengeId } : null,
   };
+}
+
+export function __resetSessionRegistryForTests() {
+  globalThis.__bedoSessionRegistry = {
+    activeSessions: new Map<string, ActiveSession>(),
+    challenges: new Map<string, LoginChallenge>(),
+  };
+  redisPromise = null;
 }

@@ -3,7 +3,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from bedo_platform.constants import ADMIN_ACCESS_ROLES, ALL_ROLE_NAMES, ROLE_DEPARTMENT_KEY, VISIBLE_BUSINESS_ROLE_NAMES
+from bedo_platform.constants import (
+    ADMIN_ACCESS_ROLES,
+    ALL_ROLE_NAMES,
+    PROTECTED_SYSTEM_USERNAMES,
+    ROLE_DEPARTMENT_KEY,
+    VISIBLE_BUSINESS_ROLE_NAMES,
+)
 from bedo_platform.services.auth_service import USERNAME_RE
 from bedo_platform.services.ldap_service import LDAPUser, change_password, provision_user
 from bedo_platform.services.security_audit_service import log_security_event
@@ -11,6 +17,28 @@ from bedo_platform.services.user_profile_service import ensure_user_profile, is_
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,24}$")
+
+
+def _normalize_identifier(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def is_protected_system_user_identifier(*values: str | None) -> bool:
+    return any(_normalize_identifier(value) in PROTECTED_SYSTEM_USERNAMES for value in values if value)
+
+
+def _is_protected_system_user(user: str) -> bool:
+    import frappe
+
+    row = frappe.db.get_value("User", user, ["name", "username", "email"], as_dict=True) or {}
+    return is_protected_system_user_identifier(row.get("name"), row.get("username"), row.get("email"))
+
+
+def _throw_if_protected_system_user(user: str) -> None:
+    import frappe
+
+    if _is_protected_system_user(user):
+        frappe.throw("This system account is protected from normal user administration.", frappe.PermissionError)
 
 
 def require_user_admin(user: str | None = None) -> None:
@@ -169,6 +197,8 @@ def _set_role_assignments(user: str, primary_department: str, roles: list[str]) 
 def create_user_from_admin(payload: dict[str, Any], actor: str | None = None) -> dict[str, Any]:
     require_user_admin(actor)
     data = validate_user_payload(payload, creating=True)
+    if is_protected_system_user_identifier(data["username"], data["email"]):
+        raise ValueError("This username is reserved for a protected system account.")
 
     ldap_user = LDAPUser(
         username=data["username"],
@@ -187,6 +217,7 @@ def create_user_from_admin(payload: dict[str, Any], actor: str | None = None) ->
 
 def update_user_roles(user: str, roles: list[str], primary_department: str = "", actor: str | None = None) -> dict[str, Any]:
     require_user_admin(actor)
+    _throw_if_protected_system_user(user)
     if not roles:
         raise ValueError("At least one role is required.")
     unknown_roles = sorted(set(roles) - set(VISIBLE_BUSINESS_ROLE_NAMES))
@@ -205,6 +236,7 @@ def update_user_from_admin(user: str, payload: dict[str, Any], actor: str | None
     require_user_admin(actor)
     import frappe
 
+    _throw_if_protected_system_user(user)
     if is_user_deleted(user):
         frappe.throw("Deleted users cannot be edited.", frappe.PermissionError)
 
@@ -245,6 +277,7 @@ def soft_delete_user(user: str, actor: str | None = None) -> dict[str, Any]:
     actor = actor or frappe.session.user
     if user == actor:
         frappe.throw("You cannot delete your own BEDO account.", frappe.PermissionError)
+    _throw_if_protected_system_user(user)
 
     user_doc = frappe.get_doc("User", user)
     user_doc.enabled = 0
@@ -273,6 +306,8 @@ def list_users_for_admin(actor: str | None = None) -> list[dict[str, Any]]:
     result = []
     for row in rows:
         if row.name in {"Administrator", "Guest"} or is_user_deleted(row.name):
+            continue
+        if is_protected_system_user_identifier(row.name, row.username, row.email):
             continue
         roles = frappe.get_roles(row.name)
         primary_department = frappe.db.get_value(

@@ -169,7 +169,6 @@ SRS_SECTION_OPTIONS = [
 ]
 
 GLOBAL_VIEW_ROLES = {
-    "General Manager",
     "BEDO Global Viewer",
 }
 ADMIN_ACCESS_ROLES = {
@@ -184,6 +183,13 @@ SECURITY_AUDIT_ROLES = {
     "BEDO User Administrator",
     "BEDO Security Auditor",
     "BEDO System Administrator",
+}
+PROTECTED_SYSTEM_USERNAMES = {
+    "administrator",
+    "systemadmin",
+    "useradmin",
+    "securityauditor",
+    "globalviewer",
 }
 
 SRS_ROLES = {"SRS Manager", "SRS Section Head", "SRS Team Leader", "SRS Engineer"}
@@ -235,7 +241,12 @@ ROLE_DEPARTMENT_KEY = {
     if role["department_key"]
 }
 
-DEV_SEED_PASSWORD = "123456"
+SEED_DEFAULT_PASSWORD_ENV = "BEDO_SEED_DEFAULT_PASSWORD"
+
+
+def _seed_password_env(username: str) -> str:
+    safe = "".join(char if char.isalnum() else "_" for char in username.upper())
+    return f"BEDO_SEED_{safe}_PASSWORD"
 
 
 def _user(
@@ -257,7 +268,7 @@ def _user(
         "phone_number": f"+2000000{phone_index:04d}",
         "primary_department": department,
         "roles": ["BEDO Employee", *(internal_roles or []), *roles],
-        "password": DEV_SEED_PASSWORD,
+        "password_env": _seed_password_env(username),
         "force_active": force_active,
     }
 

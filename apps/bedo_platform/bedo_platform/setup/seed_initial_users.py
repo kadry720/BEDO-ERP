@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from bedo_platform.constants import INITIAL_USERS, LEGACY_PHASE_USERNAMES
+from bedo_platform.constants import INITIAL_USERS, LEGACY_PHASE_USERNAMES, SEED_DEFAULT_PASSWORD_ENV
 from bedo_platform.services.ldap_service import LDAPUser, provision_user
 from bedo_platform.services.user_profile_service import mark_user_deleted
 from bedo_platform.services.user_management_service import (
@@ -14,18 +14,23 @@ from bedo_platform.services.user_management_service import (
 LEGACY_SEED_USERNAMES = LEGACY_PHASE_USERNAMES
 
 
+def _seed_password_for_user(user_data: dict[str, object]) -> str:
+    password_env = str(user_data.get("password_env") or "")
+    return os.environ.get(password_env, "") or os.environ.get(SEED_DEFAULT_PASSWORD_ENV, "")
+
+
 def execute(strict: bool = False) -> None:
     import frappe
 
     missing = [
         user["password_env"]
         for user in INITIAL_USERS
-        if user.get("password_env") and not os.environ.get(user["password_env"])
+        if user.get("password_env") and not _seed_password_for_user(user)
     ]
     if missing:
         message = (
             "Initial BEDO LDAP seed users were not provisioned because these environment "
-            f"variables are missing: {', '.join(missing)}"
+            f"variables are missing: {SEED_DEFAULT_PASSWORD_ENV} or per-user values ({', '.join(missing)})"
         )
         if strict:
             raise RuntimeError(message)
@@ -34,8 +39,9 @@ def execute(strict: bool = False) -> None:
 
     for user_data in INITIAL_USERS:
         data = dict(user_data)
-        if data.get("password_env"):
-            data["password"] = os.environ[data["password_env"]]
+        data["password"] = _seed_password_for_user(data)
+        if not data["password"]:
+            continue
         ldap_user = LDAPUser(
             username=data["username"],
             first_name=data["first_name"],

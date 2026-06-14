@@ -147,15 +147,14 @@ def list_security_events_for_user(user: str, filters: dict[str, Any] | None = No
         "message",
         "created_at",
     ]
-    total = len(
-        frappe.get_all(
-            "BEDO Security Event",
-            fields=["name"],
-            filters=query_filters,
-            or_filters=or_filters,
-            limit_page_length=0,
-        )
+    total_rows = frappe.get_all(
+        "BEDO Security Event",
+        fields=["count(name) as total"],
+        filters=query_filters,
+        or_filters=or_filters,
+        limit_page_length=1,
     )
+    total = int((total_rows[0].total if total_rows else 0) or 0)
     rows = frappe.get_all(
         "BEDO Security Event",
         fields=fields,

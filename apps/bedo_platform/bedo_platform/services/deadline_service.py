@@ -277,7 +277,12 @@ def run_deadline_reminder_check() -> dict[str, int]:
     rows = frappe.get_all(
         "BEDO Deadline",
         filters={"status": "ACTIVE", "reminder_notified_at": ["is", "not set"]},
+        or_filters=[
+            ["start_at", "<=", to_storage_datetime(now)],
+            ["due_at", "<=", to_storage_datetime(now + timedelta(hours=2))],
+        ],
         fields=["name", "project", "trainer_item", "workflow_type", "node_id", "start_at", "due_at"],
+        order_by="due_at asc",
         page_length=500,
     )
     for row in rows:
@@ -317,8 +322,13 @@ def run_overdue_check() -> dict[str, int]:
     approvals = 0
     rows = frappe.get_all(
         "BEDO Deadline",
-        filters={"status": "ACTIVE", "overdue_notified_at": ["is", "not set"]},
+        filters={
+            "status": "ACTIVE",
+            "overdue_notified_at": ["is", "not set"],
+            "due_at": ["<=", to_storage_datetime(now)],
+        },
         fields=["name", "project", "trainer_item", "workflow_type", "node_id", "due_at"],
+        order_by="due_at asc",
         page_length=500,
     )
     for row in rows:

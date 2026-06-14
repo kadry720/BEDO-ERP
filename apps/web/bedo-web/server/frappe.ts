@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { randomUUID } from "crypto";
+import { requireConfiguredSecret } from "@/server/config";
 import { hmacSha256, randomNonce } from "@/server/crypto";
 
 type FrappeResponse<T> = {
@@ -23,9 +25,7 @@ function frappeUrl() {
 }
 
 function serviceSecret() {
-  const secret = process.env.BEDO_WEB_SERVICE_SECRET;
-  if (!secret) throw new Error("BEDO_WEB_SERVICE_SECRET is not configured.");
-  return secret;
+  return requireConfiguredSecret("BEDO_WEB_SERVICE_SECRET");
 }
 
 function serviceHeaders(path: string, body: string, user = "") {
@@ -40,6 +40,7 @@ function serviceHeaders(path: string, body: string, user = "") {
     "X-BEDO-User": user,
     "X-BEDO-Timestamp": timestamp,
     "X-BEDO-Nonce": nonce,
+    "X-BEDO-Request-ID": randomUUID(),
     "X-BEDO-Signature": hmacSha256(serviceSecret(), payload)
   };
 }

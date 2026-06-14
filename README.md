@@ -11,8 +11,8 @@ BEDO ERP is the repository for BEDO's internal enterprise platform. The active b
 - Frappe-native users, roles, DocTypes, fixtures, patches, and migrations.
 - BEDO department metadata, role catalog metadata, dashboard routing, route guard APIs, and security audit events.
 - Admin user management foundation at `/admin/users` in the Next.js app.
-- Empty Next.js dashboard placeholders for GM Support Office, SRS, ARD, Command Center, Production, QC, and Operations.
-- Multiple empty ARD dashboards with no workflow logic.
+- Active Next.js dashboard routes for GM Support Office, SRS, and Command Center.
+- Placeholder-only routes may exist for ARD, Production, QC, and Operations, but no workflow logic is active there.
 - Frappe Desk access restricted to technical administrators.
 
 Business workflow permissions and workflow DocTypes are intentionally empty in this phase. Do not implement ARD process logic from visual flowcharts; those diagrams are known to be incorrect. Later ARD workflow logic must come from Chapter 4 and Chapter 6 text only.
@@ -61,6 +61,7 @@ cp .env.example .env
 
 Required LDAP and seed variables:
 
+- `BEDO_ENV` (`local`, `development`, `test`, `staging`, or `production`)
 - `LDAP_URI`
 - `LDAP_BASE_DN`
 - `LDAP_BIND_DN`
@@ -68,10 +69,10 @@ Required LDAP and seed variables:
 - `LDAP_USER_SEARCH_FILTER`
 - `LDAP_USE_TLS`
 - `LDAP_CERT_REQUIRED`
-- `BEDO_SEED_GM_PASSWORD`
-- `BEDO_SEED_ARD_MANAGER_PASSWORD`
+- `BEDO_SEED_DEFAULT_PASSWORD` or per-user seed password variables such as `BEDO_SEED_GM_PASSWORD`
 - `BEDO_WEB_SERVICE_SECRET`
 - `BEDO_WEB_SESSION_SECRET`
+- `BEDO_SESSION_REDIS_URL` for multi-process session conflict tracking
 - `FRAPPE_INTERNAL_URL`
 
 Use `BEDO_LDAP_ADAPTER=mock` only for development. Production should use `ldaps://` with certificate validation enabled.
@@ -125,7 +126,7 @@ For development, set:
 ```bash
 BEDO_LDAP_ADAPTER=mock
 BEDO_MOCK_LDAP_PASSWORD_GM=<local-only-password>
-BEDO_MOCK_LDAP_PASSWORD_ARD_MANAGER=<local-only-password>
+BEDO_SEED_DEFAULT_PASSWORD=<local-only-seed-password>
 ```
 
 For production, wire `LDAP_URI`, bind settings, TLS flags, and a production provisioning adapter as needed. If LDAP provisioning is unavailable, user creation will fail cleanly rather than storing local passwords.
@@ -134,10 +135,7 @@ For production, wire `LDAP_URI`, bind settings, TLS flags, and a production prov
 
 The `after_install` and `after_migrate` hooks seed departments, roles, role catalog metadata, dashboard workspaces, and module access metadata.
 
-Initial users are synced only when these variables are present:
-
-- `BEDO_SEED_GM_PASSWORD`
-- `BEDO_SEED_ARD_MANAGER_PASSWORD`
+Initial users are synced only when explicit seed password variables are present. Set `BEDO_SEED_DEFAULT_PASSWORD` for all seed users in local development, or set per-user variables such as `BEDO_SEED_GM_PASSWORD`. No password fallback is embedded in code.
 
 To require initial user creation during setup:
 
@@ -168,7 +166,25 @@ bench --site bedo.localhost run-tests --app bedo_platform
 - Route visibility is checked server-side through `bedo_platform.api.web` and mirrored in Next.js route guards.
 - User administration APIs require explicit `BEDO User Administrator` or `BEDO System Administrator` roles. The initial `gm` user has `BEDO User Administrator` explicitly assigned; GM/global viewer status alone is not enough.
 - Next.js calls Frappe with signed server-to-server requests using `BEDO_WEB_SERVICE_SECRET`. The browser never receives Frappe API secrets, LDAP secrets, Frappe session IDs, backend tokens, or database credentials.
-- Security events are recorded for login success, login failure, logout, user creation, role changes, and user disablement.
+- All `bedo_platform.api.web` methods are protected by the signed service-auth wrapper even though Frappe exposes them with `allow_guest=True` for server-to-server calls.
+- Login lockout tracks username and username+IP counters with generic user-facing errors.
+- Session conflict state uses Redis through `BEDO_SESSION_REDIS_URL` when configured, with an in-memory fallback for local development only.
+- Security events are append-only for project deletion; project deletion no longer removes `BEDO Security Event` rows.
+- `BEDO_ENV=staging` or `BEDO_ENV=production` rejects placeholder secrets during startup.
+
+## Production Sequence
+
+1. Build the images.
+2. Run migrations once.
+3. Seed reference data once with explicit seed variables.
+4. Start Frappe and Next.js services.
+5. Run smoke tests against `/api/health`, login, project listing, and SRS workflow read paths.
+
+## Deferred Hardening
+
+- Full project soft delete is deferred because project deletion touches workflow/trainer relations and needs a dedicated migration and UI pass.
+- A large `project_service.py` split is deferred to avoid changing SRS workflow behavior in this hardening pass.
+- Broader project visibility query rewrites and polling consolidation are deferred until there is a larger contract test suite.
 
 ## Git Workflow
 

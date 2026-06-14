@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import crypto from "crypto";
 import type { BedoUserContext } from "@/lib/routes";
+import { requireConfiguredSecret } from "@/server/config";
 import { base64url, fromBase64url, hmacSha256 } from "@/server/crypto";
 
 const cookieName = "bedo_session";
@@ -27,9 +29,17 @@ function minimalContext(context: BedoUserContext): BedoUserContext {
 }
 
 function sessionSecret() {
-  const secret = process.env.BEDO_WEB_SESSION_SECRET;
-  if (!secret) throw new Error("BEDO_WEB_SESSION_SECRET is not configured.");
-  return secret;
+  return requireConfiguredSecret("BEDO_WEB_SESSION_SECRET");
+}
+
+function timingSafeEqualHex(left: string, right: string) {
+  try {
+    const leftBuffer = Buffer.from(left, "hex");
+    const rightBuffer = Buffer.from(right, "hex");
+    return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  } catch {
+    return false;
+  }
 }
 
 export function signSession(context: BedoUserContext) {
@@ -43,13 +53,21 @@ export function signSession(context: BedoUserContext) {
 }
 
 export function verifySessionToken(token?: string): BedoUserContext | null {
-  if (!token || !token.includes(".")) return null;
-  const [payload, signature] = token.split(".");
-  const expected = hmacSha256(sessionSecret(), payload);
-  if (signature !== expected) return null;
-  const envelope = JSON.parse(fromBase64url(payload)) as SessionEnvelope;
-  if (!envelope.exp || envelope.exp < Math.floor(Date.now() / 1000)) return null;
-  return envelope.context;
+  try {
+    if (!token || !token.includes(".")) return null;
+    const parts = token.split(".");
+    if (parts.length !== 2) return null;
+    const [payload, signature] = parts;
+    if (!payload || !signature) return null;
+    const expected = hmacSha256(sessionSecret(), payload);
+    if (!timingSafeEqualHex(signature, expected)) return null;
+    const envelope = JSON.parse(fromBase64url(payload)) as SessionEnvelope;
+    if (!envelope?.exp || envelope.exp < Math.floor(Date.now() / 1000)) return null;
+    if (!envelope.context?.user || !envelope.context?.session_id) return null;
+    return envelope.context;
+  } catch {
+    return null;
+  }
 }
 
 export async function setSession(context: BedoUserContext) {

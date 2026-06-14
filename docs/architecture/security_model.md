@@ -2,38 +2,50 @@
 
 ## Authentication
 
-Frappe's native authentication and session management remain the source of truth. BEDO ERP adds profile and policy checks around protected APIs.
+The browser authenticates only through the Next.js BEDO shell. Next.js calls Frappe through `bedo_platform.api.web` using signed service-auth headers. The browser never receives Frappe API secrets, LDAP bind credentials, Frappe session IDs, backend service tokens, or database credentials.
 
-## LDAP
+Business users authenticate through LDAP. The mock LDAP adapter is local-development only; production LDAP provisioning and password changes remain outside this implementation pass.
 
-LDAP configuration is stored in Frappe's native LDAP Settings. BEDO ERP helper APIs test readiness and synchronize the current user's BEDO profile without exposing bind credentials or storing LDAP passwords.
+## Server-To-Server API
 
-## Emergency Local Admin
+Every method in `bedo_platform.api.web` uses the central `service_api` wrapper. Frappe may expose those methods with `allow_guest=True`, but unsigned or invalid requests fail closed through HMAC validation, timestamp validation, nonce replay protection, and service-user checks.
 
-Local login can be allowed for system administrators through `BEDO Security Settings`. Normal local user login can be disabled independently.
-
-## Roles and Permissions
-
-Phase 1 roles are:
-
-- BEDO System Admin
-- BEDO GM
-- BEDO SRS Manager
-- BEDO ARD Manager
-- BEDO Department Manager
-- BEDO Engineer
-- BEDO Viewer
-
-All authorization checks are enforced server-side in service functions. Frontend placeholders must not be treated as security controls.
-
-## Audit Logging
-
-Access audit logs record login success, login failure, logout, session expired, and permission denied events when Frappe hooks or service entry points provide the event context.
+The HMAC payload format and headers remain unchanged. Nonces are consumed only after timestamp and signature validation.
 
 ## Sessions
 
-Frappe manages session creation, cookies, and logout. BEDO ERP stores session references in audit logs where available and exposes safe current-user context through a whitelisted API.
+Next.js owns the browser session cookie. Session tokens are HMAC-signed and verified with timing-safe comparison. Malformed, tampered, expired, or badly encoded cookies return `null` instead of throwing.
 
-## Secrets
+Single-session conflict state is stored in Redis when `BEDO_SESSION_REDIS_URL` or `REDIS_CACHE_URL` is configured. Local development can fall back to process memory.
 
-Secrets are configured through environment variables, `.env`, or Frappe site configuration. No secrets are committed to Git, returned from APIs, or stored in frontend files.
+## Roles
+
+Active BEDO roles are:
+
+- BEDO Employee
+- BEDO User Administrator
+- BEDO Security Auditor
+- BEDO System Administrator
+- BEDO Global Viewer
+- General Manager
+- SRS Manager
+- SRS Section Head
+- SRS Team Leader
+- SRS Engineer
+- Command Center Representative
+
+Only `BEDO System Administrator` receives Frappe Desk access. Business roles use the Next.js shell and are blocked from Desk by request-level checks.
+
+`BEDO Global Viewer` has global visible-dashboard access. A plain `General Manager` is not automatically allowed into non-GM routes unless the account also has `BEDO Global Viewer`.
+
+## Admin Protection
+
+Normal admin user-management APIs hide and protect technical/system accounts such as `systemadmin`, `useradmin`, `securityauditor`, and `globalviewer`. They cannot be listed, edited, disabled, or deleted through the normal GM/admin user-management surface.
+
+## Audit Logging
+
+Security events are stored as UTC naive timestamps and converted at display boundaries. Project deletion does not remove `BEDO Security Event` rows.
+
+## Production Secrets
+
+`BEDO_ENV=staging` or `BEDO_ENV=production` rejects missing or placeholder values for required runtime secrets. Local Docker remains easy to start with `BEDO_ENV=local`, but production deployments must supply explicit secrets.
