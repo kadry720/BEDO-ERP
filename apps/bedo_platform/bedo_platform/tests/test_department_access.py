@@ -9,6 +9,14 @@ def test_platform_user_cannot_open_srs_dashboard():
     assert route_allowed_for_roles("/srs", ["BEDO Employee"]) is False
 
 
+def test_command_center_user_can_open_command_center_dashboard_only():
+    roles = ["BEDO Employee", "Command Center Representative"]
+
+    assert route_allowed_for_roles("/command-center", roles) is True
+    assert route_allowed_for_roles("/srs", roles) is False
+    assert route_allowed_for_roles("/gm", roles) is False
+
+
 def test_gm_only_opens_gm_dashboard_not_general_srs_dashboard():
     roles = ["BEDO Employee", "General Manager"]
 

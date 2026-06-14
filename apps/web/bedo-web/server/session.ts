@@ -21,7 +21,8 @@ function minimalContext(context: BedoUserContext): BedoUserContext {
     enabled: context.enabled,
     roles: context.roles,
     landing_route: context.landing_route,
-    modules: []
+    modules: [],
+    session_id: context.session_id
   };
 }
 

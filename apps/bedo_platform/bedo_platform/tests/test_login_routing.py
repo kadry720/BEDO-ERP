@@ -14,6 +14,12 @@ def test_srs_manager_routes_to_srs_dashboard():
     assert route == "/srs"
 
 
+def test_command_center_routes_to_command_center_dashboard():
+    route = resolve_landing_route(["BEDO Employee", "Command Center Representative"], "COMMAND_CENTER")
+
+    assert route == "/command-center"
+
+
 def test_user_with_no_role_routes_to_access_not_configured():
     route = resolve_landing_route([], "")
 

@@ -64,6 +64,17 @@ def get_ldap_config() -> LDAPConfig:
 
 
 class MockLDAPAdapter:
+    def _seed_password(self, username: str) -> str:
+        try:
+            from bedo_platform.constants import INITIAL_USERS
+
+            for user in INITIAL_USERS:
+                if user.get("username") == username:
+                    return str(user.get("password") or "")
+        except Exception:
+            return ""
+        return ""
+
     def _cached_password(self, username: str) -> str:
         try:
             import frappe
@@ -77,7 +88,7 @@ class MockLDAPAdapter:
             return None
         env_key = f"BEDO_MOCK_LDAP_PASSWORD_{username.upper().replace('.', '_').replace('-', '_')}"
         expected = os.environ.get(env_key)
-        expected = self._cached_password(username) or expected
+        expected = self._cached_password(username) or expected or self._seed_password(username)
         if expected and expected == password:
             return LDAPUser(username=username, email=f"{username}@bedo.local")
         return None

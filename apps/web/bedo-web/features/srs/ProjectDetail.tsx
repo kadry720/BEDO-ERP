@@ -4,20 +4,22 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 import { useMemo } from "react";
 import { Activity, AlertTriangle, Clock3, FolderOpen, UserMinus, Users } from "lucide-react";
-import { projectRoute, routeSegment } from "@/lib/route-ids";
+import { projectWorkflowRoute, routeSegment } from "@/lib/route-ids";
 import type { BedoProject, TrainerItem, TrainerItemList } from "@/features/srs/types";
-import { formatDistance, formatNodeId } from "@/features/srs/workflowPresentation";
+import { formatDistance } from "@/features/srs/workflowPresentation";
 
 type Props = {
   project: BedoProject;
   initialItems: TrainerItemList;
-  mode: "gm" | "srs";
+  mode: "gm" | "srs" | "command-center";
+  viewerRoles?: string[];
 };
 
-export function ProjectDetail({ project, initialItems, mode }: Props) {
+export function ProjectDetail({ project, initialItems, mode, viewerRoles = [] }: Props) {
   const items = initialItems.trainer_items;
-  const itemRouteBase = mode === "gm" ? projectRoute("gm", project.name, "/items") : projectRoute("srs", project.name, "/items");
+  const itemRouteBase = projectWorkflowRoute(mode, project.name, "/items");
   const stats = useMemo(() => trainerStats(items), [items]);
+  const canSeeFullStats = mode === "gm" || viewerRoles.includes("SRS Manager");
 
   return (
     <section className="space-y-6">
@@ -31,13 +33,22 @@ export function ProjectDetail({ project, initialItems, mode }: Props) {
         </div>
       </header>
 
-      <TrainerStatsCards stats={stats} />
-      <TrainerItemsTable items={items} itemRouteBase={itemRouteBase} />
+      <TrainerStatsCards stats={stats} full={canSeeFullStats} />
+      <TrainerItemsTable items={items} itemRouteBase={itemRouteBase} showPrice={mode === "gm"} />
     </section>
   );
 }
 
-function TrainerStatsCards({ stats }: { stats: ReturnType<typeof trainerStats> }) {
+function TrainerStatsCards({ stats, full }: { stats: ReturnType<typeof trainerStats>; full: boolean }) {
+  if (!full) {
+    return (
+      <div className="grid gap-4 md:grid-cols-3">
+        <Stat icon={FolderOpen} label="Trainers Done" value={stats.done} tone="green" />
+        <Stat icon={AlertTriangle} label="Awaiting GM Approval" value={stats.awaitingGm} tone="blue" />
+        <Stat icon={Clock3} label="Awaiting SRS Manager Approval" value={stats.awaitingSrsManager} tone="blue" />
+      </div>
+    );
+  }
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <Stat icon={FolderOpen} label="Trainers Done" value={stats.done} tone="green" />
@@ -70,7 +81,7 @@ function Stat({ icon: Icon, label, value, tone }: { icon: ComponentType<{ classN
   );
 }
 
-function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; itemRouteBase: string }) {
+function TrainerItemsTable({ items, itemRouteBase, showPrice }: { items: TrainerItem[]; itemRouteBase: string; showPrice: boolean }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white shadow-panel">
       <div className="border-b border-slate-200 px-5 py-4">
@@ -78,12 +89,12 @@ function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; ite
         <p className="text-sm font-medium text-slate-500">{items.length} trainer item(s)</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[980px] w-full text-left text-sm">
+        <table className={`${showPrice ? "min-w-[980px]" : "min-w-[860px]"} w-full text-left text-sm`}>
           <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Trainer Name</th>
               <th className="px-4 py-3">Quantity</th>
-              <th className="px-4 py-3">Current SRS Node</th>
+              {showPrice && <th className="px-4 py-3">Price (EGP)</th>}
               <th className="px-4 py-3">Project Owner</th>
               <th className="px-4 py-3">Deadline Due</th>
               <th className="px-4 py-3">Status</th>
@@ -95,7 +106,7 @@ function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; ite
               <tr key={item.name} className="hover:bg-slate-50">
                 <td className="max-w-[260px] truncate px-4 py-3 font-black text-slate-950" title={item.trainer_item_name}>{item.trainer_item_name}</td>
                 <td className="px-4 py-3 text-slate-600">{item.quantity}</td>
-                <td className="px-4 py-3 text-slate-600">{formatNodeId(item.workflow?.current_node || item.current_node)}</td>
+                {showPrice && <td className="px-4 py-3 font-semibold text-slate-700">{formatEgp(item.price_egp)}</td>}
                 <td className="px-4 py-3 text-slate-600">{item.workflow?.project_owner_full_name || item.current_responsible_name || "-"}</td>
                 <td className="px-4 py-3"><CountdownBadge startAt={item.deadline?.start_at} dueAt={item.deadline?.due_at} serverNow={item.deadline?.server_now} /></td>
                 <td className="px-4 py-3">
@@ -116,6 +127,11 @@ function TrainerItemsTable({ items, itemRouteBase }: { items: TrainerItem[]; ite
       </div>
     </section>
   );
+}
+
+function formatEgp(value?: number) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function CountdownBadge({ startAt, dueAt, serverNow }: { startAt?: string; dueAt?: string; serverNow?: string }) {
@@ -145,8 +161,14 @@ function trainerStats(items: TrainerItem[]) {
       else acc.inProgress += 1;
       if (!item.workflow?.project_owner) acc.withoutOwner += 1;
       if (item.workflow?.project_owner && item.workflow.current_node === "MANDATORY_COORDINATION_MEETING") acc.ownerNoTeam += 1;
-      if (item.workflow?.current_node === "GM_APPROVAL") acc.awaitingGm += 1;
-      if (item.workflow?.current_node === "GATE_1_SRS_MANAGER_APPROVAL") acc.awaitingSrsManager += 1;
+      const workflowStatus = item.workflow?.status || "";
+      const currentNode = item.workflow?.current_node || item.current_node || "";
+      if (["GM_APPROVAL", "FINAL_GM_APPROVAL"].includes(currentNode) || ["WAITING_GM_APPROVAL", "WAITING_FINAL_GM_APPROVAL"].includes(workflowStatus)) {
+        acc.awaitingGm += 1;
+      }
+      if (currentNode === "GATE_1_SRS_MANAGER_APPROVAL" || workflowStatus === "WAITING_SRS_MANAGER_APPROVAL") {
+        acc.awaitingSrsManager += 1;
+      }
       return acc;
     },
     { done: 0, inProgress: 0, withoutOwner: 0, ownerNoTeam: 0, awaitingGm: 0, awaitingSrsManager: 0 }

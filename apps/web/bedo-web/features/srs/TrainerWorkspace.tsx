@@ -4,11 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   Clock3,
+  Copy,
   Cpu,
   DatabaseZap,
   DoorOpen,
+  FileInput,
   GitBranch,
   Loader2,
   Lock,
@@ -31,7 +34,6 @@ import {
   formatNodeId,
   formatStatus,
   nodePosition,
-  sideNormal,
   statusBadgeClass,
   statusTone,
 } from "@/features/srs/workflowPresentation";
@@ -40,6 +42,23 @@ type NodeAvailability = TrainerWorkspaceData["node_availability"][number];
 type FlowIcon = ComponentType<{ className?: string; style?: CSSProperties }>;
 
 const placeholderText = "This workflow will be implemented in a later phase.";
+const neverOpenNodeIds = new Set([
+  "CASES_1_2",
+  "CASES_3_4",
+  "GM_APPROVAL",
+  "GATE_1_SRS_MANAGER_APPROVAL",
+  "DUAL_GATE_APPROVAL",
+  "PMDP_DUAL_GATE_APPROVAL",
+  "EXTENSION_DEADLINE",
+  "SRS_DIRECTOR_APPROVAL",
+  "FINAL_GM_APPROVAL",
+  "ACTION_PATHS",
+  "DEADLINE_LOCKED_IN_ERP",
+  "CASE_1",
+  "CASE_2",
+  "CASE_3",
+  "CASE_4",
+]);
 
 export function TrainerWorkspace({
   initialWorkspace,
@@ -57,8 +76,8 @@ export function TrainerWorkspace({
     return new Map(workspace.node_states.map((state) => [state.node_id, state]));
   }, [workspace.node_states]);
 
-  const activeState = workspace.workflow?.current_node ? states.get(workspace.workflow.current_node) : null;
-  const activeDeadline = isActiveDeadlineState(activeState || undefined) ? activeState || undefined : undefined;
+  const activeDeadline = workspace.node_states.find((state) => isActiveDeadlineState(state));
+  const currentStage = currentStageLabel(workspace);
 
   return (
     <section className="space-y-6">
@@ -68,7 +87,7 @@ export function TrainerWorkspace({
             <div className="text-xs font-bold uppercase text-muted">{workspace.project.project_code}</div>
             <h1 className="mt-2 text-3xl font-bold text-ink">{workspace.trainer_item.trainer_item_name}</h1>
             <p className="mt-2 text-sm text-muted">
-              Quantity {workspace.trainer_item.quantity} | Current step: {formatNodeId(workspace.workflow?.current_node || workspace.trainer_item.current_node)}
+              Quantity {workspace.trainer_item.quantity} | Current step: {currentStage}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -113,6 +132,12 @@ export function TrainerWorkspace({
       )}
     </section>
   );
+}
+
+function currentStageLabel(workspace: TrainerWorkspaceData) {
+  const status = workspace.workflow?.status || workspace.trainer_item.status;
+  if (status === "SRS_COMPLETE" || status === "COMPLETED" || status === "COMPLETE") return "Completed";
+  return formatNodeId(workspace.workflow?.current_node || workspace.trainer_item.current_node);
 }
 
 function Overview({ workspace }: { workspace: TrainerWorkspaceData }) {
@@ -222,14 +247,15 @@ function SrsFlowchart({
   const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const availability = useMemo(() => new Map(workspace.node_availability.map((node) => [node.nodeId, node])), [workspace.node_availability]);
-  const activeNodeState = workspace.workflow?.current_node ? states.get(workspace.workflow.current_node) : null;
+  const flowchartNodeIds = useMemo(() => new Set(flowchart.nodes.map((node) => node.id)), [flowchart.nodes]);
   const diagramWidth = FLOWCHART_DIMENSIONS.laneLabelWidth + FLOWCHART_DIMENSIONS.canvasWidth;
   const diagramHeight = FLOWCHART_DIMENSIONS.deadlineHeaderHeight + FLOWCHART_DIMENSIONS.canvasHeight;
+  const deadlineColumnMeta = useMemo(() => new Map(flowchart.deadline_columns.map((column) => [column.id, column])), [flowchart.deadline_columns]);
   const notApplicableNodeIds = new Set(workspace.node_states.filter((state) => state.status === "NOT_APPLICABLE").map((state) => state.node_id));
   const applicableNodeCount = flowchart.nodes.filter((node) => !notApplicableNodeIds.has(node.id)).length;
-  const completeCount = workspace.node_states.filter((state) => state.status === "COMPLETED" && !notApplicableNodeIds.has(state.node_id)).length;
+  const completeCount = workspace.node_states.filter((state) => flowchartNodeIds.has(state.node_id) && state.status === "COMPLETED" && !notApplicableNodeIds.has(state.node_id)).length;
   const progress = applicableNodeCount ? Math.round((completeCount / applicableNodeCount) * 100) : 0;
-  const activeDeadlineState = isActiveDeadlineState(activeNodeState || undefined) ? activeNodeState || undefined : undefined;
+  const activeDeadlineState = workspace.node_states.find((state) => flowchartNodeIds.has(state.node_id) && isActiveDeadlineState(state));
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -264,7 +290,7 @@ function SrsFlowchart({
 
         <div className="grid grid-cols-2 gap-px bg-slate-100 lg:grid-cols-4">
           <HeaderStat label="Trainer Item" value={workspace.trainer_item.trainer_item_name} />
-          <HeaderStat label="Current Stage" value={formatNodeId(workspace.workflow?.current_node || workspace.trainer_item.current_node)} />
+          <HeaderStat label="Current Stage" value={currentStageLabel(workspace)} />
           <HeaderStat label="Status" value={formatStatus(workspace.workflow?.status || workspace.trainer_item.status)} tone={statusTone(workspace.workflow?.status || workspace.trainer_item.status)} />
           <HeaderStatProgress label="SRS Progress" value={progress} />
         </div>
@@ -280,8 +306,17 @@ function SrsFlowchart({
         ))}
       </div>
 
-      <div ref={frameRef} className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div style={{ width: diagramWidth * scale, height: diagramHeight * scale }}>
+      <div
+        ref={frameRef}
+        className="overflow-hidden rounded-md border border-slate-200 bg-white"
+        style={{
+          backgroundColor: "#f8fafc",
+          backgroundImage:
+            "linear-gradient(to right, rgba(148,163,184,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.10) 1px, transparent 1px)",
+          backgroundSize: `${32 * scale}px ${32 * scale}px`,
+        }}
+      >
+        <div style={{ minWidth: diagramWidth * scale, width: "100%", height: diagramHeight * scale }}>
           <div style={{ width: diagramWidth, transform: `scale(${scale})`, transformOrigin: "top left" }}>
             <div className="flex border-b border-slate-200 bg-slate-100">
               <div className="shrink-0 border-r border-slate-200" style={{ width: FLOWCHART_DIMENSIONS.laneLabelWidth }} />
@@ -292,7 +327,7 @@ function SrsFlowchart({
                     className={`absolute top-0 h-full ${index > 0 ? "border-l border-slate-300" : ""}`}
                     style={{ left: column.x, width: column.w }}
                   >
-                    <DeadlineHeader label={column.label} detail={column.detail} />
+                    <DeadlineHeader label={deadlineColumnMeta.get(column.id)?.label || column.label} detail={deadlineColumnMeta.get(column.id)?.detail || column.detail} />
                   </div>
                 ))}
               </div>
@@ -335,11 +370,17 @@ function SrsFlowchart({
                   />
                 ))}
 
-                {DEADLINE_BANDS.map((column, index) =>
-                  index > 0 ? (
-                    <div key={column.id} className="absolute top-0 h-full border-l border-dashed border-slate-300" style={{ left: column.x }} />
-                  ) : null,
-                )}
+                {DEADLINE_BANDS.map((column, index) => (
+                  <div
+                    key={column.id}
+                    className={`absolute top-0 h-full ${index > 0 ? "border-l border-dashed border-slate-300" : ""}`}
+                    style={{
+                      left: column.x,
+                      width: column.w,
+                      backgroundColor: index % 2 === 0 ? "rgba(241,245,249,0.55)" : "rgba(255,255,255,0.44)",
+                    }}
+                  />
+                ))}
 
                 <svg className="pointer-events-none absolute inset-0" width={FLOWCHART_DIMENSIONS.canvasWidth} height={FLOWCHART_DIMENSIONS.canvasHeight}>
                   <defs>
@@ -359,8 +400,9 @@ function SrsFlowchart({
                         d={path}
                         fill="none"
                         markerEnd="url(#srs-arrow)"
-                        stroke={notApplicable ? "#0e7490" : active ? "#16a34a" : "#94a3b8"}
-                        strokeDasharray={notApplicable ? "5 6" : undefined}
+                        stroke={notApplicable ? "#020617" : active ? "#16a34a" : "#94a3b8"}
+                        strokeDasharray={notApplicable ? "2 7" : undefined}
+                        opacity={notApplicable ? 0.5 : 1}
                         strokeLinecap="round"
                         strokeWidth={active ? 2.5 : 1.75}
                       />
@@ -368,8 +410,8 @@ function SrsFlowchart({
                   })}
                 </svg>
 
-                {activeDeadlineState && workspace.workflow?.current_node && (
-                  <div className="absolute" style={countdownPosition(workspace.workflow.current_node)}>
+                {activeDeadlineState && (
+                  <div className="absolute" style={countdownPosition(activeDeadlineState.node_id)}>
                     <CountdownBadge
                       startAt={activeDeadlineState.deadline_start_at}
                       dueAt={activeDeadlineState.deadline_due_at}
@@ -391,7 +433,7 @@ function SrsFlowchart({
                       availability={available}
                       now={now}
                       onOpen={() => {
-                        if (available?.canOpen) setActiveNode(node.id);
+                        if (canOpenNodeModal(node, state, available)) setActiveNode(node.id);
                       }}
                     />
                   );
@@ -408,6 +450,7 @@ function SrsFlowchart({
           workspace={workspace}
           flowchart={flowchart}
           state={states.get(activeNode)}
+          availability={availability.get(activeNode)}
           onClose={() => setActiveNode(null)}
           onUpdated={(next) => {
             setWorkspace(next);
@@ -505,14 +548,14 @@ const TONE_STYLES: Record<ReturnType<typeof statusTone>, { label: string; dot: s
     title: "#475569",
   },
   "not-applicable": {
-    label: "Not Applicable",
-    dot: "#0e7490",
-    chipBg: "rgba(8,145,178,0.12)",
-    chipText: "#0e7490",
-    border: "#22d3ee",
-    bg: "#ecfeff",
-    accent: "#0891b2",
-    title: "#164e63",
+    label: "Inactive Path",
+    dot: "#020617",
+    chipBg: "rgba(15,23,42,0.78)",
+    chipText: "#e2e8f0",
+    border: "#020617",
+    bg: "#020617",
+    accent: "#64748b",
+    title: "#cbd5e1",
   },
   overdue: {
     label: "Overdue",
@@ -541,6 +584,7 @@ const NODE_ICONS: Record<string, FlowIcon> = {
   SRS_GATEWAY: DoorOpen,
   MANDATORY_COORDINATION_MEETING: Users,
   DELIVERABLES_MATRIX: ClipboardList,
+  DUAL_GATE_APPROVAL: ShieldCheck,
   CASES_1_2: GitBranch,
   CASES_3_4: GitBranch,
   GM_APPROVAL: Stamp,
@@ -551,35 +595,68 @@ const NODE_ICONS: Record<string, FlowIcon> = {
   CASE_2: GitBranch,
   CASE_3: GitBranch,
   CASE_4: GitBranch,
+  GATE_2_PMDP: FileInput,
+  PMDP_DUAL_GATE_APPROVAL: ShieldCheck,
+  PHYSICAL_BUILD_TEST: Cpu,
+  EXTENSION_DEADLINE: Clock3,
+  SRS_DIRECTOR_APPROVAL: ShieldCheck,
+  PMDP: FileInput,
   BMDP: Cpu,
+  COMMAND_CENTER_APPROVAL: ClipboardCheck,
+  FINAL_GM_APPROVAL: Stamp,
 };
 
 const NODE_SUBTITLES: Record<string, string> = {
   SRS_GATEWAY: "Assign Project Owner via ERP",
+  MANDATORY_COORDINATION_MEETING: "SRS team selection",
   DELIVERABLES_MATRIX: "Case classification + deadline proposal",
+  DUAL_GATE_APPROVAL: "SRS Manager first, GM only when required",
   CASE_1: "Legacy Validation",
   CASE_2: "Standard Innovation",
   CASE_3: "Experimental Prototyping",
   CASE_4: "Vanguard Manufacturing",
-  BMDP: "SRS Complete",
+  GATE_2_PMDP: "Submit Gate 2 PMDP path",
+  PMDP_DUAL_GATE_APPROVAL: "SRS + Pillar 4 approval",
+  PHYSICAL_BUILD_TEST: "Request extension if needed",
+  EXTENSION_DEADLINE: "Extension request",
+  SRS_DIRECTOR_APPROVAL: "SRS extension approval",
+  PMDP: "Submit PMDP path",
+  BMDP: "Submit BMDP path",
+  COMMAND_CENTER_APPROVAL: "Command Center case + deadline",
+  FINAL_GM_APPROVAL: "Final SRS completion approval",
 };
 
 function edgePath(fromId: string, toId: string) {
   const route = CONNECTOR_ROUTES[`${fromId}->${toId}`] || { fromSide: "right" as const, toSide: "left" as const };
   const start = anchorPoint(fromId, route.fromSide);
   const end = anchorPoint(toId, route.toSide);
-  const distance = Math.hypot(end.x - start.x, end.y - start.y);
-  const offset = Math.max(48, distance / 2.4);
-  const startNormal = sideNormal(route.fromSide);
-  const endNormal = sideNormal(route.toSide);
-  const control1 = { x: start.x + startNormal.x * offset, y: start.y + startNormal.y * offset };
-  const control2 = { x: end.x + endNormal.x * offset, y: end.y + endNormal.y * offset };
-  return `M ${start.x} ${start.y} C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`;
+  const points = route.points || defaultOrthogonalPoints(start, end, route.fromSide, route.toSide);
+  return [`M ${start.x} ${start.y}`, ...points.map((point) => `L ${point.x} ${point.y}`), `L ${end.x} ${end.y}`].join(" ");
+}
+
+function defaultOrthogonalPoints(start: { x: number; y: number }, end: { x: number; y: number }, fromSide: string, toSide: string) {
+  if (start.x === end.x || start.y === end.y) return [];
+  if ((fromSide === "left" || fromSide === "right") && (toSide === "left" || toSide === "right")) {
+    const midX = Math.round((start.x + end.x) / 2);
+    return [{ x: midX, y: start.y }, { x: midX, y: end.y }];
+  }
+  if ((fromSide === "top" || fromSide === "bottom") && (toSide === "top" || toSide === "bottom")) {
+    const midY = Math.round((start.y + end.y) / 2);
+    return [{ x: start.x, y: midY }, { x: end.x, y: midY }];
+  }
+  return [{ x: end.x, y: start.y }];
 }
 
 function countdownPosition(nodeId: string) {
   const position = nodePosition({ id: nodeId } as SrsNodeDefinition);
   return { left: position.x, top: Math.max(8, position.y - 36) };
+}
+
+function canOpenNodeModal(node: SrsNodeDefinition, state?: SrsNodeState, availability?: NodeAvailability) {
+  if (neverOpenNodeIds.has(node.id)) return false;
+  if (state?.status === "NOT_APPLICABLE") return false;
+  if (state?.status === "COMPLETED") return true;
+  return Boolean(node.clickable && availability?.canOpen);
 }
 
 function FlowNode({
@@ -598,42 +675,42 @@ function FlowNode({
   const position = nodePosition(node);
   const overdue = isDeadlineOverdue(state, now);
   const status = overdue ? "OVERDUE" : state?.status || "LOCKED";
-  const canOpen = Boolean(availability?.canOpen);
+  const isComplete = status === "COMPLETED";
+  const isInactivePath = status === "NOT_APPLICABLE";
+  const canOpen = canOpenNodeModal(node, state, availability);
+  const canAct = Boolean(availability?.canOpen) && !isComplete && !isInactivePath;
   const tone = statusTone(status);
   const style = TONE_STYLES[tone];
   const StatusIcon = STATUS_ICONS[tone];
   const NodeIcon = NODE_ICONS[node.id] || Route;
   const subtitle = NODE_SUBTITLES[node.id];
-  const summaryRows = Object.entries(state?.display_data || {}).filter(([, value]) => value !== "" && value !== undefined && value !== null);
+  const showSubtitle = Boolean(subtitle && !isComplete && !isInactivePath);
+  const summary = nodeCardSummary(node.id, state);
   const content = (
     <>
       <span className="absolute bottom-2 left-0 top-2 w-1 rounded-full" style={{ backgroundColor: style.accent }} />
-      <div className="flex items-start gap-2 pl-1.5">
+      <div className={`flex items-start gap-2 pl-1.5 ${isInactivePath ? "opacity-30 blur-[1.2px]" : ""}`}>
         <NodeIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: style.accent }} />
         <div className="min-w-0">
           <div className="whitespace-normal break-words text-[12.5px] font-semibold leading-snug" style={{ color: style.title }}>
-            {node.label}
+          {node.label}
           </div>
-          {subtitle && <div className="mt-0.5 whitespace-normal break-words text-[10.5px] leading-snug text-slate-500">{subtitle}</div>}
+          {showSubtitle && <div className="mt-0.5 whitespace-normal break-words text-[10.5px] leading-snug text-slate-500">{subtitle}</div>}
+          {summary && <div className="mt-1 truncate text-[10.5px] font-bold leading-snug text-slate-700" title={summary}>{summary}</div>}
         </div>
       </div>
-      <div className="mt-1.5 pl-1.5">
+      <div className={`mt-1.5 pl-1.5 ${isInactivePath ? "opacity-30 blur-[1.2px]" : ""}`}>
         <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium leading-none" style={{ backgroundColor: style.chipBg, color: style.chipText }}>
           <StatusIcon className={`h-3 w-3 ${tone === "in-progress" ? "animate-spin" : ""}`} />
           {formatStatus(status)}
         </span>
       </div>
-      {summaryRows.length > 0 && (
-        <dl className="mt-1.5 grid gap-0.5 pl-1.5 text-[10.5px] leading-tight text-slate-600">
-          {summaryRows.slice(0, 3).map(([label, value]) => (
-            <div key={label} className="flex min-w-0 gap-1">
-              <dt className="shrink-0 font-bold">{label}:</dt>
-              <dd className="truncate">{String(value)}</dd>
-            </div>
-          ))}
-        </dl>
+      {isInactivePath && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-slate-950/70">
+          <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-200">Inactive path</span>
+        </div>
       )}
-      {!canOpen && availability?.disabledReason && node.clickable && (
+      {!canOpen && availability?.disabledReason && node.clickable && !isInactivePath && (
         <div className="mt-1.5 whitespace-normal break-words pl-1.5 text-[11px] font-medium leading-tight text-slate-500">{availability.disabledReason}</div>
       )}
     </>
@@ -649,7 +726,12 @@ function FlowNode({
     height: position.h,
     borderColor: style.border,
     backgroundColor: style.bg,
-    boxShadow: tone === "in-progress" || tone === "awaiting-approval" ? "0 4px 14px rgba(217,119,6,0.20)" : "0 1px 3px rgba(15,23,42,0.08)",
+    boxShadow: isInactivePath
+      ? "inset 0 0 0 1px rgba(255,255,255,0.08), 0 8px 18px rgba(2,6,23,0.25)"
+      : tone === "in-progress" || tone === "awaiting-approval"
+        ? "0 4px 14px rgba(217,119,6,0.20)"
+        : "0 1px 3px rgba(15,23,42,0.08)",
+    filter: isInactivePath ? "grayscale(1)" : undefined,
   };
 
   if (canOpen) {
@@ -659,7 +741,7 @@ function FlowNode({
         style={styleProps}
         type="button"
         onClick={onOpen}
-        title={node.label}
+        title={canAct ? node.label : `${node.label} output`}
       >
         {content}
       </button>
@@ -677,11 +759,21 @@ function FlowNode({
   );
 }
 
+function nodeCardSummary(nodeId: string, state?: SrsNodeState) {
+  if (state?.status === "COMPLETED") return "";
+  if (nodeId === "DEADLINE_LOCKED_IN_ERP") {
+    const value = state?.display_data?.["Locked Deadline"];
+    return value ? `Deadline: ${String(value)}` : "";
+  }
+  return "";
+}
+
 function NodeModal({
   nodeId,
   workspace,
   flowchart,
   state,
+  availability,
   onClose,
   onUpdated
 }: {
@@ -689,6 +781,7 @@ function NodeModal({
   workspace: TrainerWorkspaceData;
   flowchart: SrsFlowchartDefinition;
   state?: SrsNodeState;
+  availability?: NodeAvailability;
   onClose: () => void;
   onUpdated: (workspace: TrainerWorkspaceData) => void;
 }) {
@@ -696,6 +789,8 @@ function NodeModal({
   const [teamMembers, setTeamMembers] = useState<SafeUser[]>([]);
   const [error, setError] = useState("");
   const node = flowchart.nodes.find((candidate) => candidate.id === nodeId);
+  const readOnly = state?.status === "COMPLETED";
+  const modalDeadlineState = state && isActiveDeadlineState(state) ? state : undefined;
 
   async function loadOwners() {
     if (owners) return;
@@ -730,7 +825,7 @@ function NodeModal({
         <div className="border-b border-gray-200 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-xs font-bold uppercase text-muted">SRS Action</div>
+              <div className="text-xs font-bold uppercase text-muted">{readOnly ? "Workflow Output" : "SRS Action"}</div>
               <h3 className="mt-1 text-xl font-bold text-ink">{node?.label || nodeId}</h3>
             </div>
             <button className="focus-ring rounded-md p-2 hover:bg-gray-100" type="button" onClick={onClose} aria-label="Close">
@@ -753,30 +848,171 @@ function NodeModal({
               </div>
             </div>
           </div>
-          {state?.deadline_due_at && (
+          {modalDeadlineState && (
             <div className="mt-3">
-              <CountdownBadge startAt={state.deadline_start_at} dueAt={state.deadline_due_at} serverNow={workspace.server_now} />
+              <CountdownBadge startAt={modalDeadlineState.deadline_start_at} dueAt={modalDeadlineState.deadline_due_at} serverNow={workspace.server_now} />
             </div>
           )}
         </div>
         <div className="min-h-0 overflow-y-auto px-6 py-5">
           {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
-          {nodeId === "SRS_GATEWAY" && (
+          {readOnly ? (
+            <NodeOutputSummary nodeId={nodeId} state={state} workspace={workspace} />
+          ) : availability?.canOpen ? (
+            <>
+              {nodeId === "SRS_GATEWAY" && (
             <OwnerForm owners={owners} loadOwners={loadOwners} onSubmit={(project_owner) => submit("assign_owner", { project_owner })} />
-          )}
-          {nodeId === "MANDATORY_COORDINATION_MEETING" && (
+              )}
+              {nodeId === "MANDATORY_COORDINATION_MEETING" && (
             <TeamForm
-              cases={flowchart.case_classifications}
               teamMembers={teamMembers}
               loadTeamMembers={loadTeamMembers}
-              onSubmit={(payload) => submit("submit_coordination", payload)}
+              onSubmit={(users) => submit("select_team", { users })}
             />
+              )}
+              {nodeId === "DELIVERABLES_MATRIX" && (
+            <DeliverablesForm cases={flowchart.case_classifications} onSubmit={(payload) => submit("submit_deliverables", payload)} />
+              )}
+              {nodeId === "GATE_2_PMDP" && <PathSubmissionForm label="Gate 2 PMDP Path" submitLabel="Submit Gate 2 PMDP Path" fieldName="pmdp_path" onSubmit={(pmdp_path) => submit("submit_pmdp_gate", { pmdp_path })} />}
+              {nodeId === "PHYSICAL_BUILD_TEST" && <ExtensionRequestForm unitLabel={workspace.deadline_unit_label || "minutes"} onSubmit={(payload) => submit("request_pmdp_extension", payload)} />}
+              {nodeId === "PMDP" && <PathSubmissionForm label="PMDP Path" submitLabel="Submit PMDP Path" fieldName="pmdp_path" onSubmit={(pmdp_path) => submit("submit_pmdp", { pmdp_path })} />}
+              {nodeId === "BMDP" && <PathSubmissionForm label="BMDP Path" submitLabel="Submit BMDP Path" fieldName="bmdp_path" onSubmit={(bmdp_path) => submit("submit_bmdp", { bmdp_path })} />}
+              {nodeId === "COMMAND_CENTER_APPROVAL" && <CommandCenterForm onSubmit={(payload) => submit("submit_command_center", payload)} />}
+            </>
+          ) : (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-600">
+              {availability?.disabledReason || "This workflow step is not available."}
+            </div>
           )}
-          {nodeId === "BMDP" && <BmdpForm onSubmit={(bmdp_path) => submit("submit_bmdp", { bmdp_path })} />}
         </div>
       </div>
     </div>
   );
+}
+
+type OutputRow = {
+  label: string;
+  value: string;
+  list?: string[];
+  copyable?: boolean;
+};
+
+function NodeOutputSummary({ nodeId, state, workspace }: { nodeId: string; state?: SrsNodeState; workspace: TrainerWorkspaceData }) {
+  const rows = nodeOutputRows(nodeId, state, workspace);
+  const showCompletionBanner = nodeId !== "MANDATORY_COORDINATION_MEETING";
+  return (
+    <div className="space-y-4">
+      {showCompletionBanner && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-black text-emerald-800">
+            <CheckCircle2 className="h-4 w-4" />
+            Step complete
+          </div>
+          <p className="mt-1 text-sm font-medium text-emerald-900/80">Recorded workflow output is shown below.</p>
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rows.map((row) => <OutputCard key={row.label} row={row} />)}
+      </div>
+    </div>
+  );
+}
+
+function OutputCard({ row }: { row: OutputRow }) {
+  if (row.list) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">{row.label}</div>
+        {row.list.length ? (
+          <ul className="mt-3 grid gap-2">
+            {row.list.map((member) => (
+              <li key={member} className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500" />
+                <span className="min-w-0 truncate">{member}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-1 text-sm font-semibold text-slate-950">-</div>
+        )}
+      </div>
+    );
+  }
+
+  if (row.copyable) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-4 sm:col-span-2">
+        <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">{row.label}</div>
+        <div className="mt-2 flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-950" title={row.value || "-"}>
+            {row.value || "-"}
+          </span>
+          <button
+            className="focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            type="button"
+            onClick={() => {
+              if (row.value) void navigator.clipboard?.writeText(row.value);
+            }}
+            title="Copy path"
+            aria-label="Copy path"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-4">
+      <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">{row.label}</div>
+      <div className="mt-1 break-words text-sm font-semibold text-slate-950">{row.value || "-"}</div>
+    </div>
+  );
+}
+
+function nodeOutputRows(nodeId: string, state: SrsNodeState | undefined, workspace: TrainerWorkspaceData): OutputRow[] {
+  const completedBy = state?.last_action_by_name || state?.last_action_by || state?.responsible_name || state?.responsible_user || "-";
+
+  if (nodeId === "MANDATORY_COORDINATION_MEETING") {
+    const selectedMembers = workspace.team_members.filter((member) => !member.is_project_owner).map((member) => member.full_name || member.user);
+    const projectOwner = workspace.team_members.find((member) => member.is_project_owner);
+    return [
+      { label: "Selected Team Members", value: "", list: selectedMembers },
+      { label: "Completed By", value: projectOwner?.full_name || projectOwner?.user || workspace.workflow?.project_owner || completedBy },
+    ];
+  }
+
+  const displayRows = Object.entries(state?.display_data || {})
+    .filter(([, value]) => value !== "" && value !== undefined && value !== null)
+    .map(([label, value]) => ({
+      label,
+      value: String(value),
+      copyable: label.toLowerCase().includes("path"),
+    }));
+
+  const rows: OutputRow[] = [...displayRows];
+  if (nodeId !== "SRS_GATEWAY" && state?.completed_at) rows.push({ label: "Completed At", value: formatWorkflowTimestamp(state.completed_at) });
+  rows.push({ label: "Completed By", value: completedBy });
+  return rows.length ? rows : [{ label: "Completed By", value: completedBy }];
+}
+
+function formatWorkflowTimestamp(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const datePart = date.toLocaleDateString("en-US", {
+    timeZone: "Africa/Cairo",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const timePart = date.toLocaleTimeString("en-US", {
+    timeZone: "Africa/Cairo",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${datePart} at ${timePart}`;
 }
 
 function OwnerForm({ owners, loadOwners, onSubmit }: { owners: Record<string, SafeUser[]> | null; loadOwners: () => void; onSubmit: (projectOwner: string) => void }) {
@@ -816,19 +1052,15 @@ function OwnerForm({ owners, loadOwners, onSubmit }: { owners: Record<string, Sa
 }
 
 function TeamForm({
-  cases,
   teamMembers,
   loadTeamMembers,
   onSubmit,
 }: {
-  cases: string[];
   teamMembers: SafeUser[];
   loadTeamMembers: () => void;
-  onSubmit: (payload: Record<string, unknown>) => void;
+  onSubmit: (users: string[]) => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
-  const [caseClassification, setCaseClassification] = useState(cases[0] || "");
-  const [deadlineDays, setDeadlineDays] = useState(1);
   useEffect(() => {
     void loadTeamMembers();
   }, []);
@@ -876,36 +1108,101 @@ function TeamForm({
           </section>
         ))}
       </div>
-      <div className="grid gap-4 rounded-md border border-gray-200 bg-white p-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-sm font-semibold text-ink">Case Classification</span>
-          <select className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={caseClassification} onChange={(event) => setCaseClassification(event.target.value)} required>
-            {cases.map((classification) => (
-              <option key={classification} value={classification}>{classification}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-sm font-semibold text-ink">Deadline Proposal (working days)</span>
-          <input
-            className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            min={1}
-            step={1}
-            type="number"
-            value={deadlineDays}
-            onChange={(event) => setDeadlineDays(Number(event.target.value || 1))}
-            required
-          />
-        </label>
-      </div>
       <Button
         type="button"
-        disabled={!selected.length || !caseClassification || deadlineDays < 1 || !Number.isInteger(deadlineDays)}
-        onClick={() => onSubmit({ users: selected, case_classification: caseClassification, deadline_proposal_days: deadlineDays })}
+        disabled={!selected.length}
+        onClick={() => onSubmit(selected)}
       >
-        Submit Coordination
+        Save Team Selection
       </Button>
     </div>
+  );
+}
+
+function DeliverablesForm({ cases, onSubmit }: { cases: string[]; onSubmit: (payload: Record<string, string>) => void }) {
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        onSubmit({
+          case_classification: String(form.get("case_classification") || ""),
+          deadline_proposal_days: String(form.get("deadline_proposal_days") || ""),
+        });
+      }}
+    >
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Case</span>
+        <select className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="case_classification" required>
+          <option value="">Select case</option>
+          {cases.map((classification) => (
+            <option key={classification} value={classification}>{classification}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Deadline</span>
+        <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="deadline_proposal_days" type="number" required />
+      </label>
+      <Button type="submit">Submit Deliverables</Button>
+    </form>
+  );
+}
+
+const commandCenterCases = [
+  {
+    value: "Case 1 - Save for later",
+    label: "Case 1",
+    description: "Save for later",
+  },
+  {
+    value: "Case 2 - Buy Critical Components then deliver to ARD",
+    label: "Case 2",
+    description: "Buy Critical Components then deliver to ARD",
+  },
+  {
+    value: "Case 3 - Deliver to ARD directly",
+    label: "Case 3",
+    description: "Deliver to ARD directly",
+  },
+];
+
+function CommandCenterForm({ onSubmit }: { onSubmit: (payload: Record<string, string>) => void }) {
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        onSubmit({
+          command_center_case: String(form.get("command_center_case") || ""),
+          deadline_days: String(form.get("deadline_days") || ""),
+        });
+      }}
+    >
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Command Center Case</span>
+        <select className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="command_center_case" required>
+          <option value="">Select Command Center case</option>
+          {commandCenterCases.map((option) => (
+            <option key={option.value} value={option.value}>{option.label} - {option.description}</option>
+          ))}
+        </select>
+      </label>
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+        {commandCenterCases.map((option) => (
+          <div key={option.value} className="py-1 text-sm">
+            <span className="font-bold text-ink">{option.label}:</span> <span className="text-muted">{option.description}</span>
+          </div>
+        ))}
+      </div>
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Deadline</span>
+        <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="deadline_days" type="number" required />
+      </label>
+      <Button type="submit">Submit Command Center Approval</Button>
+    </form>
   );
 }
 
@@ -938,21 +1235,88 @@ function roleRank(role: string) {
   return index === -1 ? 99 : index;
 }
 
-function BmdpForm({ onSubmit }: { onSubmit: (path: string) => void }) {
+function PathSubmissionForm({
+  label,
+  submitLabel,
+  fieldName,
+  onSubmit,
+}: {
+  label: string;
+  submitLabel: string;
+  fieldName: string;
+  onSubmit: (path: string) => void;
+}) {
+  const [pathValue, setPathValue] = useState("");
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        onSubmit(String(form.get("bmdp_path") || ""));
+        onSubmit(String(form.get(fieldName) || ""));
       }}
     >
       <label className="block">
-        <span className="text-sm font-semibold text-ink">BMDP Path</span>
-        <input className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="bmdp_path" required />
+        <span className="text-sm font-semibold text-ink">{label}</span>
+        <input
+          className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          name={fieldName}
+          value={pathValue}
+          onChange={(event) => setPathValue(event.target.value)}
+          placeholder={`Paste the shared folder path for the ${label.replace(" Path", "")} file`}
+          required
+        />
       </label>
-      <Button type="submit">Submit BMDP Path</Button>
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">
+        Browser security does not expose the real local file path from a file picker. Use the selector below only to copy the filename into the path box, then add the shared drive/folder path manually.
+      </div>
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-ink hover:bg-gray-50">
+        Browse local file
+        <input
+          className="sr-only"
+          type="file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) setPathValue((current) => current || file.name);
+          }}
+        />
+      </label>
+      <Button type="submit">{submitLabel}</Button>
+    </form>
+  );
+}
+
+function ExtensionRequestForm({
+  unitLabel,
+  onSubmit,
+}: {
+  unitLabel: string;
+  onSubmit: (payload: Record<string, string>) => void;
+}) {
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        onSubmit({
+          extension_days: String(form.get("extension_days") || ""),
+          comment: String(form.get("comment") || ""),
+        });
+      }}
+    >
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Extension Duration</span>
+        <div className="mt-2 flex rounded-md border border-gray-300 bg-white">
+          <input className="focus-ring w-full rounded-l-md border-0 px-3 py-2 text-sm outline-none" name="extension_days" type="number" min="1" required />
+          <span className="inline-flex items-center rounded-r-md border-l border-gray-300 bg-slate-50 px-3 text-xs font-black uppercase text-slate-500">{unitLabel}</span>
+        </div>
+      </label>
+      <label className="block">
+        <span className="text-sm font-semibold text-ink">Reason</span>
+        <textarea className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" name="comment" rows={4} placeholder="Explain why the physical build needs more time" required />
+      </label>
+      <Button type="submit">Request Extension</Button>
     </form>
   );
 }

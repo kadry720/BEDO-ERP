@@ -18,6 +18,7 @@ export type BedoUserContext = {
   roles: string[];
   landing_route: string;
   modules: BedoModule[];
+  session_id?: string;
 };
 
 export const adminRoute = "/admin/users";
@@ -25,15 +26,25 @@ export const adminRoute = "/admin/users";
 export const routeLabels: Record<string, string> = {
   "/gm": "GM Support Office Dashboard",
   "/srs": "SRS Dashboard",
+  "/command-center": "Command Center Dashboard",
   "/admin/users": "Admin Dashboard",
   "/notifications": "Notifications",
   "/approvals": "Approvals"
 };
 
-export const placeholderRoutes = ["/gm", "/srs"];
+export const placeholderRoutes = ["/gm", "/srs", "/command-center"];
 
 export function isAdminUser(context: BedoUserContext) {
   return context.roles.includes("BEDO User Administrator") || context.roles.includes("BEDO System Administrator");
+}
+
+export function isSecurityAuditor(context: BedoUserContext) {
+  return (
+    context.roles.includes("General Manager") ||
+    context.roles.includes("BEDO User Administrator") ||
+    context.roles.includes("BEDO Security Auditor") ||
+    context.roles.includes("BEDO System Administrator")
+  );
 }
 
 export function isGeneralManager(context: BedoUserContext) {
@@ -44,8 +55,12 @@ export function isSrsUser(context: BedoUserContext) {
   return context.roles.some((role) => role.startsWith("SRS "));
 }
 
+export function isCommandCenterUser(context: BedoUserContext) {
+  return context.roles.includes("Command Center Representative");
+}
+
 export function canAccessRoute(context: BedoUserContext, route: string) {
-  if (route === adminRoute) return isAdminUser(context);
+  if (route === adminRoute) return isAdminUser(context) || isSecurityAuditor(context);
   return context.modules.some((module) => module.route === route);
 }
 

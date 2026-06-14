@@ -10,12 +10,15 @@ from bedo_platform.constants import (
     DEPARTMENT_ROUTE_BY_KEY,
     GLOBAL_VIEW_ROLES,
     ROLE_DEPARTMENT_KEY,
+    SECURITY_AUDIT_ROLES,
 )
 
 DASHBOARD_BY_ROUTE = {dashboard["route"]: dashboard for dashboard in DASHBOARDS}
 DEPARTMENT_ROLES_BY_KEY: dict[str, set[str]] = {}
 for role_name, department_key in ROLE_DEPARTMENT_KEY.items():
     DEPARTMENT_ROLES_BY_KEY.setdefault(department_key, set()).add(role_name)
+
+ADMIN_SHELL_ROLES = ADMIN_ACCESS_ROLES | {"BEDO Security Auditor"}
 
 
 def normalize_roles(role_names: Iterable[str] | None) -> set[str]:
@@ -29,15 +32,15 @@ def resolve_landing_route(
     roles = normalize_roles(role_names)
     if roles & GLOBAL_VIEW_ROLES:
         return DEPARTMENT_ROUTE_BY_KEY["GM_SUPPORT"]
-    if roles & ADMIN_ACCESS_ROLES and not any_department_role(roles):
+    if roles & ADMIN_SHELL_ROLES and not any_department_role(roles):
         return ADMIN_USERS_ROUTE
     if primary_department and primary_department in DEPARTMENT_ROUTE_BY_KEY:
         if roles_can_access_department(roles, primary_department):
             return DEPARTMENT_ROUTE_BY_KEY[primary_department]
-    for department_key in ["SRS", "GM_SUPPORT"]:
+    for department_key in ["SRS", "COMMAND_CENTER", "GM_SUPPORT"]:
         if roles_can_access_department(roles, department_key):
             return DEPARTMENT_ROUTE_BY_KEY[department_key]
-    if roles & ADMIN_ACCESS_ROLES:
+    if roles & ADMIN_SHELL_ROLES:
         return ADMIN_USERS_ROUTE
     return ACCESS_NOT_CONFIGURED_ROUTE
 
@@ -54,12 +57,16 @@ def roles_can_access_department(roles: Iterable[str], department_key: str) -> bo
 def route_allowed_for_roles(route: str, role_names: Iterable[str] | None) -> bool:
     roles = normalize_roles(role_names)
     if route == ADMIN_USERS_ROUTE:
-        return bool(roles & ADMIN_ACCESS_ROLES)
+        return bool(roles & ADMIN_SHELL_ROLES)
     dashboard = DASHBOARD_BY_ROUTE.get(route)
     if not dashboard:
         return route == ACCESS_NOT_CONFIGURED_ROUTE
     department_key = dashboard.get("department_key")
     if not department_key:
+        return True
+    if "General Manager" in roles and department_key != "GM_SUPPORT":
+        return False
+    if "BEDO Global Viewer" in roles:
         return True
     return roles_can_access_department(roles, department_key)
 

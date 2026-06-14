@@ -39,6 +39,7 @@ export type TrainerItem = {
   trainer_name: string;
   trainer_item_name: string;
   quantity: number;
+  price_egp?: number;
   original_quantity: number;
   separation_mode: string;
   sequence_no: number;
@@ -65,6 +66,13 @@ export type SrsWorkflow = {
   case_classification?: string;
   deadline_proposal_days?: number;
   approved_deadline_days?: number;
+  pmdp_gate_path?: string;
+  pmdp_gate_submitted_by?: string;
+  pmdp_gate_submitted_at?: string;
+  physical_build_started_at?: string;
+  pmdp_path?: string;
+  pmdp_submitted_by?: string;
+  pmdp_submitted_at?: string;
   bmdp_path?: string;
 };
 
@@ -78,6 +86,8 @@ export type SrsNodeState = {
   deadline_days?: number;
   responsible_user?: string;
   responsible_name?: string;
+  last_action_by?: string;
+  last_action_by_name?: string;
   display_data?: Record<string, string | number>;
 };
 
@@ -85,7 +95,7 @@ export type SrsNodeDefinition = {
   id: string;
   label: string;
   lane: "operations" | "srs_entry" | "study_phase";
-  column: "deadline_1" | "deadline_2" | "deadline_3";
+  column: "deadline_1" | "deadline_2" | "deadline_3" | "deadline_4";
   kind: "display" | "action" | "approval" | "input";
   clickable: boolean;
   requiredRoles?: string[];
@@ -99,6 +109,7 @@ export type SrsFlowchartDefinition = {
   nodes: SrsNodeDefinition[];
   edges: Array<{ from: string; to: string }>;
   case_classifications: string[];
+  deadline_unit_label?: string;
 };
 
 export type SafeUser = {
@@ -123,6 +134,7 @@ export type TrainerWorkspace = {
   approvals: Array<Record<string, string | number>>;
   audit_events: Array<{ event_type: string; user: string; target_user?: string; node_id?: string; message?: string; created_at: string }>;
   tabs: string[];
+  deadline_unit_label?: string;
 };
 
 export type NotificationRow = {
@@ -161,14 +173,22 @@ export type ApprovalRow = {
   project_owner: string;
   project_owner_name: string;
   current_node: string;
+  deadline?: string;
+  target_node?: string;
+  target_node_label?: string;
+  responsible_user?: string;
+  responsible_user_name?: string;
+  deadline_due_at?: string;
   case_classification: string;
   deadline_proposal_days: number;
+  deadline_unit_label?: string;
   priority: string;
+  comments?: string;
   created_at: string;
 };
 
 export type DashboardProps = {
   session: BedoUserContext;
   initialProjects: ProjectList;
-  mode: "gm" | "srs";
+  mode: "gm" | "srs" | "command-center";
 };

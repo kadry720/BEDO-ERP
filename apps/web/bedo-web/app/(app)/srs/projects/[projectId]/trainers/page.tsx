@@ -1,14 +1,10 @@
 import { ProjectDetail } from "@/features/srs/ProjectDetail";
-import type { BedoProject, TrainerItemList } from "@/features/srs/types";
-import { frappeCall } from "@/server/frappe";
-import { decodedRouteParam } from "@/lib/route-ids";
-import { requireSession } from "@/server/session";
+import { loadProjectDetailOrForbidden, requireProjectScope, routeProjectName } from "@/server/project-pages";
 
 export default async function Page({ params }: { params: Promise<{ projectId: string }> }) {
-  const session = await requireSession();
+  const { session, freshSession } = await requireProjectScope("srs");
   const { projectId } = await params;
-  const projectName = decodedRouteParam(projectId);
-  const project = await frappeCall<{ project: BedoProject }>("bedo_platform.api.web.get_project_detail", { project: projectName }, session.user);
-  const items = await frappeCall<TrainerItemList>("bedo_platform.api.web.list_trainer_items_for_project", { project: projectName }, session.user);
-  return <ProjectDetail project={project.project} initialItems={items} mode="srs" />;
+  const projectName = routeProjectName(projectId);
+  const { project, items } = await loadProjectDetailOrForbidden(session.user, projectName);
+  return <ProjectDetail project={project.project} initialItems={items} mode="srs" viewerRoles={freshSession.roles} />;
 }

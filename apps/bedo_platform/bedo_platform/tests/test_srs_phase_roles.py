@@ -8,6 +8,7 @@ def test_visible_business_roles_match_srs_phase_allowlist():
         "SRS Section Head",
         "SRS Team Leader",
         "SRS Engineer",
+        "Command Center Representative",
     ]
 
 
@@ -18,4 +19,5 @@ def test_seed_users_include_srs_sections_and_no_visible_ard_roles():
     assert "srsmanager" in usernames
     assert "srselectronicshead" in usernames
     assert "srsmechanicaldesigneng4" in usernames
+    assert "commandcenter" in usernames
     assert "ardmanager" not in usernames

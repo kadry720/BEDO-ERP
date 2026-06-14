@@ -37,4 +37,5 @@ export type AdminBootstrap = {
   roles: string[];
   departments: Department[];
   technical_desk_roles: string[];
+  can_manage_users?: boolean;
 };

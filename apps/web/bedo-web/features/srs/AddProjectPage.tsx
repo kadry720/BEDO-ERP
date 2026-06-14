@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, PencilLine, Plus, Rocket, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { projectRoute, routeSegment } from "@/lib/route-ids";
-import type { SafeUser, TrainerItem } from "@/features/srs/types";
+import type { BedoProject, SafeUser, TrainerItem } from "@/features/srs/types";
 
 type TrainerDraft = {
   trainer_name: string;
   quantity: number;
+  price_egp: string;
   report_to_users: string[];
 };
 
@@ -20,14 +21,27 @@ type ProjectFields = {
   po_deadline_date: string;
 };
 
-export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] }) {
+export function AddProjectPage({
+  reportToUsers,
+  initialProject,
+  initialTrainers = [],
+}: {
+  reportToUsers: SafeUser[];
+  initialProject?: BedoProject;
+  initialTrainers?: TrainerItem[];
+}) {
   const router = useRouter();
   const trainerSectionRef = useRef<HTMLElement>(null);
-  const [projectId, setProjectId] = useState("");
-  const [fields, setFields] = useState<ProjectFields>({ project_name: "", project_code: "", end_user: "", po_deadline_date: "" });
-  const [detailsSubmitted, setDetailsSubmitted] = useState(false);
+  const [projectId, setProjectId] = useState(initialProject?.name || "");
+  const [fields, setFields] = useState<ProjectFields>({
+    project_name: initialProject?.project_name || "",
+    project_code: initialProject?.project_code || "",
+    end_user: initialProject?.end_user || "",
+    po_deadline_date: initialProject?.po_deadline_date || "",
+  });
+  const [detailsSubmitted, setDetailsSubmitted] = useState(Boolean(initialProject));
   const [savingDetails, setSavingDetails] = useState(false);
-  const [trainers, setTrainers] = useState<TrainerItem[]>([]);
+  const [trainers, setTrainers] = useState<TrainerItem[]>(initialTrainers);
   const [trainerModal, setTrainerModal] = useState<TrainerItem | "new" | null>(null);
   const [quantityDraft, setQuantityDraft] = useState<TrainerDraft | null>(null);
   const [error, setError] = useState("");
@@ -45,7 +59,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
         body: JSON.stringify(fields),
       });
       if (!response.ok) {
-        setError("Project details could not be saved.");
+        setError(await responseError(response, "Project details could not be saved."));
         return "";
       }
       return projectId;
@@ -56,7 +70,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
       body: JSON.stringify(fields),
     });
     if (!response.ok) {
-      setError("Project could not be created.");
+      setError(await responseError(response, "Project could not be created."));
       return "";
     }
     const data = await response.json();
@@ -100,7 +114,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setError("Trainer item could not be saved.");
+      setError(await responseError(response, "Trainer item could not be saved."));
       return;
     }
     setTrainerModal(null);
@@ -124,7 +138,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     }
     const response = await fetch(`/api/projects/${routeSegment(nextProjectId)}/release-srs`, { method: "POST" });
     if (!response.ok) {
-      setError("Project could not be released to SRS.");
+      setError(await responseError(response, "Project could not be released to SRS."));
       return;
     }
     router.push(projectRoute("gm", nextProjectId, "/trainers"));
@@ -134,8 +148,12 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
     <section className="space-y-6">
       <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-panel">
         <div className="text-xs font-black uppercase tracking-wide text-slate-500">GM Support Office</div>
-        <h2 className="mt-2 text-3xl font-black text-slate-950">Add New Project</h2>
-        <p className="mt-2 text-sm font-medium text-slate-600">Enter project details, add trainer items, then release the PO to SRS.</p>
+        <h2 className="mt-2 text-3xl font-black text-slate-950">{initialProject ? "Resume Project Draft" : "Add New Project"}</h2>
+        <p className="mt-2 text-sm font-medium text-slate-600">
+          {initialProject
+            ? "This project is saved as a draft. Add trainer items, then release the PO to SRS when ready."
+            : "Enter project details, add trainer items, then release the PO to SRS."}
+        </p>
       </header>
 
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
@@ -180,11 +198,12 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
             </Button>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-[760px] w-full text-left text-sm">
+            <table className="min-w-[880px] w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Trainer Name</th>
                   <th className="px-4 py-3">Quantity</th>
+                  <th className="px-4 py-3">Price (EGP)</th>
                   <th className="px-4 py-3">Report To</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
@@ -194,6 +213,7 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
                   <tr key={item.name}>
                     <td className="px-4 py-3 font-black text-slate-950">{item.trainer_item_name}</td>
                     <td className="px-4 py-3 text-slate-600">{item.quantity}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-700">{formatEgp(item.price_egp)}</td>
                     <td className="px-4 py-3 text-slate-600">{item.current_responsible_name || "GM Support Office"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -250,6 +270,11 @@ export function AddProjectPage({ reportToUsers }: { reportToUsers: SafeUser[] })
   );
 }
 
+async function responseError(response: Response, fallback: string) {
+  const data = await response.json().catch(() => ({}));
+  return typeof data.error === "string" && data.error ? data.error : fallback;
+}
+
 function ProjectField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
   return (
     <label className="block">
@@ -296,7 +321,8 @@ function TrainerModal({
           const form = new FormData(event.currentTarget);
           onSubmit({
             trainer_name: String(form.get("trainer_name") || "").trim(),
-            quantity: Number(form.get("quantity") || 1),
+            quantity: Number(form.get("quantity")),
+            price_egp: String(form.get("price_egp") || "").trim(),
             report_to_users: form.getAll("report_to_users").map(String),
           });
         }}
@@ -313,11 +339,23 @@ function TrainerModal({
         <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
           <label className="block">
             <span className="text-sm font-black text-slate-800">Trainer Name</span>
-            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="trainer_name" defaultValue={item?.trainer_name || ""} />
+            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="trainer_name" defaultValue={item?.trainer_name || ""} required />
           </label>
           <label className="block">
             <span className="text-sm font-black text-slate-800">Quantity</span>
-            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" min={1} step={1} name="quantity" type="number" defaultValue={item?.quantity || 1} />
+            <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="quantity" type="number" min="1" step="1" defaultValue={item?.quantity || 1} required />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-sm font-black text-slate-800">Price (EGP)</span>
+            <input
+              className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              name="price_egp"
+              type="number"
+              min="0.01"
+              step="0.01"
+              defaultValue={item?.price_egp ? String(item.price_egp) : ""}
+              required
+            />
           </label>
           <div className="md:col-span-2">
             <div className="text-sm font-black text-slate-800">Report To</div>
@@ -340,6 +378,11 @@ function TrainerModal({
       </form>
     </div>
   );
+}
+
+function formatEgp(value?: number) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function QuantityModeModal({ quantity, onClose, onSelect }: { quantity: number; onClose: () => void; onSelect: (mode: "COMBINED" | "SEPARATED") => void }) {

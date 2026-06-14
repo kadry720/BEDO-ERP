@@ -2,28 +2,39 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardList, Edit3, Eye, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ClipboardList, Edit3, Eye, FilePenLine, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
-import { routeSegment } from "@/lib/route-ids";
+import { projectWorkflowRoute, routeSegment } from "@/lib/route-ids";
 import type { BedoProject, DashboardProps, ProjectList } from "@/features/srs/types";
 
 type ProjectBucket = BedoProject & {
   trainerTotal: number;
   trainerComplete: number;
   progress: number;
+  draft: boolean;
   done: boolean;
 };
 
-export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
+export function ProjectDashboard({ session, initialProjects, mode }: DashboardProps) {
   const [projects, setProjects] = useState<ProjectList>(initialProjects);
   const [editing, setEditing] = useState<BedoProject | null>(null);
   const [deleting, setDeleting] = useState<BedoProject | null>(null);
   const [error, setError] = useState("");
-  const baseRoute = mode === "gm" ? "/gm" : "/srs";
+  const baseRoute = mode === "gm" ? "/gm" : mode === "srs" ? "/srs" : "/command-center";
   const isGm = mode === "gm";
+  const dashboardLabel = isGm ? "GM Support Office" : mode === "srs" ? "Strategic R&D Sector" : "Command Center";
+  const dashboardTitle = isGm ? "GM Support Office Dashboard" : mode === "srs" ? "SRS Dashboard" : "Command Center Dashboard";
+  const dashboardDescription = isGm
+    ? "Project completion is calculated from SRS-completed trainer items."
+    : mode === "srs"
+      ? "Projects visible to your SRS role and assignments."
+      : "Read-only project visibility with action access limited to the Command Center node.";
+  const canManageProjects = isGm && session.roles.includes("General Manager");
+  const canViewProjectMetrics = isGm || session.roles.includes("SRS Manager");
 
   const buckets = useMemo(() => projects.projects.map(toProjectBucket), [projects]);
-  const ongoing = buckets.filter((project) => !project.done);
+  const drafts = buckets.filter((project) => project.draft);
+  const ongoing = buckets.filter((project) => !project.draft && !project.done);
   const done = buckets.filter((project) => project.done);
   const completionPercentage = buckets.length ? Math.round((done.length / buckets.length) * 100) : 0;
 
@@ -65,11 +76,11 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
           <div>
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500">
               <ClipboardList className="h-4 w-4" />
-              {isGm ? "GM Support Office" : "Strategic R&D Sector"}
+              {dashboardLabel}
             </div>
-            <h2 className="mt-2 text-3xl font-black text-slate-950">{isGm ? "GM Support Office Dashboard" : "SRS Dashboard"}</h2>
+            <h2 className="mt-2 text-3xl font-black text-slate-950">{dashboardTitle}</h2>
             <p className="mt-2 text-sm font-medium text-slate-600">
-              {isGm ? "Project completion is calculated from SRS-completed trainer items." : "Projects visible to your SRS role and assignments."}
+              {dashboardDescription}
             </p>
           </div>
           <div className="flex gap-2">
@@ -77,7 +88,7 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
-            {isGm && (
+            {canManageProjects && (
               <Link className="focus-ring inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel" href="/gm/projects/new">
                 <Plus className="h-4 w-4" />
                 Add New Project
@@ -89,18 +100,47 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
 
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
-      {isGm && <ProjectCompletionVisual doneCount={done.length} ongoingCount={ongoing.length} percentage={completionPercentage} />}
+      {isGm && <ProjectCompletionVisual doneCount={done.length} ongoingCount={ongoing.length} draftCount={drafts.length} percentage={completionPercentage} />}
+
+      {isGm && (
+        <ProjectTable
+          title="Draft Projects"
+          description="Saved project setup that has not been released to SRS yet."
+          projects={drafts}
+          mode={mode}
+          baseRoute={baseRoute}
+          canManage={canManageProjects}
+          showMetrics={canViewProjectMetrics}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+        />
+      )}
 
       <ProjectTable
-        title={isGm ? "Ongoing Projects" : "Projects in SRS"}
+        title={isGm ? "Ongoing Projects" : mode === "srs" ? "Projects in SRS" : "Projects"}
+        description={isGm ? "Released projects currently moving through SRS." : mode === "srs" ? "Projects visible to your SRS role and assignments." : "All projects visible to Command Center."}
         projects={isGm ? ongoing : buckets}
+        mode={mode}
         baseRoute={baseRoute}
-        canManage={isGm}
+        canManage={canManageProjects}
+        showMetrics={canViewProjectMetrics}
         onEdit={setEditing}
         onDelete={setDeleting}
       />
 
-      {isGm && <ProjectTable title="Done Projects" projects={done} baseRoute={baseRoute} canManage onEdit={setEditing} onDelete={setDeleting} />}
+      {isGm && (
+        <ProjectTable
+          title="Done Projects"
+          description="Projects where all trainer items are complete."
+          projects={done}
+          mode={mode}
+          baseRoute={baseRoute}
+          canManage={canManageProjects}
+          showMetrics={canViewProjectMetrics}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+        />
+      )}
 
       {editing && <EditProjectModal project={editing} onClose={() => setEditing(null)} onSubmit={(payload) => saveProject(editing, payload)} />}
       {deleting && <DeleteProjectConfirmModal project={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteProject(deleting)} />}
@@ -108,7 +148,7 @@ export function ProjectDashboard({ initialProjects, mode }: DashboardProps) {
   );
 }
 
-function ProjectCompletionVisual({ doneCount, ongoingCount, percentage }: { doneCount: number; ongoingCount: number; percentage: number }) {
+function ProjectCompletionVisual({ doneCount, ongoingCount, draftCount, percentage }: { doneCount: number; ongoingCount: number; draftCount: number; percentage: number }) {
   return (
     <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
@@ -121,7 +161,8 @@ function ProjectCompletionVisual({ doneCount, ongoingCount, percentage }: { done
           <div className="h-full rounded-full bg-emerald-600" style={{ width: `${percentage}%` }} />
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Metric label="Draft Projects" value={draftCount} tone="blue" />
         <Metric label="Done Projects" value={doneCount} tone="green" />
         <Metric label="Ongoing Projects" value={ongoingCount} tone="amber" />
       </div>
@@ -129,27 +170,38 @@ function ProjectCompletionVisual({ doneCount, ongoingCount, percentage }: { done
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: "green" | "amber" }) {
+function Metric({ label, value, tone }: { label: string; value: number; tone: "green" | "amber" | "blue" }) {
+  const color = {
+    green: "text-emerald-700",
+    amber: "text-amber-700",
+    blue: "text-blue-700",
+  }[tone];
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
       <div className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`mt-3 text-4xl font-black ${tone === "green" ? "text-emerald-700" : "text-amber-700"}`}>{value}</div>
+      <div className={`mt-3 text-4xl font-black ${color}`}>{value}</div>
     </div>
   );
 }
 
 function ProjectTable({
   title,
+  description,
   projects,
+  mode,
   baseRoute,
   canManage,
+  showMetrics,
   onEdit,
   onDelete,
 }: {
   title: string;
+  description: string;
   projects: ProjectBucket[];
+  mode: "gm" | "srs" | "command-center";
   baseRoute: string;
   canManage: boolean;
+  showMetrics: boolean;
   onEdit: (project: BedoProject) => void;
   onDelete: (project: BedoProject) => void;
 }) {
@@ -157,55 +209,116 @@ function ProjectTable({
     <section className="rounded-lg border border-slate-200 bg-white shadow-panel">
       <div className="border-b border-slate-200 px-5 py-4">
         <h3 className="text-lg font-black text-slate-950">{title}</h3>
-        <p className="text-sm font-medium text-slate-500">{projects.length} project(s)</p>
+        <p className="text-sm font-medium text-slate-500">
+          {description} {projects.length} project(s)
+        </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[980px] w-full text-left text-sm">
+        <table className={`w-full table-fixed text-left text-sm ${showMetrics ? "min-w-[1160px]" : "min-w-[760px]"}`}>
+          <colgroup>
+            {showMetrics ? (
+              <>
+                <col className="w-[150px]" />
+                <col className="w-[260px]" />
+                <col className="w-[220px]" />
+                <col className="w-[130px]" />
+                <col className="w-[90px]" />
+                <col className="w-[160px]" />
+                <col className="w-[150px]" />
+              </>
+            ) : (
+              <>
+                <col className="w-[170px]" />
+                <col className="w-[320px]" />
+                <col className="w-[230px]" />
+                <col className="w-[120px]" />
+              </>
+            )}
+          </colgroup>
           <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Project Code</th>
               <th className="px-4 py-3">Project Name</th>
               <th className="px-4 py-3">End User</th>
-              <th className="px-4 py-3">PO Deadline</th>
-              <th className="px-4 py-3">Trainers</th>
-              <th className="px-4 py-3">Progress</th>
+              {showMetrics && (
+                <>
+                  <th className="px-4 py-3">PO Deadline</th>
+                  <th className="px-4 py-3">Trainers</th>
+                  <th className="px-4 py-3">Progress</th>
+                </>
+              )}
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {projects.map((project) => (
               <tr key={project.name} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-black text-slate-950">{project.project_code}</td>
-                <td className="max-w-[260px] truncate px-4 py-3 font-semibold text-slate-700" title={project.project_name}>{project.project_name}</td>
-                <td className="max-w-[220px] truncate px-4 py-3 text-slate-600" title={project.end_user}>{project.end_user}</td>
-                <td className="px-4 py-3 text-slate-600">{project.po_deadline_date}</td>
-                <td className="px-4 py-3 font-semibold text-slate-700">{project.trainerTotal}</td>
-                <td className="px-4 py-3">
-                  <div className="flex min-w-36 items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-slate-900" style={{ width: `${project.progress}%` }} />
-                    </div>
-                    <span className="w-10 text-right text-xs font-black text-slate-700">{project.progress}%</span>
-                  </div>
+                <td className="truncate px-4 py-3 font-black text-slate-950" title={project.project_code}>
+                  {project.project_code}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
+                <td className="truncate px-4 py-3 font-semibold text-slate-700" title={project.project_name}>
+                  {project.project_name}
+                </td>
+                <td className="truncate px-4 py-3 text-slate-600" title={project.end_user}>
+                  {project.end_user}
+                </td>
+                {showMetrics && (
+                  <>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{project.po_deadline_date}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">{project.trainerTotal}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-slate-900" style={{ width: `${project.progress}%` }} />
+                        </div>
+                        <span className="w-10 text-right text-xs font-black text-slate-700">{project.progress}%</span>
+                      </div>
+                    </td>
+                  </>
+                )}
+                <td className="px-3 py-3">
+                  <div className="flex items-center justify-end gap-2">
                     {canManage && (
                       <>
-                        <Button className="min-h-9 px-3" variant="secondary" type="button" onClick={() => onEdit(project)}>
+                        <button
+                          className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                          type="button"
+                          title="Edit"
+                          aria-label="Edit project"
+                          onClick={() => onEdit(project)}
+                        >
                           <Edit3 className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        <Button className="min-h-9 px-3" variant="danger" type="button" onClick={() => onDelete(project)}>
+                        </button>
+                        <button
+                          className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-700 text-white hover:bg-red-800"
+                          type="button"
+                          title="Delete"
+                          aria-label="Delete project"
+                          onClick={() => onDelete(project)}
+                        >
                           <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
+                        </button>
                       </>
                     )}
-                    <Link className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" href={`${baseRoute}/projects/${routeSegment(project.name)}/trainers`}>
-                      <Eye className="h-4 w-4" />
-                      View Trainers Table
-                    </Link>
+                    {project.draft && canManage ? (
+                      <Link
+                        className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white hover:bg-slate-700"
+                        href={`${baseRoute}/projects/${routeSegment(project.name)}/resume`}
+                        title="Resume draft"
+                        aria-label="Resume draft"
+                      >
+                        <FilePenLine className="h-4 w-4" />
+                      </Link>
+                    ) : (
+                      <Link
+                        className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                        href={projectWorkflowRoute(mode, project.name, "/trainers")}
+                        title="View trainers"
+                        aria-label="View trainers"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -303,11 +416,13 @@ function toProjectBucket(project: BedoProject): ProjectBucket {
   const trainerTotal = project.counts?.trainer_items || 0;
   const trainerComplete = project.counts?.completed || 0;
   const progress = trainerTotal ? Math.round((trainerComplete / trainerTotal) * 100) : 0;
+  const draft = project.status === "DETAILS_FINALIZED" || !project.released_to_srs_at;
   return {
     ...project,
     trainerTotal,
     trainerComplete,
     progress,
-    done: trainerTotal > 0 && trainerComplete === trainerTotal,
+    draft,
+    done: !draft && trainerTotal > 0 && trainerComplete === trainerTotal,
   };
 }

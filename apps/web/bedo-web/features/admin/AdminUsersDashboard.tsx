@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Edit3, Save, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import type { AdminBootstrap, AdminUser, SecurityEvent } from "@/features/admin/types";
 
-const tabs = ["Users", "Security Logs"];
 const hiddenAdminTableUsers = new Set(["administrator", "guest", "systemadmin", "useradmin", "securityauditor", "globalviewer"]);
 
 function isHiddenAdminTableUser(user: AdminUser) {
@@ -40,6 +39,8 @@ const emptySecurityFilters: SecurityFilterState = {
 };
 
 export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: AdminBootstrap; securityEvents: SecurityEvent[] }) {
+  const canManageUsers = bootstrap.can_manage_users !== false;
+  const tabs = useMemo(() => (canManageUsers ? ["Users", "Security Logs"] : ["Security Logs"]), [canManageUsers]);
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [users, setUsers] = useState(bootstrap.users);
   const [query, setQuery] = useState("");
@@ -56,6 +57,10 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
         .includes(needle)
     );
   }, [query, users]);
+
+  useEffect(() => {
+    if (!tabs.includes(activeTab)) setActiveTab(tabs[0]);
+  }, [activeTab, tabs]);
 
   async function submitUser(payload: Record<string, FormDataEntryValue | FormDataEntryValue[]>, mode: UserFormMode, targetUser?: string) {
     const response = await fetch("/api/admin/users", {
@@ -87,9 +92,11 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
     <section className="space-y-6">
       <header className="rounded-md border border-gray-200 bg-white p-6 shadow-panel">
         <div className="text-xs font-semibold uppercase text-muted">Administration</div>
-        <h1 className="mt-2 text-3xl font-bold text-ink">User Administration</h1>
+        <h1 className="mt-2 text-3xl font-bold text-ink">{canManageUsers ? "User Administration" : "Security Logs"}</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-          Manage BEDO accounts, explicit admin access, route visibility, technical Desk access, and security review.
+          {canManageUsers
+            ? "Manage BEDO accounts, explicit admin access, route visibility, technical Desk access, and security review."
+            : "Review authentication, access-control, project, approval, and user-management events."}
         </p>
       </header>
 
@@ -108,7 +115,7 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
         ))}
       </div>
 
-      {activeTab === "Users" && (
+      {canManageUsers && activeTab === "Users" && (
         <div className="grid gap-6 xl:grid-cols-[minmax(360px,440px)_1fr]">
           <UserForm
             bootstrap={bootstrap}
@@ -276,7 +283,7 @@ function UserForm({
         <div className="mb-4 space-y-3">
           <div>
             <h3 className="text-base font-bold text-ink">Role assignment</h3>
-            <p className="text-sm text-muted">Only active BEDO platform and ARD roles are available.</p>
+            <p className="text-sm text-muted">Only active BEDO platform and department roles are available.</p>
           </div>
           <input
             className="focus-ring w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
@@ -472,6 +479,7 @@ function groupRoles(roles: string[], query: string) {
 function roleGroupTitle(role: string) {
   if (role.startsWith("BEDO")) return "Platform";
   if (role === "General Manager") return "GM Support Office";
+  if (role.startsWith("SRS")) return "SRS";
   if (role.startsWith("ARD")) return "ARD";
   return "Other";
 }

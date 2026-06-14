@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _index_exists(table_name: str, index_name: str) -> bool:
@@ -112,7 +116,7 @@ def _assign(project: str, stage: str, assigned_by: str, assigned_to_user: str, t
             "assigned_to_user": assigned_to_user,
             "assigned_to_role": stage,
             "team": team,
-            "assigned_at": datetime.utcnow(),
+            "assigned_at": _utcnow(),
             "is_active": 1,
         }
     )

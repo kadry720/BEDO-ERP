@@ -31,7 +31,7 @@ DEPARTMENTS = [
         "key": "COMMAND_CENTER",
         "name": "Command Center",
         "pillar_number": 4,
-        "dashboard_route": "",
+        "dashboard_route": "/command-center",
         "is_global_access_department": 0,
     },
     {
@@ -78,7 +78,7 @@ DEPARTMENTS = [
     },
 ]
 
-VISIBLE_DEPARTMENT_KEYS = {"GM_SUPPORT", "SRS"}
+VISIBLE_DEPARTMENT_KEYS = {"GM_SUPPORT", "SRS", "COMMAND_CENTER"}
 VISIBLE_DEPARTMENTS = [department for department in DEPARTMENTS if department["key"] in VISIBLE_DEPARTMENT_KEYS]
 
 DEPARTMENT_BY_KEY = {department["key"]: department for department in DEPARTMENTS}
@@ -104,6 +104,14 @@ DASHBOARDS = [
         "route": "/srs",
         "department_key": "SRS",
         "content": "SRS Dashboard",
+    },
+    {
+        "page_name": "command-center-dashboard",
+        "title": "Command Center Dashboard",
+        "module": "Command Center",
+        "route": "/command-center",
+        "department_key": "COMMAND_CENTER",
+        "content": "Command Center Dashboard",
     },
     {
         "page_name": "bedo-admin-users",
@@ -137,6 +145,7 @@ VISIBLE_BUSINESS_ROLES = [
     "SRS Section Head",
     "SRS Team Leader",
     "SRS Engineer",
+    "Command Center Representative",
 ]
 
 DEPARTMENT_ROLES = {
@@ -147,6 +156,7 @@ DEPARTMENT_ROLES = {
         "SRS Team Leader",
         "SRS Engineer",
     ],
+    "COMMAND_CENTER": ["Command Center Representative"],
 }
 
 SRS_SECTION_OPTIONS = [
@@ -177,6 +187,7 @@ SECURITY_AUDIT_ROLES = {
 }
 
 SRS_ROLES = {"SRS Manager", "SRS Section Head", "SRS Team Leader", "SRS Engineer"}
+COMMAND_CENTER_ROLES = {"Command Center Representative"}
 SRS_PROJECT_OWNER_ELIGIBLE_ROLES = SRS_ROLES | {"General Manager"}
 SRS_TEAM_MEMBER_ELIGIBLE_ROLES = SRS_ROLES
 
@@ -267,6 +278,7 @@ INITIAL_USERS = [
     _user("securityauditor", "Security", "Auditor", "", [], 4, internal_roles=["BEDO Security Auditor"]),
     _user("globalviewer", "Global", "Viewer", "GM_SUPPORT", [], 5, internal_roles=["BEDO Global Viewer"]),
     _user("srsmanager", "SRS", "Manager", "SRS", ["SRS Manager"], 6),
+    _user("commandcenter", "Command Center", "Representative", "COMMAND_CENTER", ["Command Center Representative"], 7),
 ]
 
 _SRS_SECTION_USER_PREFIX = {
@@ -327,6 +339,7 @@ LEGACY_PHASE_USERNAMES = {
 }
 
 SRS_WORKFLOW_TYPE = "SRS"
+GLOBAL_DEADLINE_EXTENSION_APPROVAL = "GLOBAL_DEADLINE_EXTENSION_APPROVAL"
 
 SRS_NODE_PRODUCT_DIGITAL_RELEASE = "PRODUCT_DIGITAL_RELEASE"
 SRS_NODE_GATEWAY = "SRS_GATEWAY"
@@ -336,13 +349,22 @@ SRS_NODE_CASES_1_2 = "CASES_1_2"
 SRS_NODE_CASES_3_4 = "CASES_3_4"
 SRS_NODE_GM_APPROVAL = "GM_APPROVAL"
 SRS_NODE_MANAGER_APPROVAL = "GATE_1_SRS_MANAGER_APPROVAL"
+SRS_NODE_DUAL_GATE_APPROVAL = "DUAL_GATE_APPROVAL"
 SRS_NODE_DEADLINE_LOCKED = "DEADLINE_LOCKED_IN_ERP"
 SRS_NODE_ACTION_PATHS = "ACTION_PATHS"
 SRS_NODE_CASE_1 = "CASE_1"
 SRS_NODE_CASE_2 = "CASE_2"
 SRS_NODE_CASE_3 = "CASE_3"
 SRS_NODE_CASE_4 = "CASE_4"
+SRS_NODE_GATE_2_PMDP = "GATE_2_PMDP"
+SRS_NODE_PMDP_DUAL_GATE_APPROVAL = "PMDP_DUAL_GATE_APPROVAL"
+SRS_NODE_PHYSICAL_BUILD_TEST = "PHYSICAL_BUILD_TEST"
+SRS_NODE_EXTENSION_DEADLINE = "EXTENSION_DEADLINE"
+SRS_NODE_SRS_DIRECTOR_APPROVAL = "SRS_DIRECTOR_APPROVAL"
+SRS_NODE_PMDP = "PMDP"
 SRS_NODE_BMDP = "BMDP"
+SRS_NODE_COMMAND_CENTER_APPROVAL = "COMMAND_CENTER_APPROVAL"
+SRS_NODE_FINAL_GM_APPROVAL = "FINAL_GM_APPROVAL"
 
 SRS_FUNCTIONAL_NODES = [
     SRS_NODE_PRODUCT_DIGITAL_RELEASE,
@@ -353,13 +375,22 @@ SRS_FUNCTIONAL_NODES = [
     SRS_NODE_CASES_3_4,
     SRS_NODE_GM_APPROVAL,
     SRS_NODE_MANAGER_APPROVAL,
+    SRS_NODE_DUAL_GATE_APPROVAL,
     SRS_NODE_DEADLINE_LOCKED,
     SRS_NODE_ACTION_PATHS,
     SRS_NODE_CASE_1,
     SRS_NODE_CASE_2,
     SRS_NODE_CASE_3,
     SRS_NODE_CASE_4,
+    SRS_NODE_GATE_2_PMDP,
+    SRS_NODE_PMDP_DUAL_GATE_APPROVAL,
+    SRS_NODE_PHYSICAL_BUILD_TEST,
+    SRS_NODE_EXTENSION_DEADLINE,
+    SRS_NODE_SRS_DIRECTOR_APPROVAL,
+    SRS_NODE_PMDP,
     SRS_NODE_BMDP,
+    SRS_NODE_COMMAND_CENTER_APPROVAL,
+    SRS_NODE_FINAL_GM_APPROVAL,
 ]
 
 SRS_PLACEHOLDER_NODES: list[str] = []

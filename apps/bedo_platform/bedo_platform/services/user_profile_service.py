@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def ensure_user_profile(user: str, username: str = "", *, active: bool = True, deleted: bool = False) -> None:
@@ -47,7 +51,7 @@ def mark_user_deleted(user: str, deleted_by: str) -> None:
     doc.username = username
     doc.is_active_in_bedo_erp = 0
     doc.is_deleted = 1
-    doc.deleted_at = datetime.utcnow()
+    doc.deleted_at = _utcnow()
     doc.deleted_by = deleted_by
     doc.flags.ignore_permissions = True
     if existing:

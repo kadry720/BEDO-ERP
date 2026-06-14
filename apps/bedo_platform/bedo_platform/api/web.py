@@ -37,8 +37,14 @@ from bedo_platform.services.project_service import (
     list_report_to_candidates as list_report_to_candidates_service,
     list_trainer_items_for_project as list_bedo_trainer_items_for_project,
     release_project_to_srs as release_bedo_project_to_srs,
+    request_pmdp_extension as request_pmdp_extension_service,
+    select_srs_team as select_srs_team_service,
+    submit_pmdp_gate_path as submit_pmdp_gate_path_service,
+    submit_pmdp_path as submit_pmdp_path_service,
+    submit_command_center_approval as submit_command_center_approval_service,
     submit_mandatory_coordination as submit_mandatory_coordination_service,
     submit_srs_bmdp_path as submit_srs_bmdp_path_service,
+    submit_srs_deliverables_matrix as submit_srs_deliverables_matrix_service,
     update_project_details as update_bedo_project_details,
     update_trainer_item as update_bedo_trainer_item,
 )
@@ -273,8 +279,10 @@ def assign_srs_project_owner(trainer_item: str, project_owner: str):
 
 @frappe.whitelist(allow_guest=True)
 def select_srs_team(trainer_item: str, users):
-    validate_service_request()
-    frappe.throw("Use submit_mandatory_coordination for SRS coordination.", frappe.PermissionError)
+    user = validate_service_request()
+    if isinstance(users, str):
+        users = frappe.parse_json(users)
+    return select_srs_team_service(trainer_item, users or [], actor=user)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -285,8 +293,8 @@ def submit_mandatory_coordination(trainer_item: str, payload):
 
 @frappe.whitelist(allow_guest=True)
 def submit_srs_deliverables_matrix(trainer_item: str, payload):
-    validate_service_request()
-    frappe.throw("Deliverables Matrix is display-only. Use submit_mandatory_coordination.", frappe.PermissionError)
+    user = validate_service_request()
+    return submit_srs_deliverables_matrix_service(trainer_item, _payload(payload), actor=user)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -305,6 +313,30 @@ def approve_srs_deadline_as_srs_manager(trainer_item: str, payload=None):
 def submit_srs_bmdp_path(trainer_item: str, bmdp_path: str):
     user = validate_service_request()
     return submit_srs_bmdp_path_service(trainer_item, bmdp_path, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_pmdp_gate_path(trainer_item: str, pmdp_path: str):
+    user = validate_service_request()
+    return submit_pmdp_gate_path_service(trainer_item, pmdp_path, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def request_pmdp_extension(trainer_item: str, payload):
+    user = validate_service_request()
+    return request_pmdp_extension_service(trainer_item, _payload(payload), actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_pmdp_path(trainer_item: str, pmdp_path: str):
+    user = validate_service_request()
+    return submit_pmdp_path_service(trainer_item, pmdp_path, actor=user)
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_command_center_approval(trainer_item: str, payload):
+    user = validate_service_request()
+    return submit_command_center_approval_service(trainer_item, _payload(payload), actor=user)
 
 
 @frappe.whitelist(allow_guest=True)

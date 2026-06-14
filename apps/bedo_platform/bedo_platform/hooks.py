@@ -45,6 +45,14 @@ app_include_css = ["/assets/bedo_platform/css/bedo_platform.css?v=20260604-2"]
 website_route_rules = [{"from_route": "/login", "to_route": "login"}]
 auth_hooks = ["bedo_platform.services.auth_service.ldap_request_auth_hook"]
 
+scheduler_events = {
+    "cron": {
+        "* * * * *": [
+            "bedo_platform.services.deadline_service.run_overdue_check",
+        ],
+    },
+}
+
 permission_query_conditions = {
     "User": "bedo_platform.permissions.user_query_conditions",
 }

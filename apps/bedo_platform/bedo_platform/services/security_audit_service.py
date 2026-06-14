@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from bedo_platform.constants import SECURITY_AUDIT_ROLES
 
 SENSITIVE_TOKENS = ("password", "bind", "secret", "token")
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def sanitize_message(message: str | None) -> str:
@@ -63,7 +67,7 @@ def log_security_event(
             "ip_address": ip_address,
             "user_agent": user_agent[:250],
             "message": sanitize_message(message),
-            "created_at": datetime.utcnow(),
+            "created_at": _utcnow(),
         }
     )
     doc.flags.ignore_permissions = True
@@ -143,7 +147,15 @@ def list_security_events_for_user(user: str, filters: dict[str, Any] | None = No
         "message",
         "created_at",
     ]
-    total = frappe.db.count("BEDO Security Event", filters=query_filters)
+    total = len(
+        frappe.get_all(
+            "BEDO Security Event",
+            fields=["name"],
+            filters=query_filters,
+            or_filters=or_filters,
+            limit_page_length=0,
+        )
+    )
     rows = frappe.get_all(
         "BEDO Security Event",
         fields=fields,
