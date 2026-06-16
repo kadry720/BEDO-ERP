@@ -4,10 +4,10 @@ import re
 from typing import Any
 
 from bedo_platform.constants import ALL_ROLE_NAMES
-from bedo_platform.services import ldap_service
+from bedo_platform.services.database_auth_service import authenticate_user
 from bedo_platform.services.routing_service import get_current_user_landing_route, get_visible_dashboards_for_user
 from bedo_platform.services.security_audit_service import log_security_event
-from bedo_platform.services.user_profile_service import assert_user_can_login, ensure_user_profile, find_user_for_login
+from bedo_platform.services.user_profile_service import assert_user_can_login
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 
@@ -70,50 +70,6 @@ def clear_failed_attempts(username: str, ip_address: str = "") -> None:
         return
 
 
-def sync_frappe_user(ldap_user: ldap_service.LDAPUser) -> str:
-    import frappe
-
-    email = ldap_user.email or f"{ldap_user.username}@bedo.local"
-    existing = frappe.db.get_value("User", {"username": ldap_user.username}, "name")
-    existing = existing or frappe.db.get_value("User", {"email": email}, "name")
-    if existing:
-        user_doc = frappe.get_doc("User", existing)
-        next_values = {
-            "username": ldap_user.username,
-            "first_name": ldap_user.first_name or user_doc.first_name or ldap_user.username,
-            "last_name": ldap_user.last_name or user_doc.last_name,
-            "phone": ldap_user.phone_number or user_doc.phone,
-            "enabled": 1,
-        }
-        changed = any(getattr(user_doc, field) != value for field, value in next_values.items())
-        if changed:
-            for field, value in next_values.items():
-                setattr(user_doc, field, value)
-            user_doc.flags.ignore_permissions = True
-            user_doc.flags.ignore_version = True
-            user_doc.save(ignore_permissions=True)
-        ensure_user_profile(user_doc.name, ldap_user.username, active=True, deleted=False)
-        return user_doc.name
-
-    user_doc = frappe.get_doc(
-        {
-            "doctype": "User",
-            "email": email,
-            "username": ldap_user.username,
-            "first_name": ldap_user.first_name or ldap_user.username,
-            "last_name": ldap_user.last_name or "",
-            "phone": ldap_user.phone_number or "",
-            "enabled": 1,
-            "send_welcome_email": 0,
-        }
-    )
-    user_doc.flags.ignore_permissions = True
-    user_doc.flags.no_reset_password = True
-    user_doc.insert(ignore_permissions=True)
-    ensure_user_profile(user_doc.name, ldap_user.username, active=True, deleted=False)
-    return user_doc.name
-
-
 def get_safe_user_context(user: str) -> dict[str, Any]:
     import frappe
 
@@ -156,28 +112,20 @@ def login_for_web(username: str, password: str) -> dict[str, Any]:
         log_security_event("login_failure", username=username, status="Failure", message="Rate limit exceeded")
         return {"success": False, "message": "Invalid username or password."}
 
-    try:
-        ldap_user = ldap_service.authenticate(username, password)
-    except Exception:
-        record_failed_attempt(username, ip_address)
-        log_security_event("login_failure", username=username, status="Failure", message="LDAP authentication failed")
-        return {"success": False, "message": "Invalid username or password."}
-
-    if not ldap_user:
+    db_user = authenticate_user(username, password)
+    if not db_user:
         record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Invalid credentials")
         return {"success": False, "message": "Invalid username or password."}
 
-    existing_user = find_user_for_login(username, ldap_user.email or f"{username}@bedo.local")
-    if existing_user and not assert_user_can_login(existing_user):
+    if not assert_user_can_login(db_user.user):
         record_failed_attempt(username, ip_address)
-        log_security_event("login_failure", username=username, user=existing_user, status="Failure", message="Inactive BEDO account")
+        log_security_event("login_failure", username=username, user=db_user.user, status="Failure", message="Inactive BEDO account")
         return {"success": False, "message": "Invalid username or password."}
 
-    user = sync_frappe_user(ldap_user)
     clear_failed_attempts(username, ip_address)
-    log_security_event("login_success", username=username, user=user, status="Success")
-    return {"success": True, "context": get_safe_user_context(user)}
+    log_security_event("login_success", username=username, user=db_user.user, status="Success")
+    return {"success": True, "context": get_safe_user_context(db_user.user)}
 
 
 def login(username: str, password: str) -> dict[str, Any]:
@@ -211,58 +159,30 @@ def login(username: str, password: str) -> dict[str, Any]:
             )
             return {"success": False, "message": "Invalid username or password."}
 
-    try:
-        ldap_user = ldap_service.authenticate(username, password)
-    except Exception:
-        record_failed_attempt(username, ip_address)
-        log_security_event("login_failure", username=username, status="Failure", message="LDAP authentication failed")
-        return {"success": False, "message": "Invalid username or password."}
-
-    if not ldap_user:
+    db_user = authenticate_user(username, password)
+    if not db_user:
         record_failed_attempt(username, ip_address)
         log_security_event("login_failure", username=username, status="Failure", message="Invalid credentials")
         return {"success": False, "message": "Invalid username or password."}
 
-    existing_user = find_user_for_login(username, ldap_user.email or f"{username}@bedo.local")
-    if existing_user and not assert_user_can_login(existing_user):
+    if not assert_user_can_login(db_user.user):
         record_failed_attempt(username, ip_address)
-        log_security_event("login_failure", username=username, user=existing_user, status="Failure", message="Inactive BEDO account")
+        log_security_event("login_failure", username=username, user=db_user.user, status="Failure", message="Inactive BEDO account")
         return {"success": False, "message": "Invalid username or password."}
 
-    user = sync_frappe_user(ldap_user)
     clear_failed_attempts(username, ip_address)
-    frappe.flags.bedo_ldap_login = True
-    frappe.local.login_manager.login_as(user)
-    route = get_current_user_landing_route(user)
-    log_security_event("login_success", username=username, user=user, status="Success")
+    frappe.local.login_manager.login_as(db_user.user)
+    route = get_current_user_landing_route(db_user.user)
+    log_security_event("login_success", username=username, user=db_user.user, status="Success")
     return {"success": True, "route": route}
 
 
-def ldap_request_auth_hook() -> None:
+def database_request_auth_hook() -> None:
     return None
 
 
-def enforce_ldap_only_session(login_manager: object | None = None) -> None:
-    try:
-        import frappe
-
-        user = getattr(frappe.session, "user", "")
-        if not user or user in {"Guest", "Administrator"}:
-            return
-        if getattr(frappe.flags, "bedo_ldap_login", False):
-            return
-        roles = set(frappe.get_roles(user))
-        if roles & set(ALL_ROLE_NAMES):
-            log_security_event(
-                "login_failure",
-                user=user,
-                status="Failure",
-                message="Blocked local password fallback for BEDO business user",
-            )
-            frappe.local.login_manager.logout()
-            frappe.throw("BEDO business users must sign in through LDAP.", frappe.AuthenticationError)
-    except Exception:
-        raise
+def enforce_database_session(login_manager: object | None = None) -> None:
+    return None
 
 
 def record_logout(login_manager: object | None = None) -> None:

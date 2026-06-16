@@ -246,7 +246,7 @@ function UserForm({
             <ShieldCheck className="h-4 w-4" />
             {mode === "edit" ? "Edit account" : "Add account"}
           </div>
-          <h2 className="mt-2 text-lg font-bold text-ink">{mode === "edit" ? user?.username : "Add LDAP User"}</h2>
+          <h2 className="mt-2 text-lg font-bold text-ink">{mode === "edit" ? user?.username : "Add User"}</h2>
         </div>
         {mode === "edit" && (
           <IconButton label="Cancel edit" onClick={onCancel}>

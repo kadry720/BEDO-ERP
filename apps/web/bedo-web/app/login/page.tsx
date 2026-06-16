@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
         <div className="w-full max-w-xl rounded-md border border-gray-200 bg-white p-8 text-ink shadow-panel">
           <div className="mb-8 text-center">
             <h2 className="text-4xl font-bold tracking-normal text-ink">Sign in</h2>
-            <p className="mt-3 text-base text-muted">Use your LDAP username and password.</p>
+            <p className="mt-3 text-base text-muted">Use your BEDO username and password.</p>
           </div>
           <LoginForm initialError={params.error} />
         </div>

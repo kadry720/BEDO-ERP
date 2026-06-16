@@ -6,7 +6,7 @@ from bedo_platform.services.user_management_service import is_protected_system_u
 def test_create_user_validates_required_fields():
     payload = {
         "username": "new.user",
-        "password": "temporary-ldap-password",
+        "password": "temporary-db-password",
         "first_name": "New",
         "last_name": "User",
         "email": "new.user@bedo.local",
@@ -18,13 +18,13 @@ def test_create_user_validates_required_fields():
     result = validate_user_payload(payload, creating=True)
 
     assert result["username"] == "new.user"
-    assert result["password"] == "temporary-ldap-password"
+    assert result["password"] == "temporary-db-password"
 
 
 def test_create_user_rejects_invalid_phone():
     payload = {
         "username": "new.user",
-        "password": "temporary-ldap-password",
+        "password": "temporary-db-password",
         "first_name": "New",
         "last_name": "User",
         "email": "new.user@bedo.local",
@@ -40,7 +40,7 @@ def test_create_user_rejects_invalid_phone():
 def test_create_user_rejects_unknown_roles():
     payload = {
         "username": "new.user",
-        "password": "temporary-ldap-password",
+        "password": "temporary-db-password",
         "first_name": "New",
         "last_name": "User",
         "email": "new.user@bedo.local",

@@ -94,13 +94,13 @@ window.bedo_platform.render_admin_users_page = function (wrapper) {
         <form class="bedo-admin-form">
           <div class="bedo-panel-header">
             <div>
-              <span class="bedo-kicker">LDAP user</span>
+              <span class="bedo-kicker">BEDO user</span>
               <h3>Create user</h3>
             </div>
           </div>
           <div class="bedo-form-grid">
             <label><span>Username</span><input name="username" autocomplete="off" required /></label>
-            <label><span>LDAP password</span><input name="password" autocomplete="new-password" type="password" required /></label>
+            <label><span>Password</span><input name="password" autocomplete="new-password" type="password" required /></label>
             <label><span>First name</span><input name="first_name" required /></label>
             <label><span>Last name</span><input name="last_name" required /></label>
             <label><span>Email</span><input name="email" type="email" required /></label>
