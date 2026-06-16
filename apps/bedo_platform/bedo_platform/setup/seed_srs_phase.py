@@ -56,6 +56,10 @@ def ensure_indexes() -> None:
     _ensure_index("tabBEDO Security Event", "idx_bedo_audit_created_status_event", "created_at, status, event_type")
     _ensure_index("tabSRS Team", "idx_srs_team_leader_active", "team_leader_user, is_active")
     _ensure_index("tabSRS Team Member", "idx_srs_team_member_team_user_active", "team, engineer_user, is_active")
+    _ensure_index("tabBEDO Command Center Handoff", "idx_bedo_cc_handoff_project_item_status", "project, trainer_item, status, is_active")
+    _ensure_index("tabBEDO Command Center Handoff", "idx_bedo_cc_handoff_responsible_status", "responsible_user, status, is_active")
+    _ensure_index("tabBEDO Supplier File", "idx_bedo_supplier_project_item_status", "project, trainer_item, status, is_active")
+    _ensure_index("tabBEDO Supplier File", "idx_bedo_supplier_responsible_status", "responsible_user, status, is_active")
 
 
 def _section_key(section_name: str) -> str:

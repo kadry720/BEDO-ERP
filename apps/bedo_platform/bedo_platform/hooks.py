@@ -30,7 +30,7 @@ fixtures = [
 
 after_install = "bedo_platform.setup.seed_all.execute"
 after_migrate = "bedo_platform.setup.seed_all.execute"
-on_session_creation = "bedo_platform.services.auth_service.enforce_ldap_only_session"
+on_session_creation = "bedo_platform.services.auth_service.enforce_database_session"
 on_logout = "bedo_platform.services.auth_service.record_logout"
 before_request = ["bedo_platform.services.desk_access.restrict_frappe_desk"]
 
@@ -43,7 +43,7 @@ app_include_js = [
 app_include_css = ["/assets/bedo_platform/css/bedo_platform.css?v=20260604-2"]
 
 website_route_rules = [{"from_route": "/login", "to_route": "login"}]
-auth_hooks = ["bedo_platform.services.auth_service.ldap_request_auth_hook"]
+auth_hooks = ["bedo_platform.services.auth_service.database_request_auth_hook"]
 
 scheduler_events = {
     "cron": {

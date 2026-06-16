@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 from math import ceil
 from zoneinfo import ZoneInfo
 
-from bedo_platform.constants import GLOBAL_DEADLINE_EXTENSION_APPROVAL
+from bedo_platform.constants import COMMAND_CENTER_WORKFLOW_TYPE, GLOBAL_DEADLINE_EXTENSION_APPROVAL, SUPPLIERS_WORKFLOW_TYPE
 from bedo_platform.services.notification_service import project_action_url
 
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
@@ -36,6 +36,8 @@ NODE_LABELS = {
     "BMDP": "BMDP",
     "COMMAND_CENTER_APPROVAL": "Command Center Approval",
     "FINAL_GM_APPROVAL": "Final GM Approval",
+    "COMMAND_CENTER_CASE_1": "Command Center Case 1",
+    "SUPPLIER_CASE_2_DELIVERY": "Supplier Case 2 Delivery",
 }
 
 
@@ -297,8 +299,8 @@ def run_deadline_reminder_check() -> dict[str, int]:
             continue
         notify_many(
             recipients,
-            title="SRS deadline active",
-            message="An SRS workflow deadline is active or due soon.",
+            title=f"{_workflow_label(row.workflow_type)} deadline active",
+            message=f"A {_workflow_label(row.workflow_type)} deadline is active or due soon.",
             notification_type="DEADLINE_REMINDER",
             project=row.project,
             trainer_item=row.trainer_item,
@@ -349,7 +351,7 @@ def run_overdue_check() -> dict[str, int]:
         )
         notify_many(
             recipients,
-            title="SRS deadline overdue",
+            title=f"{_workflow_label(row.workflow_type)} deadline overdue",
             message=message,
             notification_type="DEADLINE_OVERDUE",
             project=row.project,
@@ -410,7 +412,7 @@ def _deadline_context(row) -> dict[str, str]:
     ) or {}
     workflow_owner = frappe.db.get_value("SRS Workflow Instance", {"trainer_item": row.trainer_item}, "project_owner") or ""
     triggered_by = frappe.db.get_value("BEDO Deadline", row.name, "triggered_by") or ""
-    responsible = state.get("responsible_user") or workflow_owner or triggered_by
+    responsible = state.get("responsible_user") or _non_srs_deadline_responsible(row) or workflow_owner or triggered_by
     return {
         "project_code": project.get("project_code") or row.project,
         "project_name": project.get("project_name") or "",
@@ -428,6 +430,32 @@ def _format_cairo_datetime(value) -> str:
 
 def _node_label(node_id: str) -> str:
     return NODE_LABELS.get(str(node_id or ""), str(node_id or "").replace("_", " ").title())
+
+
+def _workflow_label(workflow_type: str) -> str:
+    if workflow_type == COMMAND_CENTER_WORKFLOW_TYPE:
+        return "Command Center"
+    if workflow_type == SUPPLIERS_WORKFLOW_TYPE:
+        return "Supplier"
+    return "SRS"
+
+
+def _non_srs_deadline_responsible(row) -> str:
+    import frappe
+
+    if row.workflow_type == COMMAND_CENTER_WORKFLOW_TYPE:
+        return frappe.db.get_value(
+            "BEDO Command Center Handoff",
+            {"deadline": row.name, "trainer_item": row.trainer_item, "is_active": 1},
+            "responsible_user",
+        ) or ""
+    if row.workflow_type == SUPPLIERS_WORKFLOW_TYPE:
+        return frappe.db.get_value(
+            "BEDO Supplier File",
+            {"deadline": row.name, "trainer_item": row.trainer_item, "is_active": 1},
+            "responsible_user",
+        ) or ""
+    return ""
 
 
 def _user_full_name(user: str) -> str:
@@ -486,12 +514,33 @@ def _mark_node_overdue(trainer_item: str, node_id: str, at: datetime) -> None:
     state = frappe.db.get_value("SRS Workflow Node State", {"trainer_item": trainer_item, "node_id": node_id}, "name")
     if state:
         frappe.db.set_value("SRS Workflow Node State", state, "overdue_at", to_storage_datetime(at), update_modified=False)
+    supplier = ""
+    if node_id == "SUPPLIER_CASE_2_DELIVERY":
+        supplier = frappe.db.get_value(
+            "BEDO Supplier File",
+            {"trainer_item": trainer_item, "status": ["!=", "COMPLETED"], "is_active": 1},
+            "name",
+        )
+    if supplier:
+        frappe.db.set_value("BEDO Supplier File", supplier, "status", "OVERDUE", update_modified=False)
 
 
 def _deadline_recipients(trainer_item: str, node_id: str) -> list[str]:
     import frappe
 
     users = set()
+    deadline = frappe.db.get_value("BEDO Deadline", {"trainer_item": trainer_item, "node_id": node_id, "status": ["in", ["ACTIVE", "OVERDUE"]]}, ["name", "workflow_type"], as_dict=True)
+    if deadline:
+        if deadline.workflow_type == COMMAND_CENTER_WORKFLOW_TYPE:
+            responsible = frappe.db.get_value("BEDO Command Center Handoff", {"deadline": deadline.name, "is_active": 1}, "responsible_user")
+            if responsible:
+                users.add(responsible)
+                return sorted(users)
+        if deadline.workflow_type == SUPPLIERS_WORKFLOW_TYPE:
+            responsible = frappe.db.get_value("BEDO Supplier File", {"deadline": deadline.name, "is_active": 1}, "responsible_user")
+            if responsible:
+                users.add(responsible)
+                return sorted(users)
     state_user = frappe.db.get_value("SRS Workflow Node State", {"trainer_item": trainer_item, "node_id": node_id}, "responsible_user")
     if state_user:
         users.add(state_user)

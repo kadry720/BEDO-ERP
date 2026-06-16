@@ -11,7 +11,7 @@ from bedo_platform.constants import (
     VISIBLE_BUSINESS_ROLE_NAMES,
 )
 from bedo_platform.services.auth_service import USERNAME_RE
-from bedo_platform.services.ldap_service import LDAPUser, change_password, provision_user
+from bedo_platform.services.database_auth_service import set_user_password
 from bedo_platform.services.security_audit_service import log_security_event
 from bedo_platform.services.user_profile_service import ensure_user_profile, is_user_deleted, mark_user_deleted
 
@@ -56,7 +56,7 @@ def validate_user_payload(payload: dict[str, Any], *, creating: bool = True) -> 
         raise ValueError("Username is required and may contain only letters, numbers, dot, dash, and underscore.")
     password = str(payload.get("password", ""))
     if creating and not password:
-        raise ValueError("Password is required for LDAP user creation.")
+        raise ValueError("Password is required for user creation.")
     first_name = str(payload.get("first_name", "")).strip()
     last_name = str(payload.get("last_name", "")).strip()
     email = str(payload.get("email", "")).strip()
@@ -200,15 +200,8 @@ def create_user_from_admin(payload: dict[str, Any], actor: str | None = None) ->
     if is_protected_system_user_identifier(data["username"], data["email"]):
         raise ValueError("This username is reserved for a protected system account.")
 
-    ldap_user = LDAPUser(
-        username=data["username"],
-        first_name=data["first_name"],
-        last_name=data["last_name"],
-        email=data["email"],
-        phone_number=data["phone_number"],
-    )
-    provision_user(ldap_user, data["password"])
     user = _get_or_create_user(data)
+    set_user_password(user, data["password"], logout_all_sessions=True)
     _assign_roles(user, data["roles"])
     _set_role_assignments(user, data["primary_department"], data["roles"])
     log_security_event("user_creation", username=data["username"], user=actor or user, target_user=user, status="Success")
@@ -261,7 +254,7 @@ def update_user_from_admin(user: str, payload: dict[str, Any], actor: str | None
     user_doc.save(ignore_permissions=True)
 
     if data["password"]:
-        change_password(data["username"], data["password"])
+        set_user_password(user, data["password"], logout_all_sessions=True)
 
     ensure_user_profile(user, data["username"], active=True, deleted=False)
     _assign_roles(user, data["roles"])

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from bedo_platform.constants import INITIAL_USERS, LEGACY_PHASE_USERNAMES, SEED_DEFAULT_PASSWORD_ENV
-from bedo_platform.services.ldap_service import LDAPUser, provision_user
+from bedo_platform.services.database_auth_service import set_user_password
 from bedo_platform.services.user_profile_service import mark_user_deleted
 from bedo_platform.services.user_management_service import (
     _assign_roles,
@@ -29,7 +29,7 @@ def execute(strict: bool = False) -> None:
     ]
     if missing:
         message = (
-            "Initial BEDO LDAP seed users were not provisioned because these environment "
+            "Initial BEDO seed users were not provisioned because these environment "
             f"variables are missing: {SEED_DEFAULT_PASSWORD_ENV} or per-user values ({', '.join(missing)})"
         )
         if strict:
@@ -42,15 +42,8 @@ def execute(strict: bool = False) -> None:
         data["password"] = _seed_password_for_user(data)
         if not data["password"]:
             continue
-        ldap_user = LDAPUser(
-            username=data["username"],
-            first_name=data["first_name"],
-            last_name=data["last_name"],
-            email=data["email"],
-            phone_number=data["phone_number"],
-        )
-        provision_user(ldap_user, data["password"])
         user = _get_or_create_user(data)
+        set_user_password(user, data["password"], logout_all_sessions=True)
         _assign_roles(user, data["roles"])
         _set_role_assignments(user, data["primary_department"], data["roles"])
 

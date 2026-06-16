@@ -20,13 +20,17 @@ from bedo_platform.services.project_service import (
     approve_srs_case_as_gm as approve_srs_case_as_gm_service,
     approve_srs_deadline_as_srs_manager as approve_srs_deadline_as_srs_manager_service,
     assign_srs_project_owner as assign_srs_project_owner_service,
+    complete_command_center_case_1 as complete_command_center_case_1_service,
     create_project as create_bedo_project,
     delete_project_cascade as delete_bedo_project_cascade,
     delete_trainer_item as delete_bedo_trainer_item,
+    deliver_supplier_file as deliver_supplier_file_service,
     finalize_project_details as finalize_bedo_project_details,
+    get_command_center_handoff_workspace as get_command_center_handoff_workspace_service,
     get_project_detail as get_bedo_project_detail,
     get_approval_detail as get_approval_detail_service,
     get_pending_approval_count as get_pending_approval_count_service,
+    get_supplier_files_for_trainer_item as get_supplier_files_for_trainer_item_service,
     get_srs_flowchart_definition as get_srs_flowchart_definition_service,
     get_srs_trainer_item_audit_trail as get_srs_trainer_item_audit_trail_service,
     get_trainer_item_workspace as get_bedo_trainer_item_workspace,
@@ -38,10 +42,11 @@ from bedo_platform.services.project_service import (
     list_trainer_items_for_project as list_bedo_trainer_items_for_project,
     release_project_to_srs as release_bedo_project_to_srs,
     request_pmdp_extension as request_pmdp_extension_service,
+    request_supplier_deadline_extension as request_supplier_deadline_extension_service,
     select_srs_team as select_srs_team_service,
     submit_pmdp_gate_path as submit_pmdp_gate_path_service,
     submit_pmdp_path as submit_pmdp_path_service,
-    submit_command_center_approval as submit_command_center_approval_service,
+    submit_command_center_srs_ard_decision as submit_command_center_approval_service,
     submit_mandatory_coordination as submit_mandatory_coordination_service,
     submit_srs_bmdp_path as submit_srs_bmdp_path_service,
     submit_srs_deliverables_matrix as submit_srs_deliverables_matrix_service,
@@ -340,6 +345,42 @@ def submit_pmdp_path(trainer_item: str, pmdp_path: str):
 def submit_command_center_approval(trainer_item: str, payload):
     user = validate_service_request()
     return submit_command_center_approval_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def get_command_center_handoff(trainer_item: str):
+    user = validate_service_request()
+    return get_command_center_handoff_workspace_service(trainer_item, actor=user)
+
+
+@service_api
+def submit_command_center_decision(trainer_item: str, payload):
+    user = validate_service_request()
+    return submit_command_center_approval_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def complete_command_center_case_1(trainer_item: str):
+    user = validate_service_request()
+    return complete_command_center_case_1_service(trainer_item, actor=user)
+
+
+@service_api
+def get_supplier_files(trainer_item: str):
+    user = validate_service_request()
+    return get_supplier_files_for_trainer_item_service(trainer_item, actor=user)
+
+
+@service_api
+def deliver_supplier_file(supplier_file: str):
+    user = validate_service_request()
+    return deliver_supplier_file_service(supplier_file, actor=user)
+
+
+@service_api
+def request_supplier_extension(supplier_file: str, payload):
+    user = validate_service_request()
+    return request_supplier_deadline_extension_service(supplier_file, _payload(payload), actor=user)
 
 
 @service_api

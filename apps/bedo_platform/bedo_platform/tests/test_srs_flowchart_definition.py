@@ -7,13 +7,11 @@ from bedo_platform.constants import (
     SRS_NODE_CASE_4,
     SRS_NODE_CASES_1_2,
     SRS_NODE_CASES_3_4,
-    SRS_NODE_COMMAND_CENTER_APPROVAL,
     SRS_NODE_COORDINATION,
     SRS_NODE_DEADLINE_LOCKED,
     SRS_NODE_DELIVERABLES,
     SRS_NODE_DUAL_GATE_APPROVAL,
     SRS_NODE_EXTENSION_DEADLINE,
-    SRS_NODE_FINAL_GM_APPROVAL,
     SRS_NODE_GATEWAY,
     SRS_NODE_GATE_2_PMDP,
     SRS_NODE_GM_APPROVAL,
@@ -60,7 +58,6 @@ def test_display_only_srs_nodes_are_not_clickable():
         SRS_NODE_PMDP_DUAL_GATE_APPROVAL,
         SRS_NODE_EXTENSION_DEADLINE,
         SRS_NODE_SRS_DIRECTOR_APPROVAL,
-        SRS_NODE_FINAL_GM_APPROVAL,
     ]:
         assert nodes[node_id]["kind"] in {"display", "approval", "action"}
         assert nodes[node_id]["clickable"] is False
@@ -78,8 +75,6 @@ def test_srs_flowchart_clickable_nodes_match_permission_matrix():
     assert nodes[SRS_NODE_PHYSICAL_BUILD_TEST]["clickable"] is True
     assert nodes[SRS_NODE_PMDP]["clickable"] is True
     assert nodes[SRS_NODE_BMDP]["clickable"] is True
-    assert nodes[SRS_NODE_COMMAND_CENTER_APPROVAL]["clickable"] is True
-    assert nodes[SRS_NODE_COMMAND_CENTER_APPROVAL]["requiredRoles"] == ["Command Center Representative"]
 
 
 def test_srs_flowchart_has_lanes_deadline_columns_and_edges():
@@ -88,7 +83,7 @@ def test_srs_flowchart_has_lanes_deadline_columns_and_edges():
 
     assert [lane["id"] for lane in definition["lanes"]] == ["operations", "srs_entry", "study_phase"]
     assert [column["id"] for column in definition["deadline_columns"]] == ["deadline_1", "deadline_2", "deadline_3", "deadline_4"]
-    assert not any(edge["from"] == SRS_NODE_FINAL_GM_APPROVAL for edge in edges)
+    assert not any(edge["from"] == SRS_NODE_BMDP for edge in edges)
 
     assert edges == [
         {"from": SRS_NODE_PRODUCT_DIGITAL_RELEASE, "to": SRS_NODE_GATEWAY},
@@ -112,6 +107,13 @@ def test_srs_flowchart_has_lanes_deadline_columns_and_edges():
         {"from": SRS_NODE_SRS_DIRECTOR_APPROVAL, "to": SRS_NODE_PHYSICAL_BUILD_TEST},
         {"from": SRS_NODE_PHYSICAL_BUILD_TEST, "to": SRS_NODE_PMDP},
         {"from": SRS_NODE_PMDP, "to": SRS_NODE_BMDP},
-        {"from": SRS_NODE_BMDP, "to": SRS_NODE_COMMAND_CENTER_APPROVAL},
-        {"from": SRS_NODE_COMMAND_CENTER_APPROVAL, "to": SRS_NODE_FINAL_GM_APPROVAL},
     ]
+
+
+def test_srs_flowchart_ends_at_bmdp():
+    definition = get_srs_flowchart_definition()
+    node_ids = {node["id"] for node in definition["nodes"]}
+
+    assert SRS_NODE_BMDP in node_ids
+    assert "COMMAND_CENTER_APPROVAL" not in node_ids
+    assert "FINAL_GM_APPROVAL" not in node_ids

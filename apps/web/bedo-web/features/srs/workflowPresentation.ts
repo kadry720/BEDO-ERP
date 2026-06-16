@@ -93,8 +93,6 @@ export const NODE_POSITIONS: Record<string, { x: number; y: number; w: number; h
   EXTENSION_DEADLINE: { x: 1125, y: 790, w: 230, h: 104 },
   SRS_DIRECTOR_APPROVAL: { x: 1125, y: 925, w: 240, h: 104 },
   PMDP: { x: 795, y: 980, w: 230, h: 96 },
-  COMMAND_CENTER_APPROVAL: { x: 1450, y: 800, w: 230, h: 112 },
-  FINAL_GM_APPROVAL: { x: 1450, y: 950, w: 230, h: 112 },
 };
 
 export const NODE_LABELS: Record<string, string> = {
@@ -155,8 +153,6 @@ export const CONNECTOR_ROUTES: Record<string, ConnectorRoute> = {
   "SRS_DIRECTOR_APPROVAL->PHYSICAL_BUILD_TEST": { fromSide: "left", toSide: "right", points: [{ x: 1090, y: 977 }, { x: 1090, y: 876 }] },
   "PHYSICAL_BUILD_TEST->PMDP": { fromSide: "bottom", toSide: "top" },
   "PMDP->BMDP": { fromSide: "right", toSide: "bottom", points: [{ x: 1085, y: 1028 }, { x: 1085, y: 760 }, { x: 1295, y: 760 }] },
-  "BMDP->COMMAND_CENTER_APPROVAL": { fromSide: "right", toSide: "left", points: [{ x: 1440, y: 677 }, { x: 1440, y: 856 }] },
-  "COMMAND_CENTER_APPROVAL->FINAL_GM_APPROVAL": { fromSide: "bottom", toSide: "top" },
 };
 
 export function nodePosition(node: SrsNodeDefinition) {

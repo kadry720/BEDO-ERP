@@ -35,8 +35,9 @@ def test_global_viewer_can_access_visible_routes():
     assert route_allowed_for_roles("/command-center", ["BEDO Employee", "BEDO Global Viewer"]) is True
 
 
-def test_global_viewer_precedence_over_gm_restriction():
+def test_gm_route_restriction_precedence_over_global_viewer():
     roles = ["BEDO Employee", "General Manager", "BEDO Global Viewer"]
 
-    assert route_allowed_for_roles("/srs", roles) is True
-    assert route_allowed_for_roles("/command-center", roles) is True
+    assert route_allowed_for_roles("/gm", roles) is True
+    assert route_allowed_for_roles("/srs", roles) is False
+    assert route_allowed_for_roles("/command-center", roles) is False

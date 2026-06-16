@@ -4,7 +4,11 @@ import type { NextRequest } from "next/server";
 const mutationMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function isLocalOrigin(origin: URL) {
-  return ["localhost", "127.0.0.1", "::1"].includes(origin.hostname);
+  if (["localhost", "127.0.0.1", "::1"].includes(origin.hostname)) return true;
+  if (/^10\./.test(origin.hostname)) return true;
+  if (/^192\.168\./.test(origin.hostname)) return true;
+  const private172 = origin.hostname.match(/^172\.(\d{1,2})\./);
+  return Boolean(private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31);
 }
 
 function allowedOrigins(request: NextRequest) {

@@ -75,7 +75,7 @@
           <a class="bedo-admin-card is-primary" href="/app/bedo-admin-users">
             <span class="bedo-card-kicker">Directory</span>
             <strong>BEDO Admin Users</strong>
-            <p>Create LDAP users, assign departments, and maintain BEDO roles.</p>
+            <p>Create BEDO users, assign departments, and maintain BEDO roles.</p>
           </a>
           <a class="bedo-admin-card" href="/app/user">
             <span class="bedo-card-kicker">Accounts</span>

@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/Button";
+import { commandCenterCases, commandCenterDecisionRequiresDeadline } from "@/features/srs/commandCenterRules";
 import type { SafeUser, SrsFlowchartDefinition, SrsNodeDefinition, SrsNodeState, TrainerWorkspace as TrainerWorkspaceData } from "@/features/srs/types";
 import {
   DEADLINE_BANDS,
@@ -125,6 +126,8 @@ export function TrainerWorkspace({
 
       {activeTab === "Overview" && <Overview workspace={workspace} />}
       {activeTab === "Audit Log" && <AuditLog workspace={workspace} />}
+      {activeTab === "Command Center" && <CommandCenterTab workspace={workspace} setWorkspace={setWorkspace} />}
+      {activeTab === "Suppliers" && <SuppliersTab workspace={workspace} setWorkspace={setWorkspace} />}
       {activeTab === "SRS" && (
         <SrsFlowchart
           workspace={workspace}
@@ -135,7 +138,7 @@ export function TrainerWorkspace({
           setActiveNode={setActiveNode}
         />
       )}
-      {activeTab !== "Overview" && activeTab !== "SRS" && activeTab !== "Audit Log" && (
+      {activeTab !== "Overview" && activeTab !== "SRS" && activeTab !== "Audit Log" && activeTab !== "Command Center" && activeTab !== "Suppliers" && (
         <div className="rounded-md border border-gray-200 bg-white p-8 text-sm font-semibold text-muted shadow-panel">{placeholderText}</div>
       )}
     </section>
@@ -261,6 +264,330 @@ function AuditLog({ workspace }: { workspace: TrainerWorkspaceData }) {
         </table>
         {!workspace.audit_events.length && <div className="rounded-md border border-dashed border-gray-300 p-6 text-sm text-muted">No audit events yet.</div>}
       </div>
+    </div>
+  );
+}
+
+function CommandCenterTab({
+  workspace,
+  setWorkspace,
+}: {
+  workspace: TrainerWorkspaceData;
+  setWorkspace: (workspace: TrainerWorkspaceData) => void;
+}) {
+  const handoff = workspace.command_center_handoff;
+  const [selectedCase, setSelectedCase] = useState(handoff?.command_center_case || "");
+  const [deadlineDays, setDeadlineDays] = useState(handoff?.deadline_days ? String(handoff.deadline_days) : "");
+  const [notes, setNotes] = useState(handoff?.notes || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSelectedCase(handoff?.command_center_case || "");
+    setDeadlineDays(handoff?.deadline_days ? String(handoff.deadline_days) : "");
+    setNotes(handoff?.notes || "");
+  }, [handoff?.name, handoff?.command_center_case, handoff?.deadline_days, handoff?.notes]);
+
+  async function submitDecision() {
+    setLoading(true);
+    setError("");
+    const response = await fetch(`/api/command-center/handoffs/${encodeURIComponent(workspace.trainer_item.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command_center_case: selectedCase, deadline_days: deadlineDays, notes }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setLoading(false);
+    if (!response.ok) {
+      setError(data?.error || "Command Center decision could not be submitted.");
+      return;
+    }
+    setWorkspace(data);
+  }
+
+  async function completeCaseOne() {
+    setLoading(true);
+    setError("");
+    const response = await fetch(`/api/command-center/handoffs/${encodeURIComponent(workspace.trainer_item.name)}/complete`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    setLoading(false);
+    if (!response.ok) {
+      setError(data?.error || "Command Center handoff could not be completed.");
+      return;
+    }
+    setWorkspace(data);
+  }
+
+  if (!handoff) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-6 shadow-panel">
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">Command Center</div>
+        <h2 className="mt-2 text-2xl font-black text-slate-950">Handoff not ready</h2>
+        <p className="mt-2 text-sm font-semibold text-slate-600">The SRS workflow must be completed at BMDP before this handoff is created.</p>
+      </div>
+    );
+  }
+
+  const selectedRequiresDeadline = commandCenterDecisionRequiresDeadline(selectedCase);
+  const deadline = handoff.deadline_detail;
+
+  return (
+    <div className="space-y-5">
+      {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-slate-500">Command Center Dossier</div>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">SRS to ARD Handoff</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{workspace.project.project_code} | {workspace.trainer_item.trainer_item_name}</p>
+          </div>
+          <StatusBadge status={handoff.status} />
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <MiniInfo label="BMDP Received" value={workspace.workflow?.bmdp_path ? "Yes" : "No"} />
+          <MiniInfo label="Responsible" value={handoff.responsible_name || handoff.responsible_user || "Not assigned"} />
+          <MiniInfo label="Current Case" value={handoff.command_center_case || "Not selected"} />
+          <MiniInfo label="Approved Deadline" value={handoff.approved_deadline_days ? `${handoff.approved_deadline_days} ${workspace.deadline_unit_label || "working days"}` : "Not set"} />
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
+        <div className="grid gap-3 md:grid-cols-5">
+          {["BMDP Received", "Decision Submitted", "GM Approval", "Execution / Routing", "Complete"].map((label, index) => (
+            <div key={label} className={`rounded-md border p-3 ${handoffRailClass(handoff.status, index)}`}>
+              <div className="text-[11px] font-black uppercase tracking-wide">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black text-slate-950">SRS to ARD Decision</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-600">Choose the handoff route. Case 3 does not use a deadline.</p>
+          </div>
+          {deadline?.due_at && <CountdownBadge startAt={deadline.start_at} dueAt={deadline.due_at} serverNow={deadline.server_now || workspace.server_now} />}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {commandCenterCases.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              disabled={!handoff.can_submit_decision}
+              onClick={() => setSelectedCase(option.value)}
+              className={`focus-ring rounded-md border p-4 text-left transition ${
+                selectedCase === option.value ? "border-orange-400 bg-orange-50 shadow-sm" : "border-slate-200 bg-slate-50 hover:bg-white"
+              } ${!handoff.can_submit_decision ? "cursor-default opacity-80" : ""}`}
+            >
+              <div className="text-sm font-black text-slate-950">{option.label}</div>
+              <div className="mt-1 text-sm font-semibold leading-5 text-slate-600">{option.description}</div>
+            </button>
+          ))}
+        </div>
+
+        {handoff.can_submit_decision ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-end">
+            {selectedRequiresDeadline ? (
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Deadline</span>
+                <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" min={1} type="number" value={deadlineDays} onChange={(event) => setDeadlineDays(event.target.value)} />
+              </label>
+            ) : (
+              <MiniInfo label="Deadline" value="Not required for Case 3" />
+            )}
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-wide text-slate-500">Notes</span>
+              <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional handoff notes" />
+            </label>
+            <Button type="button" disabled={loading || !selectedCase || (selectedRequiresDeadline && !deadlineDays)} onClick={submitDecision}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+              Submit Decision
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+            This dossier is read-only for your current role or status.
+          </div>
+        )}
+      </div>
+
+      {handoff.can_complete_case_1 && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-5 shadow-panel">
+          <h3 className="text-lg font-black text-emerald-950">Case 1 Execution</h3>
+          <p className="mt-1 text-sm font-semibold text-emerald-900">Complete this action when Command Center is ready to hand the item forward.</p>
+          <Button className="mt-4" type="button" disabled={loading} onClick={completeCaseOne}>
+            <CheckCircle2 className="h-4 w-4" />
+            Mark Ready for ARD
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SuppliersTab({
+  workspace,
+  setWorkspace,
+}: {
+  workspace: TrainerWorkspaceData;
+  setWorkspace: (workspace: TrainerWorkspaceData) => void;
+}) {
+  const [extensionFile, setExtensionFile] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const supplierFiles = workspace.supplier_files || [];
+
+  async function deliver(fileName: string) {
+    setError("");
+    const response = await fetch(`/api/supplier-files/${encodeURIComponent(fileName)}/deliver`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(data?.error || "Supplier file could not be delivered.");
+      return;
+    }
+    setWorkspace(data);
+  }
+
+  async function requestExtension(fileName: string, payload: Record<string, string>) {
+    setError("");
+    const response = await fetch(`/api/supplier-files/${encodeURIComponent(fileName)}/extension`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(data?.error || "Supplier extension could not be requested.");
+      return;
+    }
+    setExtensionFile(null);
+    setWorkspace(data);
+  }
+
+  return (
+    <div className="space-y-5">
+      {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+      {!supplierFiles.length && <div className="rounded-md border border-dashed border-slate-300 bg-white p-8 text-sm font-bold text-slate-500 shadow-panel">No Supplier files are active for this trainer item.</div>}
+      {supplierFiles.map((file) => {
+        const deadline = file.deadline_detail;
+        return (
+          <article key={file.name} className="rounded-md border border-slate-200 bg-white shadow-panel">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 p-5">
+              <div>
+                <div className="text-xs font-black uppercase tracking-wide text-slate-500">Supplier File</div>
+                <h3 className="mt-2 text-xl font-black text-slate-950">{workspace.project.project_code} | {workspace.trainer_item.trainer_item_name}</h3>
+                <p className="mt-1 text-sm font-semibold text-slate-600">Source: {formatStatus(file.source_type)}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={file.status} />
+                {deadline?.due_at && <CountdownBadge startAt={deadline.start_at} dueAt={deadline.due_at} serverNow={deadline.server_now || workspace.server_now} />}
+              </div>
+            </div>
+            <div className="grid gap-3 p-5 md:grid-cols-3">
+              <MiniInfo label="Responsible" value={file.responsible_name || file.responsible_user} />
+              <MiniInfo label="Approved Deadline" value={file.deadline_days ? `${file.deadline_days} ${workspace.deadline_unit_label || "working days"}` : "Not set"} />
+              <MiniInfo label="Started At" value={formatWorkflowTimestamp(file.started_at)} />
+              <MiniInfo label="Case" value={workspace.command_center_handoff?.command_center_case || "-"} />
+              <MiniInfo label="BMDP Source" value={workspace.workflow?.bmdp_path || "-"} className="md:col-span-2" />
+              <MiniInfo label="Details" value={file.details || "-"} className="md:col-span-3" />
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
+              <Button type="button" disabled={!file.can_request_extension} variant="secondary" onClick={() => setExtensionFile(file.name)}>
+                <Clock3 className="h-4 w-4" />
+                Request Extension
+              </Button>
+              <Button type="button" disabled={!file.can_deliver} onClick={() => deliver(file.name)}>
+                <PackageCheck className="h-4 w-4" />
+                Deliver
+              </Button>
+            </div>
+          </article>
+        );
+      })}
+      {extensionFile && (
+        <SupplierExtensionModal
+          unitLabel={workspace.deadline_unit_label || "working days"}
+          onClose={() => setExtensionFile(null)}
+          onSubmit={(payload) => requestExtension(extensionFile, payload)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MiniInfo({ label, value, className = "" }: { label: string; value: string | number; className?: string }) {
+  return (
+    <div className={`rounded-md border border-slate-200 bg-slate-50 p-3 ${className}`}>
+      <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 break-words text-sm font-bold leading-6 text-slate-900">{String(value || "-")}</div>
+    </div>
+  );
+}
+
+function handoffRailClass(status: string, index: number) {
+  const rank: Record<string, number> = {
+    PENDING_COMMAND_CENTER: 0,
+    WAITING_GM_APPROVAL: 1,
+    COMMAND_CENTER_IN_PROGRESS: 3,
+    ROUTED_TO_SUPPLIERS: 3,
+    READY_FOR_ARD: 4,
+    COMPLETED: 4,
+  };
+  const current = rank[status] ?? 0;
+  if (index <= current) return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  return "border-slate-200 bg-slate-50 text-slate-500";
+}
+
+function SupplierExtensionModal({
+  unitLabel,
+  onClose,
+  onSubmit,
+}: {
+  unitLabel: string;
+  onClose: () => void;
+  onSubmit: (payload: Record<string, string>) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+      <form
+        className="w-full max-w-lg rounded-lg bg-white shadow-2xl"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          onSubmit({
+            extension_days: String(form.get("extension_days") || ""),
+            reason: String(form.get("reason") || ""),
+          });
+        }}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-slate-500">Supplier Deadline</div>
+            <h3 className="mt-1 text-xl font-black text-slate-950">Request Extension</h3>
+          </div>
+          <button className="rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={onClose} aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4 px-6 py-5">
+          <label className="block">
+            <span className="text-sm font-black text-slate-800">Extension Amount</span>
+            <div className="mt-2 flex rounded-md border border-slate-300 bg-white">
+              <input className="focus-ring w-full rounded-l-md border-0 px-3 py-2 text-sm outline-none" min={1} name="extension_days" required type="number" />
+              <span className="inline-flex items-center rounded-r-md border-l border-slate-300 bg-slate-50 px-3 text-xs font-black uppercase text-slate-500">{unitLabel}</span>
+            </div>
+          </label>
+          <label className="block">
+            <span className="text-sm font-black text-slate-800">Reason</span>
+            <textarea className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" name="reason" required rows={4} />
+          </label>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit">Submit Request</Button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -1195,24 +1522,6 @@ function DeliverablesForm({ cases, onSubmit }: { cases: string[]; onSubmit: (pay
     </form>
   );
 }
-
-const commandCenterCases = [
-  {
-    value: "Case 1 - Save for later",
-    label: "Case 1",
-    description: "Save for later",
-  },
-  {
-    value: "Case 2 - Buy Critical Components then deliver to ARD",
-    label: "Case 2",
-    description: "Buy Critical Components then deliver to ARD",
-  },
-  {
-    value: "Case 3 - Deliver to ARD directly",
-    label: "Case 3",
-    description: "Deliver to ARD directly",
-  },
-];
 
 function CommandCenterForm({ onSubmit }: { onSubmit: (payload: Record<string, string>) => void }) {
   return (

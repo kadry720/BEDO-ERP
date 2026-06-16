@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from bedo_platform.services.auth_service import USERNAME_RE
-from bedo_platform.services.ldap_service import change_password
+from bedo_platform.services.database_auth_service import set_user_password
 from bedo_platform.services.security_audit_service import log_security_event
 from bedo_platform.services.user_profile_service import assert_user_can_login, ensure_user_profile
 from bedo_platform.services.user_management_service import EMAIL_RE, PHONE_RE
@@ -72,7 +72,7 @@ def update_current_profile(payload: dict[str, Any], user: str | None = None) -> 
     ensure_user_profile(user, username, active=True, deleted=False)
 
     if password:
-        change_password(username, password)
+        set_user_password(user, password, logout_all_sessions=False)
 
     log_security_event("profile_update", user=user, status="Success")
     return {"success": True, "profile": get_current_profile(user)}
