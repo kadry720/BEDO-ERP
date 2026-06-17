@@ -11,7 +11,7 @@ from bedo_platform.constants import (
     VISIBLE_BUSINESS_ROLE_NAMES,
 )
 from bedo_platform.services.auth_service import USERNAME_RE
-from bedo_platform.services.database_auth_service import set_user_password
+from bedo_platform.services.database_auth_service import enforce_password_policy, set_user_password
 from bedo_platform.services.security_audit_service import log_security_event
 from bedo_platform.services.user_profile_service import ensure_user_profile, is_user_deleted, mark_user_deleted
 
@@ -82,6 +82,14 @@ def validate_user_payload(payload: dict[str, Any], *, creating: bool = True) -> 
     department_roles = {role for role in roles if role in ROLE_DEPARTMENT_KEY}
     if department_roles and not primary_department:
         raise ValueError("Primary department is required when assigning department roles.")
+    if password:
+        enforce_password_policy(
+            password,
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+        )
 
     return {
         "username": username,
@@ -255,6 +263,7 @@ def update_user_from_admin(user: str, payload: dict[str, Any], actor: str | None
 
     if data["password"]:
         set_user_password(user, data["password"], logout_all_sessions=True)
+        log_security_event("password_reset", user=actor or user, target_user=user, status="Success")
 
     ensure_user_profile(user, data["username"], active=True, deleted=False)
     _assign_roles(user, data["roles"])

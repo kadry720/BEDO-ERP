@@ -1,4 +1,6 @@
 .env
+.env.*.local.generated
+.env.*.generated
 .venv/
 env/
 venv/

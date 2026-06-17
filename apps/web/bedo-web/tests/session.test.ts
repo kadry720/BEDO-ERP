@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { BedoUserContext } from "../lib/routes";
-import { signSession, verifySessionToken } from "../server/session";
+import { sessionCookieOptions, signSession, verifySessionToken } from "../server/session";
 
 process.env.BEDO_ENV = "test";
 process.env.BEDO_WEB_SESSION_SECRET = "unit-test-session-secret";
@@ -37,4 +37,15 @@ test("tampered session token returns null", () => {
   const tampered = `${payload.slice(0, -1)}A.${signature}`;
 
   assert.equal(verifySessionToken(tampered), null);
+});
+
+test("session cookie is not secure for local BEDO_ENV even in production runtime", () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  process.env.BEDO_ENV = "local";
+  mutableEnv.NODE_ENV = "production";
+
+  assert.equal(sessionCookieOptions().secure, false);
+
+  mutableEnv.NODE_ENV = previousNodeEnv;
 });

@@ -21,6 +21,13 @@ def require_configured_secret(name: str, value: str | None = None) -> str:
 
 
 def validate_runtime_secrets() -> None:
-    required = ["BEDO_WEB_SERVICE_SECRET"]
+    required = [
+        "BEDO_WEB_SERVICE_SECRET",
+        "FRAPPE_ADMIN_PASSWORD",
+        "MARIADB_ROOT_PASSWORD",
+        "MARIADB_PASSWORD",
+    ]
+    if os.environ.get("BEDO_WEB_SESSION_SECRET"):
+        required.append("BEDO_WEB_SESSION_SECRET")
     for name in required:
         require_configured_secret(name)

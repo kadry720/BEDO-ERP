@@ -25,7 +25,6 @@ if [ ! -d "${FRAPPE_BENCH_PATH}/apps/${BEDO_APP_NAME}" ]; then
   ln -s "${BEDO_APP_PATH}" "${FRAPPE_BENCH_PATH}/apps/${BEDO_APP_NAME}"
 fi
 
-bench pip install "ldap3>=2.9.1,<3.0.0"
 bench pip install --no-deps -e "${FRAPPE_BENCH_PATH}/apps/${BEDO_APP_NAME}"
 
 if ! grep -qx "${BEDO_APP_NAME}" "${FRAPPE_BENCH_PATH}/sites/apps.txt"; then

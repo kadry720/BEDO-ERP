@@ -12,6 +12,7 @@ from bedo_platform.services.user_management_service import (
 )
 
 LEGACY_SEED_USERNAMES = LEGACY_PHASE_USERNAMES
+FORCE_SEED_PASSWORD_RESET_ENV = "BEDO_FORCE_SEED_PASSWORD_RESET"
 
 
 def _seed_password_for_user(user_data: dict[str, object]) -> str:
@@ -19,14 +20,37 @@ def _seed_password_for_user(user_data: dict[str, object]) -> str:
     return os.environ.get(password_env, "") or os.environ.get(SEED_DEFAULT_PASSWORD_ENV, "")
 
 
+def _force_seed_password_reset() -> bool:
+    return os.environ.get(FORCE_SEED_PASSWORD_RESET_ENV, "").strip() == "1"
+
+
+def _find_existing_seed_user(user_data: dict[str, object]) -> str:
+    import frappe
+
+    username = str(user_data.get("username") or "")
+    email = str(user_data.get("email") or "")
+    return (
+        frappe.db.get_value("User", {"username": username}, "name")
+        or frappe.db.get_value("User", {"email": email}, "name")
+        or ""
+    )
+
+
 def execute(strict: bool = False) -> None:
     import frappe
 
-    missing = [
-        user["password_env"]
-        for user in INITIAL_USERS
-        if user.get("password_env") and not _seed_password_for_user(user)
-    ]
+    force_password_reset = _force_seed_password_reset()
+    planned_users = []
+    missing = []
+    for user_data in INITIAL_USERS:
+        data = dict(user_data)
+        password = _seed_password_for_user(data)
+        existing_user = _find_existing_seed_user(data)
+        needs_seed_password = not existing_user or force_password_reset
+        if needs_seed_password and data.get("password_env") and not password:
+            missing.append(str(data["password_env"]))
+        planned_users.append((data, password, existing_user, needs_seed_password))
+
     if missing:
         message = (
             "Initial BEDO seed users were not provisioned because these environment "
@@ -35,15 +59,18 @@ def execute(strict: bool = False) -> None:
         if strict:
             raise RuntimeError(message)
         frappe.logger("bedo_platform").warning(message)
-        return
 
-    for user_data in INITIAL_USERS:
-        data = dict(user_data)
-        data["password"] = _seed_password_for_user(data)
-        if not data["password"]:
+    missing_set = set(missing)
+    for data, password, existing_user, needs_seed_password in planned_users:
+        if needs_seed_password and data.get("password_env") in missing_set:
             continue
-        user = _get_or_create_user(data)
-        set_user_password(user, data["password"], logout_all_sessions=True)
+        if existing_user:
+            user = existing_user
+        else:
+            data["password"] = password
+            user = _get_or_create_user(data)
+        if needs_seed_password and password:
+            set_user_password(user, password, logout_all_sessions=True)
         _assign_roles(user, data["roles"])
         _set_role_assignments(user, data["primary_department"], data["roles"])
 

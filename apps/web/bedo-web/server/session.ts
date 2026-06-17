@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { NextResponse } from "next/server";
 import crypto from "crypto";
 import type { BedoUserContext } from "@/lib/routes";
-import { requireConfiguredSecret } from "@/server/config";
+import { isLocalMode, requireConfiguredSecret } from "@/server/config";
 import { base64url, fromBase64url, hmacSha256 } from "@/server/crypto";
 
-const cookieName = "bedo_session";
-const maxAgeSeconds = 60 * 60 * 8;
+export const sessionCookieName = "bedo_session";
+export const sessionMaxAgeSeconds = 60 * 60 * 8;
 
 type SessionEnvelope = {
   context: BedoUserContext;
@@ -45,7 +46,7 @@ function timingSafeEqualHex(left: string, right: string) {
 export function signSession(context: BedoUserContext) {
   const envelope: SessionEnvelope = {
     context: minimalContext(context),
-    exp: Math.floor(Date.now() / 1000) + maxAgeSeconds
+    exp: Math.floor(Date.now() / 1000) + sessionMaxAgeSeconds
   };
   const payload = base64url(JSON.stringify(envelope));
   const signature = hmacSha256(sessionSecret(), payload);
@@ -72,23 +73,43 @@ export function verifySessionToken(token?: string): BedoUserContext | null {
 
 export async function setSession(context: BedoUserContext) {
   const cookieStore = await cookies();
-  cookieStore.set(cookieName, signSession(context), {
+  cookieStore.set(sessionCookieName, signSession(context), sessionCookieOptions());
+}
+
+export function sessionCookieOptions() {
+  return {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: !isLocalMode(),
     path: "/",
-    maxAge: maxAgeSeconds
-  });
+    maxAge: sessionMaxAgeSeconds
+  } as const;
+}
+
+export function expiredSessionCookieOptions() {
+  return {
+    ...sessionCookieOptions(),
+    maxAge: 0,
+    expires: new Date(0)
+  } as const;
+}
+
+export function setSessionCookie(response: NextResponse, context: BedoUserContext) {
+  response.cookies.set(sessionCookieName, signSession(context), sessionCookieOptions());
+}
+
+export function expireSessionCookie(response: NextResponse) {
+  response.cookies.set(sessionCookieName, "", expiredSessionCookieOptions());
 }
 
 export async function clearSession() {
   const cookieStore = await cookies();
-  cookieStore.delete(cookieName);
+  cookieStore.set(sessionCookieName, "", expiredSessionCookieOptions());
 }
 
 export async function getSession() {
   const cookieStore = await cookies();
-  return verifySessionToken(cookieStore.get(cookieName)?.value);
+  return verifySessionToken(cookieStore.get(sessionCookieName)?.value);
 }
 
 export async function requireSession() {

@@ -3,6 +3,7 @@ import type { AdminUser } from "@/features/admin/types";
 import { apiErrorResponse } from "@/server/api-errors";
 import { frappeCall } from "@/server/frappe";
 import { getSession } from "@/server/session";
+import { retireUserSessions } from "@/server/session-registry";
 
 export async function GET() {
   try {
@@ -37,6 +38,7 @@ export async function PATCH(request: Request) {
       target_user: payload.user,
       payload
     }, session.user);
+    if (payload.password) await retireUserSessions(String(payload.user || ""));
     const data = await frappeCall<{ users: AdminUser[] }>("bedo_platform.api.web.list_users", {}, session.user);
     return NextResponse.json(data);
   } catch (error) {
@@ -52,6 +54,7 @@ export async function DELETE(request: Request) {
     await frappeCall("bedo_platform.api.web.delete_user", {
       target_user: payload.user
     }, session.user);
+    await retireUserSessions(String(payload.user || ""));
     const data = await frappeCall<{ users: AdminUser[] }>("bedo_platform.api.web.list_users", {}, session.user);
     return NextResponse.json(data);
   } catch (error) {
