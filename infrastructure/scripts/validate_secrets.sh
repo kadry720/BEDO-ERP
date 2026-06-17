@@ -12,6 +12,7 @@ required_vars=(
   "BEDO_WEB_SERVICE_SECRET"
   "FRAPPE_ADMIN_PASSWORD"
   "MARIADB_ROOT_PASSWORD"
+  "MARIADB_PASSWORD"
 )
 
 placeholder_pattern='replace-me|change-this|local-dev-password|local-seed-password'

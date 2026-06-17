@@ -12,7 +12,11 @@ function isLocalOrigin(origin: URL) {
 }
 
 function allowedOrigins(request: NextRequest) {
-  const configured = [process.env.BEDO_WEB_ALLOWED_ORIGIN, process.env.BEDO_WEB_PUBLIC_URL]
+  const configuredList = (process.env.BEDO_WEB_ALLOWED_DEV_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const configured = [process.env.BEDO_WEB_ALLOWED_ORIGIN, process.env.BEDO_WEB_PUBLIC_URL, ...configuredList]
     .filter(Boolean)
     .map((value) => String(value).replace(/\/$/, ""));
   return new Set([request.nextUrl.origin, ...configured]);

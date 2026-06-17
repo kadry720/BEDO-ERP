@@ -7,39 +7,72 @@ services:
       - --skip-character-set-client-handshake
     environment:
       BEDO_ENV: ${BEDO_ENV:-local}
-      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-this-root-password}
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD is required}
       MYSQL_DATABASE: ${MARIADB_DATABASE:-frappe}
       MYSQL_USER: ${MARIADB_USER:-frappe}
-      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-change-this-db-password}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD is required}
     volumes:
       - mariadb-data:/var/lib/mysql
-    ports:
-      - "3306:3306"
+    expose:
+      - "3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - bedo-internal
 
   redis-cache:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - bedo-internal
 
   redis-queue:
     image: redis:7-alpine
-    ports:
-      - "6380:6379"
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - bedo-internal
 
   redis-socketio:
     image: redis:7-alpine
-    ports:
-      - "6381:6379"
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - bedo-internal
 
-  frappe:
+  frappe-init:
     image: frappe/bench:latest
     depends_on:
-      - mariadb
-      - redis-cache
-      - redis-queue
-      - redis-socketio
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+      redis-socketio:
+        condition: service_healthy
     working_dir: /workspace/BEDO-ERP
-    command: bash /workspace/BEDO-ERP/infrastructure/scripts/start_frappe.sh
+    command: bash /workspace/BEDO-ERP/infrastructure/scripts/init_frappe.sh
+    restart: "no"
     environment:
       BEDO_ENV: ${BEDO_ENV:-local}
       FRAPPE_BRANCH: ${FRAPPE_BRANCH:-version-15}
@@ -47,46 +80,109 @@ services:
       BEDO_APP_NAME: ${BEDO_APP_NAME:-bedo_platform}
       BEDO_APP_PATH: ${BEDO_APP_PATH:-/workspace/BEDO-ERP/apps/bedo_platform}
       FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME:-bedo.localhost}
-      FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:-change-this-site-admin-password}
+      FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:?FRAPPE_ADMIN_PASSWORD is required}
       MARIADB_HOST: mariadb
       MARIADB_PORT: 3306
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-this-root-password}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD is required}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD is required}
       REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
       REDIS_QUEUE_URL: ${REDIS_QUEUE_URL:-redis://redis-queue:6379}
       REDIS_SOCKETIO_URL: ${REDIS_SOCKETIO_URL:-redis://redis-socketio:6379}
-      BEDO_SEED_DEFAULT_PASSWORD: ${BEDO_SEED_DEFAULT_PASSWORD:-replace-me-local-seed-password}
+      BEDO_SEED_DEFAULT_PASSWORD: ${BEDO_SEED_DEFAULT_PASSWORD:-}
       BEDO_SEED_GM_PASSWORD: ${BEDO_SEED_GM_PASSWORD:-}
+      BEDO_FORCE_SEED_PASSWORD_RESET: ${BEDO_FORCE_SEED_PASSWORD_RESET:-0}
       BEDO_WEB_PUBLIC_URL: ${BEDO_WEB_PUBLIC_URL:-http://localhost:3000}
-      BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:-replace-me-shared-bff-secret}
+      BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:?BEDO_WEB_SERVICE_SECRET is required}
       BEDO_SRS_DEADLINE_MODE: ${BEDO_SRS_DEADLINE_MODE:-working_days}
     volumes:
       - .:/workspace/BEDO-ERP
       - bench-data:/workspace/frappe-bench
+    networks:
+      - bedo-internal
+
+  frappe:
+    image: frappe/bench:latest
+    depends_on:
+      frappe-init:
+        condition: service_completed_successfully
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+      redis-socketio:
+        condition: service_healthy
+    working_dir: /workspace/BEDO-ERP
+    command: bash /workspace/BEDO-ERP/infrastructure/scripts/start_frappe_runtime.sh
+    environment:
+      BEDO_ENV: ${BEDO_ENV:-local}
+      FRAPPE_BENCH_PATH: ${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}
+      FRAPPE_SITE_NAME: ${FRAPPE_SITE_NAME:-bedo.localhost}
+      FRAPPE_ADMIN_PASSWORD: ${FRAPPE_ADMIN_PASSWORD:?FRAPPE_ADMIN_PASSWORD is required}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD is required}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD is required}
+      BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:?BEDO_WEB_SERVICE_SECRET is required}
+      BEDO_SRS_DEADLINE_MODE: ${BEDO_SRS_DEADLINE_MODE:-working_days}
+    volumes:
+      - .:/workspace/BEDO-ERP
+      - bench-data:/workspace/frappe-bench
+    expose:
+      - "8000"
+      - "9000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 8000), 2); s.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - bedo-internal
+
+  frappe-technical-port:
+    image: alpine/socat:1.8.0.0
+    profiles:
+      - technical
+    depends_on:
+      frappe:
+        condition: service_healthy
+    command: tcp-listen:8000,fork,reuseaddr tcp-connect:frappe:8000
     ports:
       - "8000:8000"
-      - "9000:9000"
+    networks:
+      - bedo-internal
 
   bedo-web:
-    image: node:20-alpine
+    build:
+      context: ./apps/web/bedo-web
+      dockerfile: Dockerfile
     depends_on:
-      - frappe
-    working_dir: /workspace/BEDO-ERP/apps/web/bedo-web
-    command: sh -lc "npm install && npm run dev"
+      frappe:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     environment:
       BEDO_ENV: ${BEDO_ENV:-local}
       FRAPPE_INTERNAL_URL: ${FRAPPE_INTERNAL_URL:-http://frappe:8000}
       BEDO_SESSION_REDIS_URL: ${BEDO_SESSION_REDIS_URL:-redis://redis-cache:6379}
       NEXT_PUBLIC_BEDO_APP_NAME: ${NEXT_PUBLIC_BEDO_APP_NAME:-BEDO}
-      BEDO_WEB_SESSION_SECRET: ${BEDO_WEB_SESSION_SECRET:-replace-me-long-next-session-secret}
-      BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:-replace-me-shared-bff-secret}
-      BEDO_WEB_ALLOWED_ORIGIN: ${BEDO_WEB_ALLOWED_ORIGIN:-http://localhost:3000}
-    volumes:
-      - .:/workspace/BEDO-ERP
-      - bedo-web-node-modules:/workspace/BEDO-ERP/apps/web/bedo-web/node_modules
+      BEDO_WEB_PUBLIC_URL: ${BEDO_WEB_PUBLIC_URL:-http://localhost:3000}
+      BEDO_WEB_ALLOWED_DEV_ORIGINS: ${BEDO_WEB_ALLOWED_DEV_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      BEDO_WEB_SESSION_SECRET: ${BEDO_WEB_SESSION_SECRET:?BEDO_WEB_SESSION_SECRET is required}
+      BEDO_WEB_SERVICE_SECRET: ${BEDO_WEB_SERVICE_SECRET:?BEDO_WEB_SERVICE_SECRET is required}
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - bedo-internal
 
 volumes:
   mariadb-data:
   bench-data:
-  bedo-web-node-modules:
+
+networks:
+  bedo-internal:
+    driver: bridge

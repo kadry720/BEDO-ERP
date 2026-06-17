@@ -19,6 +19,9 @@ MAX_CLOCK_SKEW_SECONDS = 300
 
 
 def _get_secret() -> str:
+    env_value = os.environ.get("BEDO_WEB_SERVICE_SECRET", "")
+    if env_value:
+        return require_configured_secret("BEDO_WEB_SERVICE_SECRET", env_value)
     try:
         import frappe
 
@@ -27,7 +30,7 @@ def _get_secret() -> str:
             return require_configured_secret("BEDO_WEB_SERVICE_SECRET", str(value))
     except Exception:
         pass
-    return require_configured_secret("BEDO_WEB_SERVICE_SECRET", os.environ.get("BEDO_WEB_SERVICE_SECRET", ""))
+    return require_configured_secret("BEDO_WEB_SERVICE_SECRET", "")
 
 
 def _request_body() -> bytes:

@@ -68,3 +68,70 @@ def test_set_user_password_uses_frappe_password_store(monkeypatch):
     database_auth_service.set_user_password("gm@bedo.local", "new-secret", logout_all_sessions=True)
 
     assert calls["update_password"] == ("gm@bedo.local", "new-secret", True)
+
+
+def test_check_current_password_uses_frappe_password_store(monkeypatch):
+    calls = {}
+    fake_frappe = SimpleNamespace(
+        db=SimpleNamespace(),
+        AuthenticationError=type("AuthenticationError", (Exception,), {}),
+    )
+
+    def fake_check_password(user, password):
+        calls["check_password"] = (user, password)
+
+    install_fake_frappe(monkeypatch, fake_frappe, check_password=fake_check_password)
+
+    assert database_auth_service.check_current_password("gm@bedo.local", "CurrentPassword123!") is True
+    assert calls["check_password"] == ("gm@bedo.local", "CurrentPassword123!")
+
+
+def test_check_current_password_returns_false_for_bad_password(monkeypatch):
+    authentication_error = type("AuthenticationError", (Exception,), {})
+    fake_frappe = SimpleNamespace(
+        db=SimpleNamespace(),
+        AuthenticationError=authentication_error,
+    )
+
+    def fake_check_password(user, password):
+        raise authentication_error()
+
+    install_fake_frappe(monkeypatch, fake_frappe, check_password=fake_check_password)
+
+    assert database_auth_service.check_current_password("gm@bedo.local", "wrong") is False
+
+
+def test_password_policy_allows_common_passwords():
+    errors = database_auth_service.validate_password_policy(
+        "password",
+        username="gm",
+        email="gm@bedo.local",
+        first_name="General",
+        last_name="Manager",
+    )
+
+    assert errors == []
+
+
+def test_password_policy_allows_identity_substrings():
+    errors = database_auth_service.validate_password_policy(
+        "gm",
+        username="gm",
+        email="gm@bedo.local",
+        first_name="General",
+        last_name="Manager",
+    )
+
+    assert errors == []
+
+
+def test_password_policy_accepts_strong_password():
+    errors = database_auth_service.validate_password_policy(
+        "CorrectHorseBattery!47",
+        username="gm",
+        email="gm@bedo.local",
+        first_name="General",
+        last_name="Manager",
+    )
+
+    assert errors == []
