@@ -7,6 +7,10 @@ FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME:?FRAPPE_SITE_NAME is required}"
 BEDO_APP_NAME="${BEDO_APP_NAME:-bedo_platform}"
 
 cd "${ROOT_DIR}"
+if [ "${BEDO_RUNNING_AS_FRAPPE:-0}" != "1" ]; then
+  export BEDO_RUNNING_AS_FRAPPE=1
+  exec bash infrastructure/railway/as-frappe.sh bash "$0" "$@"
+fi
 bash infrastructure/scripts/validate_secrets.sh
 
 cd "${FRAPPE_BENCH_PATH}"
