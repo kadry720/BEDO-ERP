@@ -29,7 +29,7 @@ Create separate Railway services from the same backend image:
 | Socket.io | `bash infrastructure/railway/start-socketio.sh` | Supports Frappe realtime/socket.io if workflows need it. | Railway logs show socket.io server. | Missing Redis socket.io URL; custom routing not configured. |
 | MariaDB/MySQL-compatible DB | Railway database service | Primary Frappe database. | `scripts/cloud/railway-doctor.sh` can run `select 1`. | Neon/PostgreSQL will not work as the Frappe primary DB. |
 | Redis | Railway Redis service | Frappe cache, queue, and socket.io. | Frappe health reports cache `ok` through Next `/api/health`. | Reusing a Vercel public Redis for Frappe is possible but increases exposure; prefer Railway internal Redis. |
-| Persistent volume | Mount at `/workspace/frappe-bench` | Stores Frappe bench, sites, private files, public files, generated assets, and site config. | Files remain after redeploy/restart. | Missing volume causes site/files to disappear after rebuild. |
+| Persistent volume | Mount at `/workspace/frappe-bench/sites` | Stores Frappe sites, private files, public files, generated assets, and site config. Bench code and Python dependencies stay in the image. | Files remain after redeploy/restart. | Mounting the volume at `/workspace/frappe-bench` can fill the volume with dependencies and cause `No space left on device`. |
 
 ## 4. Generate And Set Secrets
 
@@ -77,7 +77,7 @@ Common failures:
 
 ## 6. First Deploy Commands
 
-After Railway env, DB, Redis, and volume are ready, run one-off commands from a Railway shell or CLI job:
+After Railway env, DB, Redis, and the sites volume are ready, run one-off commands from a Railway shell or CLI job:
 
 ```bash
 bash scripts/cloud/railway-init-site.sh
@@ -97,7 +97,7 @@ Common failures:
 
 - Running runtime web before site init.
 - Missing MariaDB root credentials for `bench new-site`.
-- No persistent volume at `/workspace/frappe-bench`.
+- No persistent volume at `/workspace/frappe-bench/sites`.
 - `BEDO_FORCE_SEED_PASSWORD_RESET=1` left enabled unintentionally.
 
 ## 7. Operational Decisions

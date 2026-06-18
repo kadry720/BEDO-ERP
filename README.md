@@ -154,7 +154,7 @@ BEDO is prepared for a split cloud deployment:
 | Primary database | Railway MariaDB/MySQL-compatible service | Neon/PostgreSQL is not compatible with this repo's Frappe primary database. |
 | Frappe Redis | Railway Redis | Cache, queue, and socket.io Redis. |
 | Next session registry | TLS Redis reachable from Vercel | Required in production through `BEDO_SESSION_REDIS_URL`; memory fallback is rejected in production. |
-| Frappe files/site config | Railway volume | Mount at `/workspace/frappe-bench`. |
+| Frappe files/site config | Railway volume | Mount at `/workspace/frappe-bench/sites`; the bench code and Python env are built into the image. |
 
 Start with:
 

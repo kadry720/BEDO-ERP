@@ -87,7 +87,7 @@ In Railway:
 2. Ensure the backend service uses `railway.toml`.
 3. Add a MariaDB/MySQL-compatible database service.
 4. Add a Redis service.
-5. Add a persistent volume mounted at `/workspace/frappe-bench`.
+5. Add a persistent volume mounted at `/workspace/frappe-bench/sites`.
 6. Create separate services from the same image:
    - Frappe web: `bash infrastructure/railway/start-web.sh`
    - Worker: `bash infrastructure/railway/start-worker.sh`
@@ -98,7 +98,7 @@ Set Railway env values from `.env.railway.local.generated`. Keep `BEDO_FORCE_SEE
 
 ## Step 3: Initialize Railway Frappe
 
-After Railway has DB, Redis, env vars, and volume:
+After Railway has DB, Redis, env vars, and the sites volume:
 
 ```bash
 bash scripts/cloud/railway-init-site.sh
@@ -184,7 +184,7 @@ Vercel:
 Railway:
 
 - Redeploy the previous successful commit/image.
-- Keep the volume attached; do not delete `/workspace/frappe-bench`.
+- Keep the sites volume attached; do not delete `/workspace/frappe-bench/sites`.
 - If a migration caused the issue, restore the database backup and matching volume snapshot.
 
 Database/files:
@@ -247,7 +247,7 @@ Bootstrap passwords:
 - Vercel `BEDO_SESSION_REDIS_URL` uses `rediss://`.
 - Railway DB and Redis are not exposed publicly unless strictly required.
 - Railway Frappe uses HTTPS public domain for Vercel calls.
-- Frappe volume is mounted at `/workspace/frappe-bench`.
+- Frappe sites volume is mounted at `/workspace/frappe-bench/sites`.
 - Backups are configured and restore-tested.
 - Frappe Desk is limited to technical administrators.
 - Seed password reset is disabled after bootstrap.
@@ -310,7 +310,7 @@ Password changed then reverted:
 
 Frappe site not found:
 
-- Confirm the Railway volume is mounted at `/workspace/frappe-bench`.
+- Confirm the Railway volume is mounted at `/workspace/frappe-bench/sites`.
 - Run `bash scripts/cloud/railway-init-site.sh`.
 - Confirm `FRAPPE_SITE_NAME` matches the site directory.
 

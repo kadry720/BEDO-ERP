@@ -12,7 +12,7 @@ Use `.env.vercel.example` and `.env.railway.example` as templates. Use `scripts/
 | `BEDO_SESSION_REDIS_URL` | Required | No | No | Secret | User/provider | `rediss://default:...@host:6379` | Required for Vercel production session state. Use TLS and a provider reachable from Vercel. |
 | `NEXT_PUBLIC_BEDO_APP_NAME` | Required | No | No | Browser-public | User | `BEDO` | Safe to expose. Keep non-secret. |
 | `FRAPPE_BRANCH` | No | Required | No | Public config | User | `version-15` | Frappe branch used by bench init. |
-| `FRAPPE_BENCH_PATH` | No | Required | No | Public config | User | `/workspace/frappe-bench` | Mount Railway persistent volume here. |
+| `FRAPPE_BENCH_PATH` | No | Required | No | Public config | User | `/workspace/frappe-bench` | Image bench path. Mount Railway persistent storage at `/workspace/frappe-bench/sites`, not this whole directory. |
 | `BEDO_APP_NAME` | No | Required | No | Public config | User | `bedo_platform` | Frappe app name. |
 | `BEDO_APP_PATH` | No | Required | No | Public config | User | `/workspace/BEDO-ERP/apps/bedo_platform` | Path inside Railway image. |
 | `FRAPPE_SITE_NAME` | No | Required | No | Public config | User | `bedo.example.com` | Frappe site directory/name. Usually use the production backend hostname or custom site name. |

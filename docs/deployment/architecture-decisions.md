@@ -42,7 +42,7 @@ Vercel Next.js
   -> external TLS Redis for active-session and login-conflict state
 ```
 
-Frappe files, private files, public files, generated assets, and site configuration must live on a Railway persistent volume mounted at `/workspace/frappe-bench` unless object storage is introduced deliberately.
+Frappe files, private files, public files, generated assets, and site configuration must live on a Railway persistent volume mounted at `/workspace/frappe-bench/sites` unless object storage is introduced deliberately. Frappe bench code, Python dependencies, and the virtualenv are built into the image so they do not consume persistent volume space.
 
 ## Rejected Alternatives
 
