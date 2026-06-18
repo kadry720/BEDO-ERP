@@ -31,6 +31,8 @@ Create separate Railway services from the same backend image:
 | Redis | Railway Redis service | Frappe cache, queue, and socket.io. | Frappe health reports cache `ok` through Next `/api/health`. | Reusing a Vercel public Redis for Frappe is possible but increases exposure; prefer Railway internal Redis. |
 | Persistent volume | Mount at `/workspace/frappe-bench/sites` | Stores Frappe sites, private files, public files, generated assets, and site config. Bench code and Python dependencies stay in the image. | Files remain after redeploy/restart. | Mounting the volume at `/workspace/frappe-bench` can fill the volume with dependencies and cause `No space left on device`. |
 
+`railway.toml` controls only the Dockerfile build path. Do not hard-code runtime start commands or healthchecks in `railway.toml`; Railway config-as-code overrides dashboard values, which prevents temporary setup commands from taking effect.
+
 ## 4. Generate And Set Secrets
 
 Run locally:
@@ -77,7 +79,13 @@ Common failures:
 
 ## 6. First Deploy Commands
 
-After Railway env, DB, Redis, and the sites volume are ready, run one-off commands from a Railway shell or CLI job:
+After Railway env, DB, Redis, and the sites volume are ready, temporarily set the Frappe web service Start Command to:
+
+```bash
+bash -lc "sleep infinity"
+```
+
+Redeploy, then run one-off commands from a Railway shell or CLI job:
 
 ```bash
 bash scripts/cloud/railway-init-site.sh

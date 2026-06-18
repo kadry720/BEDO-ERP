@@ -17,6 +17,14 @@ def test_railway_image_prebuilds_frappe_bench_outside_volume():
     assert "/workspace/frappe-bench" in dockerfile
 
 
+def test_railway_config_does_not_override_dashboard_runtime_commands():
+    config = read("railway.toml")
+
+    assert "dockerfilePath" in config
+    assert "startCommand" not in config
+    assert "healthcheckPath" not in config
+
+
 def test_railway_root_helper_only_prepares_sites_volume():
     helper = read("infrastructure/railway/as-frappe.sh")
 

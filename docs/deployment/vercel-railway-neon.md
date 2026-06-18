@@ -94,11 +94,19 @@ In Railway:
    - Scheduler: `bash infrastructure/railway/start-scheduler.sh`
    - Socket.io: `bash infrastructure/railway/start-socketio.sh`
 
+`railway.toml` intentionally does not set a deploy start command or healthcheck. Railway config-as-code overrides dashboard values, so runtime commands should be controlled per service in the Railway dashboard.
+
 Set Railway env values from `.env.railway.local.generated`. Keep `BEDO_FORCE_SEED_PASSWORD_RESET=0` unless you intentionally want to reset seed user passwords.
 
 ## Step 3: Initialize Railway Frappe
 
 After Railway has DB, Redis, env vars, and the sites volume:
+
+Temporarily set the Frappe web service Start Command to keep the container alive while you run first-time setup:
+
+```bash
+bash -lc "sleep infinity"
+```
 
 ```bash
 bash scripts/cloud/railway-init-site.sh
