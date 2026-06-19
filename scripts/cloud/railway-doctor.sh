@@ -20,7 +20,7 @@ if [ ! -d "sites/${FRAPPE_SITE_NAME}" ]; then
 fi
 
 bench --site "${FRAPPE_SITE_NAME}" mariadb -e "select 1;"
-bench --site "${FRAPPE_SITE_NAME}" list-apps | grep -qx "${BEDO_APP_NAME}"
+bench --site "${FRAPPE_SITE_NAME}" list-apps | awk '{print $1}' | grep -qx "${BEDO_APP_NAME}"
 bench --site "${FRAPPE_SITE_NAME}" execute bedo_platform.services.config_validation.validate_runtime_secrets
 
 echo "Railway doctor passed: site, MariaDB, installed app, and runtime secrets are valid."

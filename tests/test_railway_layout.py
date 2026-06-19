@@ -25,6 +25,13 @@ def test_railway_config_does_not_override_dashboard_runtime_commands():
     assert "healthcheckPath" not in config
 
 
+def test_railway_doctor_accepts_versioned_list_apps_output():
+    doctor = read("scripts/cloud/railway-doctor.sh")
+
+    assert "list-apps | awk" in doctor
+    assert "grep -qx" in doctor
+
+
 def test_railway_root_helper_only_prepares_sites_volume():
     helper = read("infrastructure/railway/as-frappe.sh")
 
