@@ -32,6 +32,19 @@ def test_railway_doctor_accepts_versioned_list_apps_output():
     assert "grep -qx" in doctor
 
 
+def test_railway_runtime_start_scripts_run_as_frappe_user():
+    for path in [
+        "infrastructure/railway/start-web.sh",
+        "infrastructure/railway/start-worker.sh",
+        "infrastructure/railway/start-scheduler.sh",
+        "infrastructure/railway/start-socketio.sh",
+    ]:
+        script = read(path)
+
+        assert 'BEDO_RUNNING_AS_FRAPPE:-0' in script, path
+        assert 'exec bash "${ROOT_DIR}/infrastructure/railway/as-frappe.sh" bash "$0" "$@"' in script, path
+
+
 def test_railway_root_helper_only_prepares_sites_volume():
     helper = read("infrastructure/railway/as-frappe.sh")
 
