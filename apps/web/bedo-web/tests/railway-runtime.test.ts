@@ -9,3 +9,13 @@ test("Railway web runtime uses Gunicorn instead of the development bench server"
   assert.match(script, /gunicorn/);
   assert.doesNotMatch(script, /bench --site "\$\{FRAPPE_SITE_NAME\}" serve/);
 });
+
+test("Railway Gunicorn runtime forces the configured Frappe site header", () => {
+  const root = join(import.meta.dirname, "..", "..", "..", "..");
+  const script = readFileSync(join(root, "infrastructure", "railway", "start-web.sh"), "utf-8");
+  const wrapper = readFileSync(join(root, "infrastructure", "railway", "frappe_wsgi.py"), "utf-8");
+
+  assert.match(script, /frappe_wsgi:application/);
+  assert.match(wrapper, /HTTP_X_FRAPPE_SITE_NAME/);
+  assert.match(wrapper, /FRAPPE_SITE_NAME/);
+});
