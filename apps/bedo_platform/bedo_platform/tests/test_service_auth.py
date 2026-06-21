@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -50,9 +51,13 @@ class FakeFrappe:
     def __init__(self, cache):
         self._cache = cache
         self.local = SimpleNamespace(request=None)
+        self.log_lines = []
 
     def cache(self):
         return self._cache
+
+    def logger(self, name):
+        return SimpleNamespace(info=lambda message: self.log_lines.append(message))
 
     def throw(self, message, exc):
         raise exc(message)
@@ -124,3 +129,27 @@ def test_web_api_functions_use_service_api_decorator():
             missing.append(name)
 
     assert missing == []
+
+
+def test_service_api_wrapper_logs_structured_duration(monkeypatch):
+    monkeypatch.setenv("BEDO_ENV", "production")
+    monkeypatch.setenv("BEDO_PERFORMANCE_LOGS", "1")
+    cache = FakeCache()
+    fake_frappe = FakeFrappe(cache)
+    fake_frappe.local.request = FakeRequest(_signed_headers("unit-test-service-secret", nonce="nonce-log"))
+    monkeypatch.setitem(sys.modules, "frappe", fake_frappe)
+
+    def measured_method():
+        return {"ok": True}
+
+    assert service_auth.require_service_auth(measured_method)() == {"ok": True}
+
+    assert fake_frappe.log_lines
+    payload = json.loads(fake_frappe.log_lines[0])
+    assert payload["event"] == "bedo.performance"
+    assert payload["layer"] == "frappe-service"
+    assert payload["route_or_method"] == "measured_method"
+    assert payload["status"] == "ok"
+    assert isinstance(payload["duration_ms"], int | float)
+    assert "user_hash" in payload
+    assert "gm" not in fake_frappe.log_lines[0]

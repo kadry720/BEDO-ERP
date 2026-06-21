@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { normalizeProjectActionUrl } from "@/lib/route-ids";
 import { canAccessRoute, displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
+import { shellPollIntervals, shouldPollShellWhenVisible } from "@/lib/shell-polling";
 import type { NotificationRow } from "@/features/srs/types";
+import type { ShellState } from "@/server/shell-state";
 
 type NavItem = {
   href: string;
@@ -32,6 +34,12 @@ const navigationStackPrefix = "bedo_navigation_stack";
 const approvalNotificationTypes = new Set(["GM_APPROVAL_REQUIRED", "SRS_MANAGER_APPROVAL_REQUIRED", "GM_APPROVAL_COMPLETED"]);
 const idleTimeoutMs = 30 * 60 * 1000;
 const reminderDelayMs = 10 * 60 * 1000;
+const emptyShellState: ShellState = {
+  unreadNotifications: 0,
+  pendingApprovals: 0,
+  total: 0,
+  notifications: [],
+};
 
 export function Shell({ session, children }: { session: BedoUserContext; children: ReactNode }) {
   const pathname = usePathname();
@@ -40,6 +48,7 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
   const [collapsed, setCollapsed] = useState(false);
   const [previousPath, setPreviousPath] = useState<string | null>(null);
   const [notificationOpenSignal, setNotificationOpenSignal] = useState(0);
+  const [shellState, setShellState] = useState<ShellState>(emptyShellState);
   const navItems = useMemo(() => phaseNavItems(session), [session]);
   const pageTitle = pageTitleFor(pathname, navItems);
   const navigationStackKey = useMemo(() => `${navigationStackPrefix}:${session.user}`, [session.user]);
@@ -47,6 +56,18 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
     const query = searchParams.toString();
     return query ? `${pathname}?${query}` : pathname;
   }, [pathname, searchParams]);
+
+  const refreshShellState = useCallback(async () => {
+    try {
+      const response = await fetch("/api/session/shell-state");
+      if (!response.ok) return null;
+      const nextState = (await response.json()) as ShellState;
+      setShellState(nextState);
+      return nextState;
+    } catch {
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     const stack = readNavigationStack(navigationStackKey).filter((path) => canUseBackPath(path, session));
@@ -82,6 +103,7 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
     <div className="min-h-screen bg-slate-100 text-slate-950">
       <SessionLifecycle
         session={session}
+        loadShellState={refreshShellState}
         onOpenNotifications={() => setNotificationOpenSignal((value) => value + 1)}
       />
       <aside
@@ -127,7 +149,13 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
       </aside>
 
       <div className={`transition-[padding] duration-200 ${collapsed ? "lg:pl-20" : "lg:pl-72"}`}>
-        <TopBar session={session} pageTitle={pageTitle} notificationOpenSignal={notificationOpenSignal} />
+        <TopBar
+          session={session}
+          pageTitle={pageTitle}
+          notificationOpenSignal={notificationOpenSignal}
+          shellState={shellState}
+          refreshShellState={refreshShellState}
+        />
         <main className="px-4 py-5 md:px-6 lg:px-8">{children}</main>
       </div>
     </div>
@@ -140,7 +168,15 @@ type AttentionSummary = {
   total: number;
 };
 
-function SessionLifecycle({ session, onOpenNotifications }: { session: BedoUserContext; onOpenNotifications: () => void }) {
+function SessionLifecycle({
+  session,
+  loadShellState,
+  onOpenNotifications,
+}: {
+  session: BedoUserContext;
+  loadShellState: () => Promise<ShellState | null>;
+  onOpenNotifications: () => void;
+}) {
   const router = useRouter();
   const [attention, setAttention] = useState<AttentionSummary | null>(null);
   const [attentionOpen, setAttentionOpen] = useState(false);
@@ -164,9 +200,8 @@ function SessionLifecycle({ session, onOpenNotifications }: { session: BedoUserC
   }
 
   async function loadAttention() {
-    const response = await fetch("/api/session/attention");
-    if (!response.ok) return;
-    const summary = (await response.json()) as AttentionSummary;
+    const summary = await loadShellState();
+    if (!summary) return;
     setAttention(summary);
     if (shouldShowAttention(summary)) setAttentionOpen(true);
   }
@@ -214,7 +249,8 @@ function SessionLifecycle({ session, onOpenNotifications }: { session: BedoUserC
     activityEvents.forEach((eventName) => window.addEventListener(eventName, resetIdleTimer, { passive: true }));
     resetIdleTimer();
 
-    const statusInterval = window.setInterval(async () => {
+    const checkSessionStatus = async () => {
+      if (!shouldPollShellWhenVisible(document.visibilityState)) return;
       const response = await fetch("/api/session/status");
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.valid === false) {
@@ -222,20 +258,31 @@ function SessionLifecycle({ session, onOpenNotifications }: { session: BedoUserC
         return;
       }
       if (data.conflict?.challengeId) setLoginChallengeId(String(data.conflict.challengeId));
-    }, 5000);
+    };
+
+    const statusInterval = window.setInterval(checkSessionStatus, shellPollIntervals.sessionStatusMs);
 
     const attentionInterval = window.setInterval(() => {
+      if (!shouldPollShellWhenVisible(document.visibilityState)) return;
       void loadAttention();
-    }, 60000);
+    }, shellPollIntervals.shellStateMs);
+
+    function handleVisibilityChange() {
+      if (!shouldPollShellWhenVisible(document.visibilityState)) return;
+      void checkSessionStatus();
+      void loadAttention();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, resetIdleTimer));
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
       if (reminderTimerRef.current) window.clearTimeout(reminderTimerRef.current);
       window.clearInterval(statusInterval);
       window.clearInterval(attentionInterval);
     };
-  }, [sessionKey]);
+  }, [sessionKey, loadShellState]);
 
   async function respondToLoginChallenge(action: "allow" | "deny") {
     if (!loginChallengeId) return;
@@ -405,7 +452,19 @@ function SidebarNavItem({ item, active, collapsed }: { item: NavItem; active: bo
   );
 }
 
-function TopBar({ session, pageTitle, notificationOpenSignal }: { session: BedoUserContext; pageTitle: string; notificationOpenSignal: number }) {
+function TopBar({
+  session,
+  pageTitle,
+  notificationOpenSignal,
+  shellState,
+  refreshShellState,
+}: {
+  session: BedoUserContext;
+  pageTitle: string;
+  notificationOpenSignal: number;
+  shellState: ShellState;
+  refreshShellState: () => Promise<ShellState | null>;
+}) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 shadow-sm backdrop-blur md:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
@@ -416,17 +475,25 @@ function TopBar({ session, pageTitle, notificationOpenSignal }: { session: BedoU
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <NotificationBell openSignal={notificationOpenSignal} />
-        <ApprovalIcon />
+        <NotificationBell openSignal={notificationOpenSignal} shellState={shellState} refreshShellState={refreshShellState} />
+        <ApprovalIcon count={shellState.pendingApprovals} refreshShellState={refreshShellState} />
         <UserMenu session={session} />
       </div>
     </header>
   );
 }
 
-function NotificationBell({ openSignal }: { openSignal: number }) {
+function NotificationBell({
+  openSignal,
+  shellState,
+  refreshShellState,
+}: {
+  openSignal: number;
+  shellState: ShellState;
+  refreshShellState: () => Promise<ShellState | null>;
+}) {
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<{ notifications: NotificationRow[]; unread: number }>({ notifications: [], unread: 0 });
+  const [data, setData] = useState<{ notifications: NotificationRow[]; unread: number }>(() => notificationDataFromShellState(shellState));
   const panelRef = useRef<HTMLDivElement>(null);
 
   async function load() {
@@ -435,8 +502,8 @@ function NotificationBell({ openSignal }: { openSignal: number }) {
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    setData(notificationDataFromShellState(shellState));
+  }, [shellState]);
 
   useEffect(() => {
     if (!openSignal) return;
@@ -458,7 +525,10 @@ function NotificationBell({ openSignal }: { openSignal: number }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(notification ? { notification } : {}),
     });
-    if (response.ok) setData(await response.json());
+    if (response.ok) {
+      setData(await response.json());
+      void refreshShellState();
+    }
   }
 
   return (
@@ -467,8 +537,11 @@ function NotificationBell({ openSignal }: { openSignal: number }) {
         type="button"
         className="focus-ring relative rounded-md border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
         onClick={() => {
-          setOpen((value) => !value);
-          void load();
+          setOpen((value) => {
+            const nextOpen = !value;
+            if (nextOpen) void load();
+            return nextOpen;
+          });
         }}
         title="Notifications"
       >
@@ -478,6 +551,13 @@ function NotificationBell({ openSignal }: { openSignal: number }) {
       {open && <NotificationPanel data={data} markRead={markRead} />}
     </div>
   );
+}
+
+function notificationDataFromShellState(shellState: ShellState) {
+  return {
+    notifications: shellState.notifications,
+    unread: shellState.unreadNotifications,
+  };
 }
 
 function NotificationPanel({ data, markRead }: { data: { notifications: NotificationRow[]; unread: number }; markRead: (notification?: string) => void }) {
@@ -568,28 +648,16 @@ function notificationActionUrl(row: NotificationRow) {
   return normalizeProjectActionUrl(row.action_url);
 }
 
-function ApprovalIcon() {
-  const [count, setCount] = useState(0);
-
-  async function load() {
-    fetch("/api/approvals?count=1")
-      .then((response) => response.json())
-      .then((data) => setCount(Number(data.count || 0)))
-      .catch(() => setCount(0));
-  }
-
+function ApprovalIcon({ count, refreshShellState }: { count: number; refreshShellState: () => Promise<ShellState | null> }) {
   useEffect(() => {
-    void load();
     function refreshCount() {
-      void load();
+      void refreshShellState();
     }
-    window.addEventListener("focus", refreshCount);
     window.addEventListener("bedo:approvals-changed", refreshCount);
     return () => {
-      window.removeEventListener("focus", refreshCount);
       window.removeEventListener("bedo:approvals-changed", refreshCount);
     };
-  }, []);
+  }, [refreshShellState]);
 
   return (
     <Link href="/approvals" className="focus-ring relative rounded-md border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" title="Approvals">

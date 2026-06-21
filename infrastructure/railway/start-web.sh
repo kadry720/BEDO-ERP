@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FRAPPE_BENCH_PATH="${FRAPPE_BENCH_PATH:-/workspace/frappe-bench}"
 FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME:?FRAPPE_SITE_NAME is required}"
 PORT="${PORT:-8000}"
+FRAPPE_WEB_WORKERS="${FRAPPE_WEB_WORKERS:-2}"
+FRAPPE_WEB_THREADS="${FRAPPE_WEB_THREADS:-4}"
+FRAPPE_GUNICORN_TIMEOUT="${FRAPPE_GUNICORN_TIMEOUT:-120}"
 
 if [ "${BEDO_RUNNING_AS_FRAPPE:-0}" != "1" ]; then
   export BEDO_RUNNING_AS_FRAPPE=1
@@ -14,4 +17,10 @@ fi
 bash "${ROOT_DIR}/infrastructure/railway/ensure-bench.sh"
 cd "${FRAPPE_BENCH_PATH}"
 export FRAPPE_SITE_NAME_HEADER="${FRAPPE_SITE_NAME_HEADER:-${FRAPPE_SITE_NAME}}"
-exec bench --site "${FRAPPE_SITE_NAME}" serve --port "${PORT}"
+exec env/bin/gunicorn \
+  --bind "0.0.0.0:${PORT}" \
+  --workers "${FRAPPE_WEB_WORKERS}" \
+  --threads "${FRAPPE_WEB_THREADS}" \
+  --timeout "${FRAPPE_GUNICORN_TIMEOUT}" \
+  --worker-tmp-dir /dev/shm \
+  frappe.app:application

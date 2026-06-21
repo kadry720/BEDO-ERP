@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { randomUUID } from "crypto";
 import { requireConfiguredSecret } from "@/server/config";
 import { hmacSha256, randomNonce } from "@/server/crypto";
+import { withPerformanceLog } from "@/server/performance";
 
 type FrappeResponse<T> = {
   message?: T;
@@ -48,18 +49,29 @@ function serviceHeaders(path: string, body: string, user = "") {
 export async function frappeCall<T>(method: string, args: Record<string, unknown> = {}, user = ""): Promise<T> {
   const path = `/api/method/${method}`;
   const body = JSON.stringify(args);
-  const response = await fetch(`${frappeUrl()}${path}`, {
-    method: "POST",
-    headers: serviceHeaders(path, body, user),
-    body,
-    cache: "no-store"
-  });
-  const data = (await response.json().catch(() => ({}))) as FrappeResponse<T>;
-  if (!response.ok || data.exc || data.exception) {
-    const rawMessage = extractFrappeMessage(data);
-    throw new FrappeRequestError(cleanFrappeMessage(rawMessage), inferFrappeStatus(rawMessage, response.status));
-  }
-  return data.message as T;
+  const headers = serviceHeaders(path, body, user);
+  return withPerformanceLog(
+    {
+      layer: "next-frappe",
+      route_or_method: method,
+      request_id: headers["X-BEDO-Request-ID"],
+      user,
+    },
+    async () => {
+      const response = await fetch(`${frappeUrl()}${path}`, {
+        method: "POST",
+        headers,
+        body,
+        cache: "no-store"
+      });
+      const data = (await response.json().catch(() => ({}))) as FrappeResponse<T>;
+      if (!response.ok || data.exc || data.exception) {
+        const rawMessage = extractFrappeMessage(data);
+        throw new FrappeRequestError(cleanFrappeMessage(rawMessage), inferFrappeStatus(rawMessage, response.status));
+      }
+      return data.message as T;
+    }
+  );
 }
 
 function extractFrappeMessage<T>(data: FrappeResponse<T>) {
