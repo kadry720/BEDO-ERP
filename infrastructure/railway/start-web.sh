@@ -16,11 +16,11 @@ if [ "${BEDO_RUNNING_AS_FRAPPE:-0}" != "1" ]; then
 fi
 
 bash "${ROOT_DIR}/infrastructure/railway/ensure-bench.sh"
-cd "${FRAPPE_BENCH_PATH}"
 export SITES_PATH="${FRAPPE_BENCH_PATH}/sites"
 export FRAPPE_SITE_NAME_HEADER="${FRAPPE_SITE_NAME_HEADER:-${FRAPPE_SITE_NAME}}"
 export BEDO_FRAPPE_SITE_HEADER
-exec env/bin/gunicorn \
+cd "${SITES_PATH}"
+exec "${FRAPPE_BENCH_PATH}/env/bin/gunicorn" \
   --pythonpath "${ROOT_DIR}/infrastructure/railway" \
   --bind "0.0.0.0:${PORT}" \
   --workers "${FRAPPE_WEB_WORKERS}" \
