@@ -17,6 +17,7 @@ fi
 
 bash "${ROOT_DIR}/infrastructure/railway/ensure-bench.sh"
 cd "${FRAPPE_BENCH_PATH}"
+export SITES_PATH="${FRAPPE_BENCH_PATH}/sites"
 export FRAPPE_SITE_NAME_HEADER="${FRAPPE_SITE_NAME_HEADER:-${FRAPPE_SITE_NAME}}"
 export BEDO_FRAPPE_SITE_HEADER
 exec env/bin/gunicorn \
