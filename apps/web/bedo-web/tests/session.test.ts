@@ -15,7 +15,7 @@ const context: BedoUserContext = {
   enabled: 1,
   roles: ["BEDO Employee", "General Manager"],
   landing_route: "/gm",
-  modules: [],
+  modules: [{ route: "/gm", title: "GM Support Office Dashboard", module: "GM Support Office" }],
   session_id: "session-1",
 };
 
@@ -23,6 +23,12 @@ test("valid session token verifies", () => {
   const token = signSession(context);
 
   assert.equal(verifySessionToken(token)?.user, context.user);
+});
+
+test("session token preserves authorized dashboard modules for shell navigation", () => {
+  const token = signSession(context);
+
+  assert.deepEqual(verifySessionToken(token)?.modules, context.modules);
 });
 
 test("malformed session tokens return null", () => {
