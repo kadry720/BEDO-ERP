@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import time
 from functools import wraps
@@ -15,6 +16,7 @@ USER_HEADER = "X-BEDO-User"
 TIMESTAMP_HEADER = "X-BEDO-Timestamp"
 NONCE_HEADER = "X-BEDO-Nonce"
 SIGNATURE_HEADER = "X-BEDO-Signature"
+REQUEST_ID_HEADER = "X-BEDO-Request-ID"
 MAX_CLOCK_SKEW_SECONDS = 300
 
 
@@ -55,6 +57,57 @@ def _request_path() -> str:
     except Exception:
         pass
     return ""
+
+
+def _performance_logs_enabled() -> bool:
+    setting = os.environ.get("BEDO_PERFORMANCE_LOGS", "").lower()
+    if setting in {"0", "false"}:
+        return False
+    if setting in {"1", "true"}:
+        return True
+    mode = os.environ.get("BEDO_ENV") or os.environ.get("NODE_ENV") or "development"
+    return mode.lower() not in {"local", "dev", "development", "test"}
+
+
+def _user_fingerprint(user: str) -> str:
+    if not user:
+        return ""
+    return hashlib.sha256(user.encode("utf-8")).hexdigest()[:16]
+
+
+def _request_id() -> str:
+    try:
+        import frappe
+
+        request = getattr(frappe.local, "request", None)
+        headers = request.headers if request else {}
+        return str(headers.get(REQUEST_ID_HEADER, "")).strip()
+    except Exception:
+        return ""
+
+
+def _log_performance_event(*, route_or_method: str, status: str, duration_ms: float, user: str = "") -> None:
+    if not _performance_logs_enabled():
+        return
+    try:
+        import frappe
+
+        payload: dict[str, str | float] = {
+            "event": "bedo.performance",
+            "layer": "frappe-service",
+            "route_or_method": route_or_method,
+            "status": status,
+            "duration_ms": round(max(0, duration_ms), 2),
+        }
+        request_id = _request_id()
+        if request_id:
+            payload["request_id"] = request_id
+        user_hash = _user_fingerprint(user)
+        if user_hash:
+            payload["user_hash"] = user_hash
+        frappe.logger("bedo_platform").info(json.dumps(payload, separators=(",", ":")))
+    except Exception:
+        return
 
 
 def _cache_set_if_absent(cache: Any, key: str) -> bool:
@@ -149,8 +202,22 @@ def validate_service_request() -> str:
 def require_service_auth(fn: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        validate_service_request()
-        return fn(*args, **kwargs)
+        started_at = time.perf_counter()
+        user = ""
+        status = "ok"
+        try:
+            user = validate_service_request()
+            return fn(*args, **kwargs)
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            _log_performance_event(
+                route_or_method=fn.__name__,
+                status=status,
+                duration_ms=(time.perf_counter() - started_at) * 1000,
+                user=user,
+            )
 
     wrapper.bedo_requires_service_auth = True  # type: ignore[attr-defined]
     return wrapper
