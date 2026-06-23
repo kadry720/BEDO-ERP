@@ -24,7 +24,7 @@ DEPARTMENTS = [
         "key": "ARD",
         "name": "Applied R&D Department",
         "pillar_number": 3,
-        "dashboard_route": "",
+        "dashboard_route": "/ard",
         "is_global_access_department": 0,
     },
     {
@@ -78,7 +78,7 @@ DEPARTMENTS = [
     },
 ]
 
-VISIBLE_DEPARTMENT_KEYS = {"GM_SUPPORT", "SRS", "COMMAND_CENTER"}
+VISIBLE_DEPARTMENT_KEYS = {"GM_SUPPORT", "SRS", "ARD", "COMMAND_CENTER"}
 VISIBLE_DEPARTMENTS = [department for department in DEPARTMENTS if department["key"] in VISIBLE_DEPARTMENT_KEYS]
 
 DEPARTMENT_BY_KEY = {department["key"]: department for department in DEPARTMENTS}
@@ -114,6 +114,14 @@ DASHBOARDS = [
         "content": "Command Center Dashboard",
     },
     {
+        "page_name": "ard-dashboard",
+        "title": "ARD Dashboard",
+        "module": "ARD",
+        "route": "/ard",
+        "department_key": "ARD",
+        "content": "ARD Dashboard",
+    },
+    {
         "page_name": "bedo-admin-users",
         "title": "BEDO Admin Users",
         "module": "BEDO Core",
@@ -146,6 +154,10 @@ VISIBLE_BUSINESS_ROLES = [
     "SRS Team Leader",
     "SRS Engineer",
     "Command Center Representative",
+    "ARD Manager",
+    "ARD Section Head",
+    "ARD Team Leader",
+    "ARD Engineer",
 ]
 
 DEPARTMENT_ROLES = {
@@ -157,6 +169,12 @@ DEPARTMENT_ROLES = {
         "SRS Engineer",
     ],
     "COMMAND_CENTER": ["Command Center Representative"],
+    "ARD": [
+        "ARD Manager",
+        "ARD Section Head",
+        "ARD Team Leader",
+        "ARD Engineer",
+    ],
 }
 
 SRS_SECTION_OPTIONS = [
@@ -194,6 +212,7 @@ PROTECTED_SYSTEM_USERNAMES = {
 
 SRS_ROLES = {"SRS Manager", "SRS Section Head", "SRS Team Leader", "SRS Engineer"}
 COMMAND_CENTER_ROLES = {"Command Center Representative"}
+ARD_ROLES = {"ARD Manager", "ARD Section Head", "ARD Team Leader", "ARD Engineer"}
 SRS_PROJECT_OWNER_ELIGIBLE_ROLES = SRS_ROLES | {"General Manager"}
 SRS_TEAM_MEMBER_ELIGIBLE_ROLES = SRS_ROLES
 
@@ -226,7 +245,15 @@ for department_key, role_names in DEPARTMENT_ROLES.items():
                 "department_key": department_key,
                 "role_category": "Department",
                 "is_managerial": int(
-                    role_name in {"General Manager", "SRS Manager", "SRS Section Head", "SRS Team Leader"}
+                    role_name in {
+                        "General Manager",
+                        "SRS Manager",
+                        "SRS Section Head",
+                        "SRS Team Leader",
+                        "ARD Manager",
+                        "ARD Section Head",
+                        "ARD Team Leader",
+                    }
                 ),
                 "is_active": 1,
                 "description": f"{DEPARTMENT_BY_KEY[department_key]['name']} role.",
@@ -292,6 +319,32 @@ INITIAL_USERS = [
     _user("commandcenter", "Command Center", "Representative", "COMMAND_CENTER", ["Command Center Representative"], 7),
 ]
 
+for command_center_index in range(1, 5):
+    INITIAL_USERS.append(
+        _user(
+            f"commandcenterrep{command_center_index}",
+            "Command Center",
+            f"Representative {command_center_index}",
+            "COMMAND_CENTER",
+            ["Command Center Representative"],
+            70 + command_center_index,
+        )
+    )
+
+INITIAL_USERS.extend(
+    [
+        _user("ardmanager", "ARD", "Manager", "ARD", ["ARD Manager"], 200, force_active=True),
+        _user("ardsectionhead1", "ARD", "Section Head 1", "ARD", ["ARD Section Head"], 201, force_active=True),
+        _user("ardsectionhead2", "ARD", "Section Head 2", "ARD", ["ARD Section Head"], 202, force_active=True),
+        _user("ardteamleader1", "ARD", "Team Leader 1", "ARD", ["ARD Team Leader"], 203, force_active=True),
+        _user("ardteamleader2", "ARD", "Team Leader 2", "ARD", ["ARD Team Leader"], 204, force_active=True),
+        _user("ardengineer1", "ARD", "Engineer 1", "ARD", ["ARD Engineer"], 205, force_active=True),
+        _user("ardengineer2", "ARD", "Engineer 2", "ARD", ["ARD Engineer"], 206, force_active=True),
+        _user("ardengineer3", "ARD", "Engineer 3", "ARD", ["ARD Engineer"], 207, force_active=True),
+        _user("ardengineer4", "ARD", "Engineer 4", "ARD", ["ARD Engineer"], 208, force_active=True),
+    ]
+)
+
 _SRS_SECTION_USER_PREFIX = {
     "Electronics": "srselectronics",
     "Electrical": "srselectrical",
@@ -338,15 +391,6 @@ for section_index, section_name in enumerate(SRS_SECTION_OPTIONS, start=1):
 
 LEGACY_PHASE_USERNAMES = {
     "ard.manager",
-    "ardmanager",
-    "ardsectionhead1",
-    "ardsectionhead2",
-    "ardteamleader1",
-    "ardteamleader2",
-    "ardengineer1",
-    "ardengineer2",
-    "ardengineer3",
-    "ardengineer4",
 }
 
 SRS_WORKFLOW_TYPE = "SRS"

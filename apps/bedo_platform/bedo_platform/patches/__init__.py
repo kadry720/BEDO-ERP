@@ -1,0 +1,1 @@
+"""BEDO Platform migration patches."""

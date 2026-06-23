@@ -4,7 +4,7 @@ import os
 
 from bedo_platform.constants import INITIAL_USERS, LEGACY_PHASE_USERNAMES, SEED_DEFAULT_PASSWORD_ENV
 from bedo_platform.services.database_auth_service import set_user_password
-from bedo_platform.services.user_profile_service import mark_user_deleted
+from bedo_platform.services.user_profile_service import ensure_user_profile, mark_user_deleted
 from bedo_platform.services.user_management_service import (
     _assign_roles,
     _get_or_create_user,
@@ -36,6 +36,17 @@ def _find_existing_seed_user(user_data: dict[str, object]) -> str:
     )
 
 
+def _reactivate_existing_seed_user(user: str, username: str) -> None:
+    import frappe
+
+    user_doc = frappe.get_doc("User", user)
+    if not int(user_doc.enabled or 0):
+        user_doc.enabled = 1
+        user_doc.flags.ignore_permissions = True
+        user_doc.save(ignore_permissions=True)
+    ensure_user_profile(user, username, active=True, deleted=False)
+
+
 def execute(strict: bool = False) -> None:
     import frappe
 
@@ -61,11 +72,14 @@ def execute(strict: bool = False) -> None:
         frappe.logger("bedo_platform").warning(message)
 
     missing_set = set(missing)
+    active_seed_usernames = {str(data["username"]) for data, *_rest in planned_users}
     for data, password, existing_user, needs_seed_password in planned_users:
         if needs_seed_password and data.get("password_env") in missing_set:
             continue
         if existing_user:
             user = existing_user
+            if data.get("force_active"):
+                _reactivate_existing_seed_user(user, str(data["username"]))
         else:
             data["password"] = password
             user = _get_or_create_user(data)
@@ -75,6 +89,8 @@ def execute(strict: bool = False) -> None:
         _set_role_assignments(user, data["primary_department"], data["roles"])
 
     for username in LEGACY_SEED_USERNAMES:
+        if username in active_seed_usernames:
+            continue
         legacy_user = frappe.db.get_value("User", {"username": username}, "name")
         if legacy_user and not frappe.db.get_value("BEDO User Profile", {"user": legacy_user, "is_deleted": 1}, "name"):
             user_doc = frappe.get_doc("User", legacy_user)

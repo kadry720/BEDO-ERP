@@ -37,7 +37,7 @@ def resolve_landing_route(
     if primary_department and primary_department in DEPARTMENT_ROUTE_BY_KEY:
         if roles_can_access_department(roles, primary_department):
             return DEPARTMENT_ROUTE_BY_KEY[primary_department]
-    for department_key in ["SRS", "COMMAND_CENTER", "GM_SUPPORT"]:
+    for department_key in ["SRS", "ARD", "COMMAND_CENTER", "GM_SUPPORT"]:
         if roles_can_access_department(roles, department_key):
             return DEPARTMENT_ROUTE_BY_KEY[department_key]
     if roles & ADMIN_SHELL_ROLES:

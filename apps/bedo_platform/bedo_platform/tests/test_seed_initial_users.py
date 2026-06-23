@@ -59,6 +59,57 @@ def install_fake_frappe(monkeypatch, existing_user: str = "gm@bedo.local"):
     return calls
 
 
+def install_fake_frappe_for_existing_ard_user(monkeypatch):
+    calls = {
+        "passwords": [],
+        "assigned_roles": [],
+        "assignments": [],
+        "profiles": [],
+        "saved_users": [],
+        "deleted_users": [],
+        "commits": 0,
+        "warnings": [],
+    }
+
+    class FakeUser:
+        def __init__(self, name):
+            self.name = name
+            self.enabled = 0
+            self.flags = type("Flags", (), {})()
+
+        def save(self, ignore_permissions=False):
+            calls["saved_users"].append((self.name, self.enabled, ignore_permissions))
+
+    class FakeDB:
+        def get_value(self, doctype, filters=None, fieldname=None, **kwargs):
+            if doctype == "User" and isinstance(filters, dict):
+                if filters.get("username") == "ardmanager":
+                    return "ardmanager@bedo.local"
+                if filters.get("email") == "ardmanager@bedo.local":
+                    return "ardmanager@bedo.local"
+            return None
+
+        def commit(self):
+            calls["commits"] += 1
+
+    class FakeLogger:
+        def warning(self, message):
+            calls["warnings"].append(message)
+
+    fake_frappe = ModuleType("frappe")
+    fake_frappe.db = FakeDB()
+    fake_frappe.get_doc = lambda doctype, name=None: FakeUser(name)
+    fake_frappe.logger = lambda name: FakeLogger()
+    monkeypatch.setitem(sys.modules, "frappe", fake_frappe)
+    monkeypatch.setattr(seed_initial_users, "set_user_password", lambda *args, **kwargs: calls["passwords"].append((args, kwargs)))
+    monkeypatch.setattr(seed_initial_users, "_assign_roles", lambda *args, **kwargs: calls["assigned_roles"].append((args, kwargs)))
+    monkeypatch.setattr(seed_initial_users, "_set_role_assignments", lambda *args, **kwargs: calls["assignments"].append((args, kwargs)))
+    monkeypatch.setattr(seed_initial_users, "ensure_user_profile", lambda *args, **kwargs: calls["profiles"].append((args, kwargs)))
+    monkeypatch.setattr(seed_initial_users, "mark_user_deleted", lambda *args, **kwargs: calls["deleted_users"].append((args, kwargs)))
+    monkeypatch.setattr(seed_initial_users, "_get_or_create_user", lambda data: (_ for _ in ()).throw(AssertionError("existing ARD users must not be recreated")))
+    return calls
+
+
 def patch_single_seed_user(monkeypatch):
     user = {
         "username": "gm",
@@ -125,3 +176,29 @@ def test_force_seed_password_reset_must_be_explicit(monkeypatch):
     seed_initial_users.execute(strict=True)
 
     assert password_calls == [(("gm@bedo.local", "GeneratedSeedPassword123!"), {"logout_all_sessions": True})]
+
+
+def test_existing_ard_seed_user_is_reactivated_without_password_reset(monkeypatch):
+    calls = install_fake_frappe_for_existing_ard_user(monkeypatch)
+    user = {
+        "username": "ardmanager",
+        "first_name": "ARD",
+        "last_name": "Manager",
+        "email": "ardmanager@bedo.local",
+        "phone_number": "+201000000001",
+        "primary_department": "ARD",
+        "roles": ["BEDO Employee", "ARD Manager"],
+        "password_env": "BEDO_SEED_ARDMANAGER_PASSWORD",
+        "force_active": True,
+    }
+    monkeypatch.setattr(seed_initial_users, "INITIAL_USERS", [user])
+    monkeypatch.setattr(seed_initial_users, "LEGACY_SEED_USERNAMES", set())
+    monkeypatch.setenv("BEDO_SEED_DEFAULT_PASSWORD", "seed-default")
+    monkeypatch.delenv("BEDO_FORCE_SEED_PASSWORD_RESET", raising=False)
+
+    seed_initial_users.execute(strict=True)
+
+    assert calls["passwords"] == []
+    assert calls["saved_users"] == [("ardmanager@bedo.local", 1, True)]
+    assert calls["profiles"] == [(("ardmanager@bedo.local", "ardmanager"), {"active": True, "deleted": False})]
+    assert calls["deleted_users"] == []

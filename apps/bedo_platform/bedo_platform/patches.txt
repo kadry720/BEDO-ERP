@@ -1,1 +1,2 @@
 bedo_platform.setup.seed_all.execute
+bedo_platform.patches.reactivate_ard_and_command_center_seed_users.execute

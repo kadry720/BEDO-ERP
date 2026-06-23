@@ -20,6 +20,12 @@ def test_command_center_routes_to_command_center_dashboard():
     assert route == "/command-center"
 
 
+def test_ard_manager_routes_to_ard_dashboard():
+    route = resolve_landing_route(["BEDO Employee", "ARD Manager"], "ARD")
+
+    assert route == "/ard"
+
+
 def test_user_with_no_role_routes_to_access_not_configured():
     route = resolve_landing_route([], "")
 
@@ -33,6 +39,7 @@ def test_plain_gm_cannot_access_non_gm_route():
 def test_global_viewer_can_access_visible_routes():
     assert route_allowed_for_roles("/srs", ["BEDO Employee", "BEDO Global Viewer"]) is True
     assert route_allowed_for_roles("/command-center", ["BEDO Employee", "BEDO Global Viewer"]) is True
+    assert route_allowed_for_roles("/ard", ["BEDO Employee", "BEDO Global Viewer"]) is True
 
 
 def test_gm_route_restriction_precedence_over_global_viewer():
@@ -41,3 +48,4 @@ def test_gm_route_restriction_precedence_over_global_viewer():
     assert route_allowed_for_roles("/gm", roles) is True
     assert route_allowed_for_roles("/srs", roles) is False
     assert route_allowed_for_roles("/command-center", roles) is False
+    assert route_allowed_for_roles("/ard", roles) is False
