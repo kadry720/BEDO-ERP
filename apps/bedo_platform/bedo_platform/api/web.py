@@ -3,6 +3,7 @@ from __future__ import annotations
 import frappe
 
 from bedo_platform.constants import FRAPPE_DESK_TECHNICAL_ROLES, VISIBLE_BUSINESS_ROLE_NAMES, VISIBLE_DEPARTMENTS
+from bedo_platform.services.ard_workflow_service import get_ard_flowchart_definition as get_ard_flowchart_definition_service
 from bedo_platform.services.auth_service import get_safe_user_context, login_for_web
 from bedo_platform.services.profile_service import get_current_profile, update_current_profile
 from bedo_platform.services.deadline_service import (
@@ -269,6 +270,12 @@ def get_trainer_item_workspace(trainer_item: str):
 def get_srs_flowchart_definition():
     validate_service_request()
     return get_srs_flowchart_definition_service()
+
+
+@service_api
+def get_ard_flowchart_definition():
+    validate_service_request()
+    return get_ard_flowchart_definition_service()
 
 
 @service_api

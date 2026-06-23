@@ -150,6 +150,32 @@ def _deactivate_supplier_files(source_handoff: str) -> int:
     return count
 
 
+def _supersede_ard_workflows(trainer_item: str, reset_id: str) -> int:
+    import frappe
+
+    count = 0
+    for workflow in frappe.get_all(
+        "ARD Workflow Instance",
+        filters={"trainer_item": trainer_item, "is_superseded": 0},
+        pluck="name",
+    ):
+        frappe.db.set_value(
+            "ARD Workflow Instance",
+            workflow,
+            {"status": SUPERSEDED_BY_RESET, "is_superseded": 1, "superseded_by_reset": reset_id},
+            update_modified=False,
+        )
+        for node_state in frappe.get_all("ARD Workflow Node State", filters={"workflow_instance": workflow, "is_superseded": 0}, pluck="name"):
+            frappe.db.set_value(
+                "ARD Workflow Node State",
+                node_state,
+                {"status": SUPERSEDED_BY_RESET, "is_superseded": 1, "superseded_by_reset": reset_id},
+                update_modified=False,
+            )
+        count += 1
+    return count
+
+
 def _log_reset(event_type: str, actor: str, workflow, reset_id: str, message: str = "") -> None:
     log_security_event(
         event_type,
@@ -177,6 +203,7 @@ def reset_command_center(trainer_item: str, actor: str, *, reason: str = "") -> 
     superseded_approvals = _supersede_approvals({"command_center_handoff": handoff.name}, reset_id)
     superseded_supplier_files = _deactivate_supplier_files(handoff.name)
     superseded_deadlines = _supersede_deadlines({"trainer_item": trainer_item, "workflow_type": ["in", [COMMAND_CENTER_WORKFLOW_TYPE, SUPPLIERS_WORKFLOW_TYPE]]})
+    superseded_ard_workflows = _supersede_ard_workflows(trainer_item, reset_id)
 
     handoff.status = "PENDING_COMMAND_CENTER"
     handoff.command_center_case = ""
@@ -215,18 +242,20 @@ def reset_command_center(trainer_item: str, actor: str, *, reason: str = "") -> 
         "superseded_approvals": superseded_approvals,
         "superseded_supplier_files": superseded_supplier_files,
         "superseded_deadlines": superseded_deadlines,
+        "superseded_ard_workflows": superseded_ard_workflows,
     }
 
 
 def _supersede_command_center_downstream(trainer_item: str, reset_id: str) -> dict[str, int]:
     handoff = _active_handoff(trainer_item)
     if not handoff:
-        return {"meetings": 0, "approvals": 0, "supplier_files": 0}
+        return {"meetings": 0, "approvals": 0, "supplier_files": 0, "ard_workflows": _supersede_ard_workflows(trainer_item, reset_id)}
     return {
         "meetings": _supersede_meeting(getattr(handoff, "handover_meeting", ""), reset_id)
         + _supersede_related_meetings("BEDO Command Center Handoff", handoff.name, reset_id),
         "approvals": _supersede_approvals({"command_center_handoff": handoff.name}, reset_id),
         "supplier_files": _deactivate_supplier_files(handoff.name),
+        "ard_workflows": _supersede_ard_workflows(trainer_item, reset_id),
     }
 
 

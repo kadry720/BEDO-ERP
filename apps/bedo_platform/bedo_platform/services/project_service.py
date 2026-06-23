@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bedo_platform.constants import (
+    ARD_ROLES,
     CASE_CLASSIFICATIONS,
     COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
     COMMAND_CENTER_WORKFLOW_TYPE,
@@ -351,6 +352,10 @@ def _is_srs_user(user: str) -> bool:
 
 def _is_command_center_representative(user: str) -> bool:
     return bool(_roles(user) & COMMAND_CENTER_ROLES)
+
+
+def _is_ard_user(user: str) -> bool:
+    return bool(_roles(user) & ARD_ROLES)
 
 
 def _require_gm(user: str) -> None:
@@ -1018,6 +1023,10 @@ def _item_assignments_for_user(user: str) -> set[str]:
 def can_view_project(user: str, project: str) -> bool:
     if _is_gm(user) or _is_global_viewer(user) or _is_command_center_representative(user):
         return True
+    if _is_ard_user(user):
+        import frappe
+
+        return bool(frappe.db.exists("ARD Workflow Instance", {"project": project, "is_superseded": 0}))
     if _is_srs_manager(user):
         import frappe
 
@@ -1034,6 +1043,8 @@ def can_view_trainer_item(user: str, trainer_item: str) -> bool:
         return False
     if _is_gm(user) or _is_global_viewer(user) or _is_command_center_representative(user):
         return True
+    if _is_ard_user(user):
+        return bool(frappe.db.exists("ARD Workflow Instance", {"trainer_item": trainer_item, "is_superseded": 0}))
     if _is_srs_manager(user):
         return item.status != ITEM_STATUS_DRAFT
     return trainer_item in _item_assignments_for_user(user)
@@ -1470,6 +1481,10 @@ def list_visible_projects(actor: str, page: int = 1, page_size: int = 25) -> dic
     filters: dict[str, Any] = {"is_deleted": 0}
     if _is_gm(actor) or _is_global_viewer(actor) or _is_command_center_representative(actor):
         pass
+    elif _is_ard_user(actor):
+        from bedo_platform.services.ard_workflow_service import ard_visible_project_names
+
+        filters["name"] = ["in", ard_visible_project_names(actor) or ["__none__"]]
     elif _is_srs_manager(actor):
         project_names = frappe.get_all(
             "BEDO Trainer Item",
@@ -2960,6 +2975,9 @@ def submit_case3_handover_confirmation(trainer_item: str, payload: dict[str, Any
         handoff.completed_at = now
         handoff.flags.ignore_permissions = True
         handoff.save(ignore_permissions=True)
+        from bedo_platform.services.ard_workflow_service import start_ard_workflow_from_handoff
+
+        start_ard_workflow_from_handoff(handoff, actor)
         notify_many(
             _active_users_with_role("ARD Manager"),
             title="Handover successful",
@@ -3215,6 +3233,9 @@ def complete_command_center_case_1(trainer_item: str, actor: str) -> dict[str, A
     handoff.completed_at = now
     handoff.flags.ignore_permissions = True
     handoff.save(ignore_permissions=True)
+    from bedo_platform.services.ard_workflow_service import start_ard_workflow_from_handoff
+
+    start_ard_workflow_from_handoff(handoff, actor)
     notify_many(
         _active_users_with_role("General Manager"),
         title="Command Center Case 1 complete",
@@ -3255,6 +3276,9 @@ def deliver_supplier_file(supplier_file: str, actor: str) -> dict[str, Any]:
         handoff.completed_at = now
         handoff.flags.ignore_permissions = True
         handoff.save(ignore_permissions=True)
+        from bedo_platform.services.ard_workflow_service import start_ard_workflow_from_handoff
+
+        start_ard_workflow_from_handoff(handoff, actor)
     notify_many(
         _active_users_with_role("General Manager"),
         title="Supplier delivery complete",
@@ -3509,6 +3533,9 @@ def resolve_handover_failure_gm_approval(approval_name: str, payload: dict[str, 
         handoff.completed_at = now
         handoff.flags.ignore_permissions = True
         handoff.save(ignore_permissions=True)
+        from bedo_platform.services.ard_workflow_service import start_ard_workflow_from_handoff
+
+        start_ard_workflow_from_handoff(handoff, actor)
         _log_workflow("handover_failure_continue_anyway", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=handoff.trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD)
         return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name}
 
