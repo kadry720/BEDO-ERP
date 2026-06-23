@@ -49,6 +49,9 @@ scheduler_events = {
     "cron": {
         "* * * * *": [
             "bedo_platform.services.deadline_service.run_overdue_check",
+            "bedo_platform.services.meeting_service.run_meeting_reminders",
+            "bedo_platform.services.meeting_service.run_meeting_auto_completion",
+            "bedo_platform.services.meeting_service.run_meeting_overdue_check",
         ],
     },
 }

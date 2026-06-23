@@ -26,13 +26,15 @@ export const adminRoute = "/admin/users";
 export const routeLabels: Record<string, string> = {
   "/gm": "GM Support Office Dashboard",
   "/srs": "SRS Dashboard",
+  "/ard": "ARD Dashboard",
   "/command-center": "Command Center Dashboard",
   "/admin/users": "Admin Dashboard",
+  "/meetings": "Meetings",
   "/notifications": "Notifications",
   "/approvals": "Approvals"
 };
 
-export const placeholderRoutes = ["/gm", "/srs", "/command-center"];
+export const placeholderRoutes = ["/gm", "/srs", "/ard", "/command-center"];
 
 export function isAdminUser(context: BedoUserContext) {
   return context.roles.includes("BEDO User Administrator") || context.roles.includes("BEDO System Administrator");
@@ -57,6 +59,10 @@ export function isSrsUser(context: BedoUserContext) {
 
 export function isCommandCenterUser(context: BedoUserContext) {
   return context.roles.includes("Command Center Representative");
+}
+
+export function isArdUser(context: BedoUserContext) {
+  return context.roles.some((role) => role.startsWith("ARD "));
 }
 
 export function canAccessRoute(context: BedoUserContext, route: string) {

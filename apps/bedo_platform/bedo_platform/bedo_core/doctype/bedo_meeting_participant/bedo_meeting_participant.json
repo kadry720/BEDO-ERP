@@ -1,0 +1,42 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "hash",
+  "creation": "2026-06-23 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "meeting",
+    "user",
+    "department",
+    "participation_source",
+    "selected_by",
+    "is_required",
+    "confirmation_status",
+    "confirmed_at",
+    "is_active",
+    "superseded_by_reset"
+  ],
+  "fields": [
+    {"fieldname": "meeting", "fieldtype": "Link", "in_list_view": 1, "label": "Meeting", "options": "BEDO Meeting", "reqd": 1},
+    {"fieldname": "user", "fieldtype": "Link", "in_list_view": 1, "label": "User", "options": "User", "reqd": 1},
+    {"fieldname": "department", "fieldtype": "Data", "in_list_view": 1, "label": "Department"},
+    {"fieldname": "participation_source", "fieldtype": "Select", "label": "Participation Source", "options": "organizer\nrequired lead\nselected colleague\nselected team member\nautomatic participant", "reqd": 1},
+    {"fieldname": "selected_by", "fieldtype": "Link", "label": "Selected By", "options": "User"},
+    {"default": "0", "fieldname": "is_required", "fieldtype": "Check", "label": "Is Required"},
+    {"default": "PENDING", "fieldname": "confirmation_status", "fieldtype": "Select", "in_list_view": 1, "label": "Confirmation Status", "options": "PENDING\nCONFIRMED\nDECLINED"},
+    {"fieldname": "confirmed_at", "fieldtype": "Datetime", "label": "Confirmed At"},
+    {"default": "1", "fieldname": "is_active", "fieldtype": "Check", "in_list_view": 1, "label": "Is Active"},
+    {"fieldname": "superseded_by_reset", "fieldtype": "Data", "label": "Superseded By Reset"}
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-23 00:00:00.000000",
+  "module": "BEDO Core",
+  "name": "BEDO Meeting Participant",
+  "owner": "Administrator",
+  "permissions": [{"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

@@ -13,6 +13,7 @@ from bedo_platform.services.deadline_service import (
     run_overdue_check,
 )
 from bedo_platform.services.notification_service import list_my_notifications, mark_all_notifications_read, mark_notification_read
+from bedo_platform.services.meeting_service import list_my_meetings as list_my_meetings_service
 from bedo_platform.services.project_service import (
     add_trainer_item as add_bedo_trainer_item,
     approve_srs_approval as approve_srs_approval_service,
@@ -423,6 +424,12 @@ def get_srs_trainer_item_audit_trail(trainer_item: str):
 def get_deadlines_for_item(trainer_item: str):
     validate_service_request()
     return {"deadlines": get_deadlines_for_trainer_item(trainer_item)}
+
+
+@service_api
+def list_my_meetings(status: str = ""):
+    user = validate_service_request()
+    return list_my_meetings_service(user, status=status or "")
 
 
 @service_api
