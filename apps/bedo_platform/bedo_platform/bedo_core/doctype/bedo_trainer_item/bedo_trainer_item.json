@@ -33,7 +33,7 @@
     {"default": "1", "fieldname": "original_quantity", "fieldtype": "Int", "label": "Original Quantity", "reqd": 1},
     {"default": "SINGLE", "fieldname": "separation_mode", "fieldtype": "Select", "label": "Separation Mode", "options": "SINGLE\nCOMBINED\nSEPARATED", "reqd": 1},
     {"default": "1", "fieldname": "sequence_no", "fieldtype": "Int", "label": "Sequence No"},
-    {"default": "DRAFT", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "DRAFT\nRELEASED_TO_SRS\nSRS_IN_PROGRESS\nSRS_COMPLETE", "reqd": 1},
+    {"default": "DRAFT", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "DRAFT\nRELEASED_TO_SRS\nSRS_IN_PROGRESS\nSRS_COMPLETE\nARD_IN_PROGRESS\nARD_COMPLETE", "reqd": 1},
     {"fieldname": "current_pillar", "fieldtype": "Data", "label": "Current Pillar"},
     {"fieldname": "current_workflow", "fieldtype": "Data", "label": "Current Workflow"},
     {"fieldname": "current_node", "fieldtype": "Data", "in_list_view": 1, "label": "Current Node"},

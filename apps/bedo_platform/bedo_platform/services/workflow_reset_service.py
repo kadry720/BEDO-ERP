@@ -172,6 +172,13 @@ def _supersede_ard_workflows(trainer_item: str, reset_id: str) -> int:
                 {"status": SUPERSEDED_BY_RESET, "is_superseded": 1, "superseded_by_reset": reset_id},
                 update_modified=False,
             )
+        for team_member in frappe.get_all("ARD Workflow Team Member", filters={"workflow_instance": workflow, "is_active": 1}, pluck="name"):
+            frappe.db.set_value(
+                "ARD Workflow Team Member",
+                team_member,
+                {"is_active": 0, "superseded_by_reset": reset_id},
+                update_modified=False,
+            )
         count += 1
     return count
 

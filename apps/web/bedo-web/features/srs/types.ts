@@ -270,5 +270,5 @@ export type ApprovalRow = {
 export type DashboardProps = {
   session: BedoUserContext;
   initialProjects: ProjectList;
-  mode: "gm" | "srs" | "command-center";
+  mode: "gm" | "srs" | "command-center" | "ard";
 };

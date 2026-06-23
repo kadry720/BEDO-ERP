@@ -19,6 +19,8 @@ export const FLOWCHART_DIMENSIONS = {
 
 export const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Active",
+  ARD_COMPLETE: "ARD Complete",
+  ARD_IN_PROGRESS: "ARD in Progress",
   COMPLETED: "Complete",
   COMPLETE: "Complete",
   DETAILS_FINALIZED: "Details Finalized",
@@ -43,6 +45,11 @@ export const STATUS_LABELS: Record<string, string> = {
   WAITING_FINAL_GM_APPROVAL: "Awaiting Final GM Approval",
   SKIPPED: "Skipped",
   WAITING_APPROVAL: "Awaiting Approval",
+  WAITING_INTERNAL_SYNC: "Awaiting Internal Sync",
+  WAITING_OWNER_ASSIGNMENT: "Awaiting Owner Assignment",
+  WAITING_TEAM_SELECTION: "Awaiting Team Selection",
+  WAITING_PROGRESS_REVIEW: "Awaiting Progress Review",
+  WAITING_SCMDP: "Awaiting SCMDP",
   WAITING_GM_APPROVAL: "Awaiting GM Approval",
   WAITING_SRS_MANAGER_APPROVAL: "Awaiting SRS Manager Approval",
 };
@@ -54,7 +61,7 @@ export function formatStatus(status?: string | null) {
 
 export function statusBadgeClass(status?: string | null) {
   const label = formatStatus(status);
-  if (label === "Complete" || label === "SRS Complete") return "border-green-200 bg-green-50 text-green-800";
+  if (label === "Complete" || label === "SRS Complete" || label === "ARD Complete") return "border-green-200 bg-green-50 text-green-800";
   if (label === "In Progress" || label === "Active" || label.includes("Progress")) return "border-amber-200 bg-amber-50 text-amber-800";
   if (label.includes("Awaiting")) return "border-blue-200 bg-blue-50 text-blue-800";
   if (label === "Overdue") return "border-red-200 bg-red-50 text-red-800";
@@ -65,7 +72,7 @@ export function statusBadgeClass(status?: string | null) {
 
 export function nodeStatusClass(status?: string | null, canOpen = false) {
   const label = formatStatus(status);
-  if (label === "SRS Complete" || label === "Complete") return "border-green-300 bg-green-50 shadow-sm";
+  if (label === "SRS Complete" || label === "ARD Complete" || label === "Complete") return "border-green-300 bg-green-50 shadow-sm";
   if (label === "In Progress" || label.includes("Progress") || label === "Active") return "border-amber-300 bg-amber-50 shadow-sm";
   if (label.includes("Awaiting")) return "border-blue-300 bg-blue-50 shadow-sm";
   if (label === "Overdue") return "border-red-300 bg-red-50 shadow-sm";
@@ -181,7 +188,7 @@ export function sideNormal(side: ConnectorSide) {
 
 export function statusTone(status?: string | null): StatusTone {
   const label = formatStatus(status);
-  if (label === "Complete" || label === "SRS Complete") return "complete";
+  if (label === "Complete" || label === "SRS Complete" || label === "ARD Complete") return "complete";
   if (label === "Overdue") return "overdue";
   if (label === "Inactive Path") return "not-applicable";
   if (label.includes("Awaiting")) return "awaiting-approval";

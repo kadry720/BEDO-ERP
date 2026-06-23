@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
+import type { ArdWorkspaceData } from "@/features/ard/types";
 import type { BedoProject, SrsFlowchartDefinition, TrainerItemList, TrainerWorkspace as TrainerWorkspaceData } from "@/features/srs/types";
 import type { BedoUserContext } from "@/lib/routes";
-import { canAccessRoute, isGeneralManager, isSrsUser } from "@/lib/routes";
+import { canAccessRoute, isArdUser, isGeneralManager, isSrsUser } from "@/lib/routes";
 import { decodedRouteParam } from "@/lib/route-ids";
 import { frappeCall } from "@/server/frappe";
 import { requireSession } from "@/server/session";
 
-type ProjectScope = "gm" | "srs" | "command-center";
+type ProjectScope = "gm" | "srs" | "command-center" | "ard";
 
 export function routeProjectName(...parts: string[]) {
   return decodedRouteParam(parts.filter(Boolean).join("/"));
@@ -49,6 +50,8 @@ export async function requireProjectScope(scope: ProjectScope, options: { manage
     if (!allowed) redirect("/forbidden");
   } else if (scope === "command-center") {
     if (!canAccessRoute(freshSession, "/command-center")) redirect("/forbidden");
+  } else if (scope === "ard") {
+    if (!isArdUser(freshSession) && !canAccessRoute(freshSession, "/ard")) redirect("/forbidden");
   } else if (!isSrsUser(freshSession)) {
     redirect("/forbidden");
   }
@@ -73,6 +76,18 @@ export async function loadTrainerWorkspaceOrForbidden(user: string, trainerItemN
     const [workspace, flowchart] = await Promise.all([
       frappeCall<TrainerWorkspaceData>("bedo_platform.api.web.get_trainer_item_workspace", { trainer_item: trainerItemName }, user),
       frappeCall<SrsFlowchartDefinition>("bedo_platform.api.web.get_srs_flowchart_definition", {}, user),
+    ]);
+    return { workspace, flowchart };
+  } catch {
+    redirect("/forbidden");
+  }
+}
+
+export async function loadArdWorkspaceOrForbidden(user: string, trainerItemName: string) {
+  try {
+    const [workspace, flowchart] = await Promise.all([
+      frappeCall<ArdWorkspaceData>("bedo_platform.api.web.get_ard_workspace", { trainer_item: trainerItemName }, user),
+      frappeCall<SrsFlowchartDefinition>("bedo_platform.api.web.get_ard_flowchart_definition", {}, user),
     ]);
     return { workspace, flowchart };
   } catch {

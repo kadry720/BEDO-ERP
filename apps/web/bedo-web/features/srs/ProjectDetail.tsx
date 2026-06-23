@@ -11,7 +11,7 @@ import { formatDistance } from "@/features/srs/workflowPresentation";
 type Props = {
   project: BedoProject;
   initialItems: TrainerItemList;
-  mode: "gm" | "srs" | "command-center";
+  mode: "gm" | "srs" | "command-center" | "ard";
   viewerRoles?: string[];
 };
 
@@ -176,5 +176,5 @@ function trainerStats(items: TrainerItem[]) {
 }
 
 function isDone(item: TrainerItem) {
-  return item.status === "SRS_COMPLETE" || item.workflow?.status === "SRS_COMPLETE";
+  return item.status === "SRS_COMPLETE" || item.status === "ARD_COMPLETE" || item.workflow?.status === "SRS_COMPLETE";
 }

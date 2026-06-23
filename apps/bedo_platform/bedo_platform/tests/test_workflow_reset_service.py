@@ -30,4 +30,5 @@ def test_reset_service_supersedes_operational_records_without_deleting_audit_eve
     assert "BEDO Command Center Handoff" in source
     assert "ARD Workflow Instance" in source
     assert "ARD Workflow Node State" in source
+    assert "ARD Workflow Team Member" in source
     assert "BEDO Security Event" not in source

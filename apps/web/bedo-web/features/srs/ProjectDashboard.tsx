@@ -20,17 +20,19 @@ export function ProjectDashboard({ session, initialProjects, mode }: DashboardPr
   const [editing, setEditing] = useState<BedoProject | null>(null);
   const [deleting, setDeleting] = useState<BedoProject | null>(null);
   const [error, setError] = useState("");
-  const baseRoute = mode === "gm" ? "/gm" : mode === "srs" ? "/srs" : "/command-center";
+  const baseRoute = mode === "gm" ? "/gm" : mode === "srs" ? "/srs" : mode === "ard" ? "/ard" : "/command-center";
   const isGm = mode === "gm";
-  const dashboardLabel = isGm ? "GM Support Office" : mode === "srs" ? "Strategic R&D Sector" : "Command Center";
-  const dashboardTitle = isGm ? "GM Support Office Dashboard" : mode === "srs" ? "SRS Dashboard" : "Command Center Dashboard";
+  const dashboardLabel = isGm ? "GM Support Office" : mode === "srs" ? "Strategic R&D Sector" : mode === "ard" ? "Applied R&D" : "Command Center";
+  const dashboardTitle = isGm ? "GM Support Office Dashboard" : mode === "srs" ? "SRS Dashboard" : mode === "ard" ? "ARD Dashboard" : "Command Center Dashboard";
   const dashboardDescription = isGm
     ? "Project completion is calculated from SRS-completed trainer items."
     : mode === "srs"
       ? "Projects visible to your SRS role and assignments."
+      : mode === "ard"
+        ? "Projects whose ARD handover has successfully started."
       : "Read-only project visibility with action access limited to the Command Center node.";
   const canManageProjects = isGm && session.roles.includes("General Manager");
-  const canViewProjectMetrics = isGm || session.roles.includes("SRS Manager");
+  const canViewProjectMetrics = isGm || session.roles.includes("SRS Manager") || session.roles.includes("ARD Manager");
 
   const buckets = useMemo(() => projects.projects.map(toProjectBucket), [projects]);
   const drafts = buckets.filter((project) => project.draft);
@@ -117,8 +119,8 @@ export function ProjectDashboard({ session, initialProjects, mode }: DashboardPr
       )}
 
       <ProjectTable
-        title={isGm ? "Ongoing Projects" : mode === "srs" ? "Projects in SRS" : "Projects"}
-        description={isGm ? "Released projects currently moving through SRS." : mode === "srs" ? "Projects visible to your SRS role and assignments." : "All projects visible to Command Center."}
+        title={isGm ? "Ongoing Projects" : mode === "srs" ? "Projects in SRS" : mode === "ard" ? "Projects in ARD" : "Projects"}
+        description={isGm ? "Released projects currently moving through SRS." : mode === "srs" ? "Projects visible to your SRS role and assignments." : mode === "ard" ? "Projects with active ARD workflow handover." : "All projects visible to Command Center."}
         projects={isGm ? ongoing : buckets}
         mode={mode}
         baseRoute={baseRoute}
@@ -198,7 +200,7 @@ function ProjectTable({
   title: string;
   description: string;
   projects: ProjectBucket[];
-  mode: "gm" | "srs" | "command-center";
+  mode: "gm" | "srs" | "command-center" | "ard";
   baseRoute: string;
   canManage: boolean;
   showMetrics: boolean;

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { ProjectDashboard, type ProjectList } from "@/features/projects/ProjectDashboard";
+import { ProjectDashboard } from "@/features/srs/ProjectDashboard";
+import type { ProjectList } from "@/features/srs/types";
 import type { BedoUserContext } from "@/lib/routes";
 import { canAccessRoute } from "@/lib/routes";
 import { frappeCall } from "@/server/frappe";
@@ -14,5 +15,5 @@ export default async function Page() {
     { page: 1, page_size: 25 },
     session.user
   ).catch(() => ({ projects: [], page: 1, page_size: 25, total: 0 }));
-  return <ProjectDashboard session={freshSession} initialProjects={projects} title="ARD" />;
+  return <ProjectDashboard session={freshSession} initialProjects={projects} mode="ard" />;
 }

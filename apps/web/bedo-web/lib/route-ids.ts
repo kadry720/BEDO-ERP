@@ -26,11 +26,11 @@ export function trainerItemRoute(scope: "gm" | "srs", project: string, trainerIt
   return `${projectRoute(scope, project)}/items/${routeSegment(trainerItem)}`;
 }
 
-export function projectWorkflowRoute(scope: "gm" | "srs" | "command-center", project: string, suffix = "") {
+export function projectWorkflowRoute(scope: "gm" | "srs" | "command-center" | "ard", project: string, suffix = "") {
   return `/${scope}/project/${routePath(project)}${suffix}`;
 }
 
-export function trainerItemWorkflowRoute(scope: "gm" | "srs" | "command-center", project: string, trainerItem: string) {
+export function trainerItemWorkflowRoute(scope: "gm" | "srs" | "command-center" | "ard", project: string, trainerItem: string) {
   return `${projectWorkflowRoute(scope, project)}/items/${routeSegment(trainerItem)}`;
 }
 
@@ -43,7 +43,7 @@ export function normalizeProjectActionUrl(actionUrl: string) {
   if (!actionUrl.startsWith("/")) return actionUrl;
 
   const { pathname, suffix } = splitQueryAndHash(actionUrl);
-  for (const scope of ["gm", "srs", "command-center"] as const) {
+  for (const scope of ["gm", "srs", "command-center", "ard"] as const) {
     const prefixes = [`/${scope}/project/`, `/${scope}/projects/`];
     const prefix = prefixes.find((candidate) => pathname.startsWith(candidate));
     if (!prefix) continue;

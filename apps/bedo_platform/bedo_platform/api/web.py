@@ -3,7 +3,17 @@ from __future__ import annotations
 import frappe
 
 from bedo_platform.constants import FRAPPE_DESK_TECHNICAL_ROLES, VISIBLE_BUSINESS_ROLE_NAMES, VISIBLE_DEPARTMENTS
-from bedo_platform.services.ard_workflow_service import get_ard_flowchart_definition as get_ard_flowchart_definition_service
+from bedo_platform.services.ard_workflow_service import (
+    assign_ard_project_owner as assign_ard_project_owner_service,
+    complete_internal_sync_meeting as complete_ard_internal_sync_meeting_service,
+    get_ard_flowchart_definition as get_ard_flowchart_definition_service,
+    get_ard_workspace as get_ard_workspace_service,
+    list_eligible_ard_team_members as list_eligible_ard_team_members_service,
+    schedule_internal_sync_meeting as schedule_ard_internal_sync_meeting_service,
+    select_ard_team as select_ard_team_service,
+    submit_progress_review_outcome as submit_ard_progress_review_outcome_service,
+    submit_scmdp as submit_ard_scmdp_service,
+)
 from bedo_platform.services.auth_service import get_safe_user_context, login_for_web
 from bedo_platform.services.profile_service import get_current_profile, update_current_profile
 from bedo_platform.services.deadline_service import (
@@ -276,6 +286,54 @@ def get_srs_flowchart_definition():
 def get_ard_flowchart_definition():
     validate_service_request()
     return get_ard_flowchart_definition_service()
+
+
+@service_api
+def get_ard_workspace(trainer_item: str):
+    user = validate_service_request()
+    return get_ard_workspace_service(trainer_item, actor=user)
+
+
+@service_api
+def list_eligible_ard_team_members():
+    user = validate_service_request()
+    return list_eligible_ard_team_members_service(actor=user)
+
+
+@service_api
+def schedule_ard_internal_sync_meeting(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return schedule_ard_internal_sync_meeting_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def complete_ard_internal_sync_meeting(trainer_item: str):
+    user = validate_service_request()
+    return complete_ard_internal_sync_meeting_service(trainer_item, actor=user)
+
+
+@service_api
+def assign_ard_project_owner(trainer_item: str, project_owner: str):
+    user = validate_service_request()
+    return assign_ard_project_owner_service(trainer_item, project_owner, actor=user)
+
+
+@service_api
+def select_ard_team(trainer_item: str, users=None):
+    user = validate_service_request()
+    return select_ard_team_service(trainer_item, list(_payload(users)), actor=user)
+
+
+@service_api
+def submit_ard_progress_review_outcome(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return submit_ard_progress_review_outcome_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def submit_ard_scmdp(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return submit_ard_scmdp_service(trainer_item, _payload(payload), actor=user)
 
 
 @service_api
