@@ -1423,6 +1423,17 @@ function NodeOutputSummary({ nodeId, state, workspace }: { nodeId: string; state
 }
 
 function OutputCard({ row }: { row: OutputRow }) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+
+  async function copyPath(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
+
   if (row.list) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -1455,7 +1466,7 @@ function OutputCard({ row }: { row: OutputRow }) {
             className="focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
             type="button"
             onClick={() => {
-              if (row.value) void navigator.clipboard?.writeText(row.value);
+              if (row.value) void copyPath(row.value);
             }}
             title="Copy path"
             aria-label="Copy path"
@@ -1463,6 +1474,11 @@ function OutputCard({ row }: { row: OutputRow }) {
             <Copy className="h-4 w-4" />
           </button>
         </div>
+        {copyStatus !== "idle" && (
+          <div className={`mt-2 text-xs font-black ${copyStatus === "copied" ? "text-emerald-700" : "text-red-700"}`}>
+            {copyStatus === "copied" ? "Copied" : "Copy failed"}
+          </div>
+        )}
       </div>
     );
   }
@@ -1758,19 +1774,8 @@ function PathSubmissionForm({
         />
       </label>
       <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">
-        Browser security does not expose the real local file path from a file picker. Use the selector below only to copy the filename into the path box, then add the shared drive/folder path manually.
+        Paste the shared drive or folder path manually. Local browser file selection is intentionally not used for workflow evidence paths.
       </div>
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-ink hover:bg-gray-50">
-        Browse local file
-        <input
-          className="sr-only"
-          type="file"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) setPathValue((current) => current || file.name);
-          }}
-        />
-      </label>
       <Button type="submit">{submitLabel}</Button>
     </form>
   );

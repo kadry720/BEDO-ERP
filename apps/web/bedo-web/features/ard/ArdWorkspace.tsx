@@ -314,7 +314,18 @@ function TeamPanel({ workspace }: { workspace: ArdWorkspaceData }) {
 }
 
 function CompletedOutput({ displayData }: { displayData: Record<string, string | number> }) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const rows = Object.entries(displayData);
+
+  async function copyPath(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
+
   if (!rows.length) return null;
   return (
     <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3">
@@ -327,12 +338,17 @@ function CompletedOutput({ displayData }: { displayData: Record<string, string |
           <span className="font-black text-slate-600">{label}</span>
           <span className="min-w-0 flex-1 truncate text-slate-950">{String(value)}</span>
           {label.toLowerCase().includes("path") && (
-            <button className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300" type="button" aria-label="Copy path" onClick={() => void navigator.clipboard?.writeText(String(value))}>
+            <button className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300" type="button" aria-label="Copy path" onClick={() => void copyPath(String(value))}>
               <Copy className="h-4 w-4" />
             </button>
           )}
         </div>
       ))}
+      {copyStatus !== "idle" && (
+        <div className={`mt-2 text-xs font-black ${copyStatus === "copied" ? "text-emerald-700" : "text-red-700"}`}>
+          {copyStatus === "copied" ? "Copied" : "Copy failed"}
+        </div>
+      )}
     </div>
   );
 }
