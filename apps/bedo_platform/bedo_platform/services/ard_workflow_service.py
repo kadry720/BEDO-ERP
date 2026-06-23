@@ -442,19 +442,47 @@ def ard_visible_project_names(actor: str) -> list[str]:
     roles = set(frappe.get_roles(actor))
     if not (roles & ARD_ROLES):
         return []
-    rows = frappe.get_all(
-        "ARD Workflow Instance",
-        filters={"is_superseded": 0},
-        fields=["project"],
-    )
+    if "ARD Manager" in roles:
+        rows = frappe.get_all(
+            "ARD Workflow Instance",
+            filters={"is_superseded": 0},
+            fields=["project"],
+        )
+    else:
+        rows = frappe.get_all(
+            "ARD Workflow Team Member",
+            filters={"user": actor, "is_active": 1},
+            fields=["project"],
+        )
     return sorted({row.project for row in rows})
+
+
+def ard_visible_trainer_item_names(actor: str) -> list[str]:
+    import frappe
+
+    roles = set(frappe.get_roles(actor))
+    if not (roles & ARD_ROLES):
+        return []
+    if "ARD Manager" in roles:
+        trainer_items = frappe.get_all(
+            "ARD Workflow Instance",
+            filters={"is_superseded": 0},
+            pluck="trainer_item",
+        )
+    else:
+        trainer_items = frappe.get_all(
+            "ARD Workflow Team Member",
+            filters={"user": actor, "is_active": 1},
+            pluck="trainer_item",
+        )
+    return sorted({str(trainer_item) for trainer_item in trainer_items if str(trainer_item or "").strip()})
 
 
 def _assert_can_view_workflow(workflow, actor: str) -> None:
     import frappe
 
     roles = _roles(actor)
-    if "General Manager" in roles or roles & ARD_ROLES:
+    if "General Manager" in roles or "ARD Manager" in roles:
         return
     assigned = frappe.db.exists(
         "ARD Workflow Team Member",

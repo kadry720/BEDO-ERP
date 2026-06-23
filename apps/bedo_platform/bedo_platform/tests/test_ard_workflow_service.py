@@ -1,5 +1,10 @@
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+from bedo_platform.services import project_service
 from bedo_platform.services import ard_workflow_service
 
 
@@ -63,3 +68,94 @@ def test_ard_web_api_exposes_workspace_and_mutation_methods():
     assert "select_ard_team" in source
     assert "submit_ard_progress_review_outcome" in source
     assert "submit_ard_scmdp" in source
+
+
+def test_ard_manager_can_see_every_project_and_trainer_assigned_to_ard(monkeypatch):
+    class FakeFrappe:
+        @staticmethod
+        def get_roles(user):
+            return ["ARD Manager"] if user == "ardmanager" else []
+
+        @staticmethod
+        def get_all(doctype, filters=None, fields=None, pluck=None, **_kwargs):
+            assert doctype == "ARD Workflow Instance"
+            assert filters == {"is_superseded": 0}
+            if pluck == "trainer_item":
+                return ["TRAINER-1", "TRAINER-2"]
+            return [
+                SimpleNamespace(project="PROJECT-1", trainer_item="TRAINER-1"),
+                SimpleNamespace(project="PROJECT-2", trainer_item="TRAINER-2"),
+            ]
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+
+    assert ard_workflow_service.ard_visible_project_names("ardmanager") == ["PROJECT-1", "PROJECT-2"]
+    assert ard_workflow_service.ard_visible_trainer_item_names("ardmanager") == ["TRAINER-1", "TRAINER-2"]
+
+
+def test_ard_non_manager_visibility_is_limited_to_active_team_memberships(monkeypatch):
+    class FakeFrappe:
+        @staticmethod
+        def get_roles(user):
+            return ["ARD Engineer"] if user == "ardengineer1" else []
+
+        @staticmethod
+        def get_all(doctype, filters=None, fields=None, pluck=None, **_kwargs):
+            assert doctype == "ARD Workflow Team Member"
+            assert filters == {"user": "ardengineer1", "is_active": 1}
+            rows = [
+                SimpleNamespace(project="PROJECT-1", trainer_item="TRAINER-1"),
+                SimpleNamespace(project="PROJECT-1", trainer_item="TRAINER-1"),
+            ]
+            if pluck == "trainer_item":
+                return [row.trainer_item for row in rows]
+            return rows
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+
+    assert ard_workflow_service.ard_visible_project_names("ardengineer1") == ["PROJECT-1"]
+    assert ard_workflow_service.ard_visible_trainer_item_names("ardengineer1") == ["TRAINER-1"]
+
+
+def test_ard_non_manager_cannot_open_unassigned_ard_workflow(monkeypatch):
+    class FakeDb:
+        @staticmethod
+        def exists(_doctype, _filters):
+            return False
+
+    class FakeFrappe:
+        db = FakeDb()
+        PermissionError = PermissionError
+
+        @staticmethod
+        def throw(message, exc):
+            raise exc(message)
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+    monkeypatch.setattr(ard_workflow_service, "_roles", lambda _actor: {"ARD Engineer"})
+
+    with pytest.raises(PermissionError, match="ARD workflow"):
+        ard_workflow_service._assert_can_view_workflow(SimpleNamespace(name="ARD-WF-1"), "ardengineer1")
+
+
+def test_ard_project_trainer_list_filters_to_visible_ard_trainers(monkeypatch):
+    captured_filters = {}
+
+    class FakeFrappe:
+        @staticmethod
+        def get_all(doctype, filters=None, **_kwargs):
+            if doctype == "BEDO Trainer Item":
+                captured_filters.update(filters or {})
+            return []
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+    monkeypatch.setattr(project_service, "_assert_project_access", lambda _actor, _project: None)
+    monkeypatch.setattr(project_service, "_is_gm", lambda _actor: False)
+    monkeypatch.setattr(project_service, "_is_srs_manager", lambda _actor: False)
+    monkeypatch.setattr(project_service, "_is_command_center_representative", lambda _actor: False)
+    monkeypatch.setattr(project_service, "_is_ard_user", lambda _actor: True)
+    monkeypatch.setattr(ard_workflow_service, "ard_visible_trainer_item_names", lambda _actor: ["TRAINER-1", "TRAINER-2"], raising=False)
+
+    project_service.list_trainer_items_for_project("PROJECT-1", "ardmanager")
+
+    assert captured_filters["name"] == ["in", ["TRAINER-1", "TRAINER-2"]]

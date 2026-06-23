@@ -1025,9 +1025,9 @@ def can_view_project(user: str, project: str) -> bool:
     if _is_gm(user) or _is_global_viewer(user) or _is_command_center_representative(user):
         return True
     if _is_ard_user(user):
-        import frappe
+        from bedo_platform.services.ard_workflow_service import ard_visible_project_names
 
-        return bool(frappe.db.exists("ARD Workflow Instance", {"project": project, "is_superseded": 0}))
+        return project in set(ard_visible_project_names(user))
     if _is_srs_manager(user):
         import frappe
 
@@ -1045,7 +1045,9 @@ def can_view_trainer_item(user: str, trainer_item: str) -> bool:
     if _is_gm(user) or _is_global_viewer(user) or _is_command_center_representative(user):
         return True
     if _is_ard_user(user):
-        return bool(frappe.db.exists("ARD Workflow Instance", {"trainer_item": trainer_item, "is_superseded": 0}))
+        from bedo_platform.services.ard_workflow_service import ard_visible_trainer_item_names
+
+        return trainer_item in set(ard_visible_trainer_item_names(user))
     if _is_srs_manager(user):
         return item.status != ITEM_STATUS_DRAFT
     return trainer_item in _item_assignments_for_user(user)
@@ -1823,7 +1825,12 @@ def list_trainer_items_for_project(project: str, actor: str) -> dict[str, Any]:
 
     _assert_project_access(actor, project)
     filters: dict[str, Any] = {"project": project, "is_deleted": 0}
-    if not (_is_gm(actor) or _is_srs_manager(actor) or _is_command_center_representative(actor)):
+    if _is_ard_user(actor):
+        from bedo_platform.services.ard_workflow_service import ard_visible_trainer_item_names
+
+        allowed_items = ard_visible_trainer_item_names(actor)
+        filters["name"] = ["in", sorted(allowed_items) or ["__none__"]]
+    elif not (_is_gm(actor) or _is_srs_manager(actor) or _is_command_center_representative(actor)):
         allowed_items = _item_assignments_for_user(actor)
         filters["name"] = ["in", sorted(allowed_items) or ["__none__"]]
     rows = frappe.get_all(
