@@ -1,5 +1,25 @@
 # ARD Workflow Overhaul Implementation Notes
 
+## Branch Implementation Status
+
+This branch implements the first production-ready ARD workflow foundation:
+
+- ARD department routing, role visibility, route checks, and deterministic safe seed users.
+- Additional deterministic Command Center representative seed users.
+- Sidebar utility relocation with Meetings, Notifications, Approvals, Profile, and Log out controls.
+- Reusable `BEDO Meeting` and `BEDO Meeting Participant` records with reminders, overdue checks, auto-completion, `/meetings`, and signed BFF routes.
+- Command Center sub-tabs with `SRS -> ARD`, Case 3 Handover Meeting, Handover Confirmation, failed-handover GM approval, Continue Anyway, and reset.
+- Approval department categorization and tabs for SRS, ARD, Command Center, and Suppliers.
+- Workflow reset service for Command Center, SRS Action Paths, and SRS Coordination, including downstream ARD/meeting/supplier invalidation.
+- ARD workflow DocTypes, workspace route, flowchart definition, Internal ARD Sync, owner assignment, team selection, Progress Review, On Plan, interruption request, supplier-order creation, and SCMDP submission.
+- Removal of workflow file browse controls and copy-path success/failure feedback.
+
+Known remaining hardening items:
+
+- ARD deadline ledger pause/resume accounting is partially represented through workflow state, but the full seven-working-day active-budget ledger, whole-day carryover, and overlapping blocker accounting still need deeper persistence tests before production policy enforcement.
+- Notification stale-action invalidation is handled through reset superseding for workflow records, but notification rows do not yet carry a dedicated generation-validity field.
+- Actual ARD section names, ARD employee roster, and Command Center roster must be supplied by the business before production seed data is final.
+
 ## Current-State Findings
 
 - The backend already has placeholder ARD module files and Next.js routes under `/ard`, but ARD is not an active workflow module.

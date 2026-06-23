@@ -86,6 +86,19 @@ The active authentication model is database-backed Frappe password auth:
 
 LDAP is not required for the active setup. A future LDAP integration should be added as an optional integration and must not expose LDAP bind credentials to the browser.
 
+## Active Workflow Modules
+
+BEDO currently includes workflow modules for:
+
+- GM Support Office project creation and release.
+- SRS owner assignment, team selection, deliverables, approvals, PMDP/BMDP paths, deadlines, and Command Center handoff.
+- Command Center SRS-to-ARD Cases 1, 2, and 3, including Case 3 Handover Meeting and Handover Confirmation.
+- ARD handover start, Internal ARD Sync Meeting, owner assignment, team selection, Progress Review Meeting, interruption requests, supplier-order creation for electronics cases, and SCMDP submission.
+- Reusable Meetings with reminders, overdue checks, and automatic completion jobs.
+- Workflow resets for Command Center, SRS Action Paths, and SRS Coordination.
+
+The ARD workflow uses `/ard` and canonical item routes under `/ard/project/.../items/...`. ARD roles are `ARD Manager`, `ARD Section Head`, `ARD Team Leader`, and `ARD Engineer`.
+
 ## Common Commands
 
 ```bash
@@ -155,6 +168,8 @@ BEDO is prepared for a split cloud deployment:
 | Frappe Redis | Railway Redis | Cache, queue, and socket.io Redis. |
 | Next session registry | TLS Redis reachable from Vercel | Required in production through `BEDO_SESSION_REDIS_URL`; memory fallback is rejected in production. |
 | Frappe files/site config | Railway volume | Mount at `/workspace/frappe-bench/sites`; the bench code and Python env are built into the image. |
+
+The scheduler service must be active in production for meeting reminders, meeting overdue evaluation, meeting automatic completion, deadline reminders, and overdue approvals. The jobs are written to be retry-safe; do not run multiple scheduler services unless duplicate-job protection has been reviewed for the deployment.
 
 Start with:
 

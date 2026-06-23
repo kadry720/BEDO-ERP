@@ -124,3 +124,8 @@ After first successful login:
 - Rotate bootstrap credentials.
 - Disable or rotate any one-time seed password.
 - Confirm technical Frappe Desk access is limited to technical administrators.
+- Replace deterministic ARD seed users with the actual ARD employee roster.
+- Provide actual ARD section names for section-level reporting and user grouping.
+- Replace deterministic Command Center representative users with the actual Command Center roster.
+- Confirm one and only one Railway scheduler service is active before relying on meeting reminders, overdue checks, and automatic completions.
+- Confirm production passwords for any newly seeded/bootstrap users are rotated outside Git.
