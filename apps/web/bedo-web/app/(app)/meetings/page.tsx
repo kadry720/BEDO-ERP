@@ -10,5 +10,5 @@ export default async function Page() {
     const data = await frappeCall<{ meetings: MeetingRow[] }>("bedo_platform.api.web.list_my_meetings", {}, session.user);
     meetings = data.meetings || [];
   }
-  return <MeetingsPage initialMeetings={meetings} />;
+  return <MeetingsPage initialMeetings={meetings} currentUser={session?.user || ""} />;
 }

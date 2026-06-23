@@ -113,6 +113,37 @@ def test_required_meeting_leads_confirmed_requires_every_required_lead():
     ) is True
 
 
+def test_meeting_row_includes_confirmation_candidates_for_actor(monkeypatch):
+    row = SimpleNamespace(
+        name="MEET-1",
+        meeting_id="CASE3-HANDOVER-1",
+        meeting_type="HANDOVER_MEETING",
+        project="PROJ-1",
+        trainer_item="ITEM-1",
+        source_workflow="WF-1",
+        source_workflow_generation=1,
+        source_node="COMMAND_CENTER_CASE_3_HANDOVER_MEETING",
+        organizer="commandcenter",
+        organizer_department="COMMAND_CENTER",
+        scheduled_at=None,
+        time_zone="Africa/Cairo",
+        expected_end_at=None,
+        status="PENDING_CONFIRMATION",
+        title="Case 3 Handover Meeting",
+        description="",
+        created_at=None,
+        confirmed_at=None,
+        completed_at=None,
+        overdue_at=None,
+    )
+    monkeypatch.setattr(meeting_service, "_meeting_participants", lambda meeting: [])
+    monkeypatch.setattr(meeting_service, "_confirmation_candidates_for_actor", lambda actor, meeting: ["srselectronicshead"])
+
+    result = meeting_service._meeting_row(row, actor="srsmanager")
+
+    assert result["confirmation_candidates"] == ["srselectronicshead"]
+
+
 def test_case3_handover_meeting_mutations_are_exposed():
     assert callable(meeting_service.schedule_case3_handover_meeting)
     assert callable(meeting_service.confirm_meeting_attendance)

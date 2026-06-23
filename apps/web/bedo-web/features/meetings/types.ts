@@ -30,4 +30,5 @@ export type MeetingRow = {
   completed_at?: string;
   overdue_at?: string;
   participants: MeetingParticipant[];
+  confirmation_candidates?: string[];
 };

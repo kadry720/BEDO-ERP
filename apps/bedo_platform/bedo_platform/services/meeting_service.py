@@ -399,7 +399,27 @@ def _meeting_participants(meeting: str) -> list[dict[str, object]]:
     ]
 
 
-def _meeting_row(row) -> dict[str, object]:
+def _confirmation_candidates_for_actor(actor: str, meeting: str) -> list[str]:
+    import frappe
+
+    department = _meeting_actor_department(actor)
+    if department not in {"SRS", "ARD", "COMMAND_CENTER"}:
+        return []
+    existing_participants = set(
+        frappe.get_all(
+            "BEDO Meeting Participant",
+            filters={"meeting": meeting, "is_active": 1},
+            pluck="user",
+        )
+    )
+    return [
+        user
+        for user in _active_users_in_department(department)
+        if user != actor and user not in existing_participants
+    ]
+
+
+def _meeting_row(row, *, actor: str) -> dict[str, object]:
     return {
         "name": row.name,
         "meeting_id": row.meeting_id,
@@ -422,6 +442,7 @@ def _meeting_row(row) -> dict[str, object]:
         "completed_at": to_cairo_iso(row.completed_at),
         "overdue_at": to_cairo_iso(row.overdue_at),
         "participants": _meeting_participants(row.name),
+        "confirmation_candidates": _confirmation_candidates_for_actor(actor, row.name),
     }
 
 
@@ -470,7 +491,7 @@ def list_my_meetings(actor: str, *, status: str = "") -> dict[str, object]:
         order_by="scheduled_at asc",
         page_length=100,
     )
-    meetings = [_meeting_row(row) for row in rows]
+    meetings = [_meeting_row(row, actor=actor) for row in rows]
     return {"meetings": meetings, "count": len(meetings)}
 
 

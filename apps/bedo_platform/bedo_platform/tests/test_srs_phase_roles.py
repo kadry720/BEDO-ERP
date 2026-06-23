@@ -37,4 +37,7 @@ def test_seed_users_include_srs_ard_and_command_center_accounts():
 def test_ard_seed_repair_patch_is_registered():
     patches = Path("apps/bedo_platform/bedo_platform/patches.txt").read_text(encoding="utf-8")
 
-    assert "bedo_platform.patches.reactivate_ard_and_command_center_seed_users.execute" in patches
+    assert "[pre_model_sync]" in patches
+    assert "bedo_platform.patches.reactivate_ard_and_command_center_seed_users" in patches
+    assert "[post_model_sync]" in patches
+    assert "bedo_platform.patches.backfill_approval_departments" in patches
