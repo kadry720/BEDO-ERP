@@ -167,7 +167,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
             <ApprovalCard
               key={approval.name}
               approval={approval}
-              onApprove={() => (isGlobalDeadlineExtensionApproval(approval) ? setActiveApproval(approval) : approve(approval))}
+              onApprove={(payload) => (isGlobalDeadlineExtensionApproval(approval) ? setActiveApproval(approval) : approve(approval, payload))}
               onDeny={() => approve(approval, { action: "deny" })}
               onEdit={() => setActiveApproval(approval)}
             />
@@ -188,11 +188,12 @@ export function ApprovalsPage({ initialApprovals }: Props) {
   );
 }
 
-function ApprovalCard({ approval, onApprove, onDeny, onEdit }: { approval: ApprovalRow; onApprove: () => void; onDeny: () => void; onEdit: () => void }) {
+function ApprovalCard({ approval, onApprove, onDeny, onEdit }: { approval: ApprovalRow; onApprove: (payload?: Record<string, unknown>) => void; onDeny: () => void; onEdit: () => void }) {
   const globalExtension = isGlobalDeadlineExtensionApproval(approval);
   const supplierExtension = isSupplierExtensionApproval(approval);
+  const handoverFailure = isHandoverFailureApproval(approval);
   const canDeny = isPmdpDualGateApproval(approval) || supplierExtension;
-  const canEdit = !canDeny && !globalExtension;
+  const canEdit = !canDeny && !globalExtension && !handoverFailure;
   return (
     <article className="rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
@@ -228,10 +229,23 @@ function ApprovalCard({ approval, onApprove, onDeny, onEdit }: { approval: Appro
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
-        <Button className="min-h-9 px-3" type="button" onClick={onApprove}>
-          <CheckCircle2 className="h-4 w-4" />
-          {globalExtension ? "Approve Extension" : "Approve"}
-        </Button>
+        {handoverFailure ? (
+          <>
+            <Button className="min-h-9 px-3" type="button" onClick={() => onApprove({ action: "continue_anyway" })}>
+              <CheckCircle2 className="h-4 w-4" />
+              Continue Anyway
+            </Button>
+            <Button className="min-h-9 px-3" variant="danger" type="button" onClick={() => onApprove({ action: "reset_command_center" })}>
+              <X className="h-4 w-4" />
+              Reset Command Center
+            </Button>
+          </>
+        ) : (
+          <Button className="min-h-9 px-3" type="button" onClick={() => onApprove()}>
+            <CheckCircle2 className="h-4 w-4" />
+            {globalExtension ? "Approve Extension" : "Approve"}
+          </Button>
+        )}
         {globalExtension && (
           <Button className="min-h-9 px-3" variant="secondary" type="button" disabled>
             <X className="h-4 w-4" />
@@ -397,8 +411,12 @@ function isSupplierExtensionApproval(approval: ApprovalRow) {
   return approval.approval_type === "SUPPLIER_DEADLINE_EXTENSION_APPROVAL";
 }
 
+function isHandoverFailureApproval(approval: ApprovalRow) {
+  return approval.approval_type === "HANDOVER_FAILURE_GM_APPROVAL";
+}
+
 function isCommandCenterApproval(approval: ApprovalRow) {
-  return approval.approval_type === "COMMAND_CENTER_GM_APPROVAL" || approval.approval_type === "COMMAND_CENTER_SRS_ARD_GM_APPROVAL";
+  return approval.approval_type === "COMMAND_CENTER_GM_APPROVAL" || approval.approval_type === "COMMAND_CENTER_SRS_ARD_GM_APPROVAL" || isHandoverFailureApproval(approval);
 }
 
 function ApproveWithEditsModal({

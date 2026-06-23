@@ -68,6 +68,7 @@ from bedo_platform.services.user_management_service import (
     update_user_from_admin,
     update_user_roles,
 )
+from bedo_platform.services.workflow_reset_service import execute_workflow_reset as execute_workflow_reset_service
 
 
 def service_api(fn):
@@ -403,6 +404,18 @@ def deliver_supplier_file(supplier_file: str):
 def request_supplier_extension(supplier_file: str, payload):
     user = validate_service_request()
     return request_supplier_deadline_extension_service(supplier_file, _payload(payload), actor=user)
+
+
+@service_api
+def execute_workflow_reset(trainer_item: str, payload):
+    user = validate_service_request()
+    data = _payload(payload)
+    return execute_workflow_reset_service(
+        trainer_item,
+        str(data.get("target") or ""),
+        actor=user,
+        reason=str(data.get("reason") or data.get("comments") or ""),
+    )
 
 
 @service_api

@@ -3513,37 +3513,13 @@ def resolve_handover_failure_gm_approval(approval_name: str, payload: dict[str, 
         return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name}
 
     if action in {"reset", "reset_command_center"}:
+        from bedo_platform.services.workflow_reset_service import reset_command_center
+
         approval.status = "APPROVED"
         approval.comments = str(payload.get("comments") or approval.comments or "GM reset the Command Center handoff.")[:500]
         approval.save(ignore_permissions=True)
-        if handoff.handover_meeting:
-            frappe.db.set_value(
-                "BEDO Meeting",
-                handoff.handover_meeting,
-                {"status": "SUPERSEDED_BY_RESET", "is_superseded": 1, "superseded_by_reset": approval.name},
-                update_modified=False,
-            )
-            for participant in frappe.get_all("BEDO Meeting Participant", filters={"meeting": handoff.handover_meeting}, pluck="name"):
-                frappe.db.set_value("BEDO Meeting Participant", participant, {"is_active": 0, "superseded_by_reset": approval.name}, update_modified=False)
-        handoff.status = COMMAND_CENTER_HANDOFF_PENDING
-        handoff.command_center_case = ""
-        handoff.deadline_days = 0
-        handoff.approved_deadline_days = 0
-        handoff.deadline = ""
-        handoff.handover_meeting = ""
-        handoff.case3_cleared_at = None
-        handoff.handover_confirmation_status = "NOT_STARTED"
-        handoff.handover_confirmed_by = ""
-        handoff.handover_confirmed_at = None
-        handoff.handover_failure_description = ""
-        handoff.handover_failed_by = ""
-        handoff.handover_failed_at = None
-        handoff.gm_approval = ""
-        handoff.generation = int(handoff.generation or 1) + 1
-        handoff.flags.ignore_permissions = True
-        handoff.save(ignore_permissions=True)
         _log_workflow("handover_failure_reset_command_center", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=handoff.trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD)
-        return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name, "reset": "command_center"}
+        return reset_command_center(handoff.trainer_item, actor, reason=approval.comments or "Handover failure reset")
 
     frappe.throw("Select Continue Anyway or Reset Command Center.", frappe.PermissionError)
 

@@ -16,7 +16,7 @@
     {"fieldname": "start_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Start At", "reqd": 1},
     {"fieldname": "due_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Due At", "reqd": 1},
     {"fieldname": "deadline_days", "fieldtype": "Int", "label": "Deadline Days", "reqd": 1},
-    {"default": "ACTIVE", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "ACTIVE\nCOMPLETED\nOVERDUE", "reqd": 1},
+    {"default": "ACTIVE", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "ACTIVE\nCOMPLETED\nOVERDUE\nSUPERSEDED_BY_RESET", "reqd": 1},
     {"fieldname": "reminder_notified_at", "fieldtype": "Datetime", "label": "Reminder Notified At"},
     {"fieldname": "overdue_notified_at", "fieldtype": "Datetime", "label": "Overdue Notified At"}
   ],
