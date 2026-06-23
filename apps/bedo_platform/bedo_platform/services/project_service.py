@@ -110,6 +110,10 @@ COMMAND_CENTER_HANDOFF_PENDING = "PENDING_COMMAND_CENTER"
 COMMAND_CENTER_HANDOFF_WAITING_GM = "WAITING_GM_APPROVAL"
 COMMAND_CENTER_HANDOFF_IN_PROGRESS = "COMMAND_CENTER_IN_PROGRESS"
 COMMAND_CENTER_HANDOFF_ROUTED_TO_SUPPLIERS = "ROUTED_TO_SUPPLIERS"
+COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_PENDING = "HANDOVER_MEETING_PENDING"
+COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_SCHEDULED = "HANDOVER_MEETING_SCHEDULED"
+COMMAND_CENTER_HANDOFF_HANDOVER_CONFIRMATION_PENDING = "HANDOVER_CONFIRMATION_PENDING"
+COMMAND_CENTER_HANDOFF_HANDOVER_FAILED_WAITING_GM = "HANDOVER_FAILED_WAITING_GM"
 COMMAND_CENTER_HANDOFF_READY_FOR_ARD = "READY_FOR_ARD"
 COMMAND_CENTER_HANDOFF_COMPLETED = "COMPLETED"
 SUPPLIER_FILE_IN_PROGRESS = "IN_PROGRESS"
@@ -118,6 +122,7 @@ SUPPLIER_FILE_OVERDUE = "OVERDUE"
 SUPPLIER_FILE_COMPLETED = "COMPLETED"
 COMMAND_CENTER_CASE_1_NODE = "COMMAND_CENTER_CASE_1"
 SUPPLIER_CASE_2_NODE = "SUPPLIER_CASE_2_DELIVERY"
+HANDOVER_FAILURE_GM_APPROVAL = "HANDOVER_FAILURE_GM_APPROVAL"
 
 
 def _utcnow() -> datetime:
@@ -1603,12 +1608,25 @@ def _safe_command_center_handoff(handoff, actor: str) -> dict[str, Any] | None:
         "gm_approved_by": handoff.gm_approved_by or "",
         "gm_approved_by_name": _user_full_name(handoff.gm_approved_by),
         "gm_approved_at": to_cairo_iso(handoff.gm_approved_at),
+        "generation": getattr(handoff, "generation", 1) or 1,
+        "case3_cleared_at": to_cairo_iso(getattr(handoff, "case3_cleared_at", None)),
+        "handover_meeting": getattr(handoff, "handover_meeting", "") or "",
+        "handover_confirmation_status": getattr(handoff, "handover_confirmation_status", "") or "NOT_STARTED",
+        "handover_confirmed_by": getattr(handoff, "handover_confirmed_by", "") or "",
+        "handover_confirmed_by_name": _user_full_name(getattr(handoff, "handover_confirmed_by", "")),
+        "handover_confirmed_at": to_cairo_iso(getattr(handoff, "handover_confirmed_at", None)),
+        "handover_failure_description": getattr(handoff, "handover_failure_description", "") or "",
+        "handover_failed_by": getattr(handoff, "handover_failed_by", "") or "",
+        "handover_failed_by_name": _user_full_name(getattr(handoff, "handover_failed_by", "")),
+        "handover_failed_at": to_cairo_iso(getattr(handoff, "handover_failed_at", None)),
         "completed_by": handoff.completed_by or "",
         "completed_by_name": _user_full_name(handoff.completed_by),
         "completed_at": to_cairo_iso(handoff.completed_at),
         "notes": handoff.notes or "",
         "can_submit_decision": _is_command_center_representative(actor) and handoff.status == COMMAND_CENTER_HANDOFF_PENDING,
         "can_complete_case_1": handoff.responsible_user == actor and handoff.command_center_case == COMMAND_CENTER_CASE_1 and handoff.status == COMMAND_CENTER_HANDOFF_IN_PROGRESS,
+        "can_schedule_handover_meeting": handoff.responsible_user == actor and handoff.command_center_case == COMMAND_CENTER_CASE_3 and handoff.status == COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_PENDING,
+        "can_submit_handover_confirmation": handoff.responsible_user == actor and handoff.command_center_case == COMMAND_CENTER_CASE_3 and handoff.status == COMMAND_CENTER_HANDOFF_HANDOVER_CONFIRMATION_PENDING,
     }
 
 
@@ -2738,6 +2756,16 @@ def _command_center_case_and_deadline(payload: dict[str, Any], *, fallback_case:
     return command_case, _required_int_for_storage(deadline_source, "Deadline")
 
 
+def _handoff_status_after_command_center_gm_approval(command_case: str) -> str:
+    if command_case == COMMAND_CENTER_CASE_1:
+        return COMMAND_CENTER_HANDOFF_IN_PROGRESS
+    if command_case == COMMAND_CENTER_CASE_2:
+        return COMMAND_CENTER_HANDOFF_ROUTED_TO_SUPPLIERS
+    if command_case == COMMAND_CENTER_CASE_3:
+        return COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_PENDING
+    return COMMAND_CENTER_HANDOFF_PENDING
+
+
 def submit_command_center_srs_ard_decision(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
     import frappe
 
@@ -2820,6 +2848,189 @@ def submit_command_center_srs_ard_decision(trainer_item: str, payload: dict[str,
 
 def submit_command_center_approval(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
     return submit_command_center_srs_ard_decision(trainer_item, payload, actor)
+
+
+def _payload_datetime(value: Any, label: str) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    text = _required_text(value, label)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"{label} must be a valid date and time.")
+
+
+def _payload_user_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [part.strip() for part in value.split(",") if part.strip()]
+    if isinstance(value, (list, tuple, set)):
+        return [str(part).strip() for part in value if str(part).strip()]
+    return []
+
+
+def schedule_case3_handover_meeting(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+    from bedo_platform.services.meeting_service import schedule_case3_handover_meeting as schedule_meeting
+
+    _assert_item_access(actor, trainer_item)
+    if not _is_command_center_representative(actor):
+        frappe.throw("Command Center Representative access is required.", frappe.PermissionError)
+    handoff = _handoff_for_item(trainer_item)
+    if not handoff:
+        frappe.throw("Command Center handoff not found.", frappe.DoesNotExistError)
+    if handoff.responsible_user != actor:
+        frappe.throw("Only the responsible Command Center user can schedule this handover meeting.", frappe.PermissionError)
+    if handoff.command_center_case != COMMAND_CENTER_CASE_3:
+        frappe.throw("Handover meetings are only available for Case 3.", frappe.PermissionError)
+    if handoff.status not in {
+        COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_PENDING,
+        COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_SCHEDULED,
+    }:
+        frappe.throw("Case 3 handover meeting scheduling is not available for this handoff.", frappe.PermissionError)
+
+    scheduled_at = _payload_datetime(payload.get("scheduled_at"), "Meeting date and time")
+    colleagues = _payload_user_list(payload.get("command_center_colleagues") or payload.get("colleagues"))
+    result = schedule_meeting(
+        handoff=handoff,
+        scheduled_at=scheduled_at,
+        actor=actor,
+        command_center_colleagues=colleagues,
+    )
+    handoff.handover_meeting = result["meeting"]
+    handoff.status = COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_SCHEDULED
+    handoff.flags.ignore_permissions = True
+    handoff.save(ignore_permissions=True)
+    _log_workflow(
+        "handover_meeting_scheduled",
+        actor,
+        workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+        message=str(result.get("meeting_id") or ""),
+    )
+    return {"success": True, "trainer_item": trainer_item, "handoff": handoff.name, **result}
+
+
+def confirm_case3_handover_meeting(meeting: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+    from bedo_platform.services.meeting_service import confirm_meeting_attendance
+
+    selected_users = _payload_user_list(payload.get("selected_users") or payload.get("users"))
+    result = confirm_meeting_attendance(meeting, selected_users, actor)
+    if result.get("all_required_confirmed"):
+        handoff_name = frappe.db.get_value(
+            "BEDO Command Center Handoff",
+            {"handover_meeting": meeting, "is_active": 1},
+            "name",
+        )
+        if handoff_name:
+            handoff = frappe.get_doc("BEDO Command Center Handoff", handoff_name)
+            if handoff.status == COMMAND_CENTER_HANDOFF_HANDOVER_MEETING_SCHEDULED:
+                handoff.status = COMMAND_CENTER_HANDOFF_HANDOVER_CONFIRMATION_PENDING
+                handoff.flags.ignore_permissions = True
+                handoff.save(ignore_permissions=True)
+    return result
+
+
+def submit_case3_handover_confirmation(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _assert_item_access(actor, trainer_item)
+    if not _is_command_center_representative(actor):
+        frappe.throw("Command Center Representative access is required.", frappe.PermissionError)
+    handoff = _handoff_for_item(trainer_item)
+    if not handoff:
+        frappe.throw("Command Center handoff not found.", frappe.DoesNotExistError)
+    if handoff.responsible_user != actor:
+        frappe.throw("Only the responsible Command Center user can submit the handover confirmation.", frappe.PermissionError)
+    if handoff.command_center_case != COMMAND_CENTER_CASE_3 or handoff.status != COMMAND_CENTER_HANDOFF_HANDOVER_CONFIRMATION_PENDING:
+        frappe.throw("Handover confirmation is not available for this handoff.", frappe.PermissionError)
+
+    action = str(payload.get("action") or payload.get("outcome") or "").strip().lower().replace("-", "_")
+    now = _utcnow()
+    if action in {"success", "successful", "handover_successful"}:
+        handoff.status = COMMAND_CENTER_HANDOFF_READY_FOR_ARD
+        handoff.handover_confirmation_status = "SUCCESSFUL"
+        handoff.handover_confirmed_by = actor
+        handoff.handover_confirmed_at = now
+        handoff.completed_by = actor
+        handoff.completed_at = now
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+        notify_many(
+            _active_users_with_role("ARD Manager"),
+            title="Handover successful",
+            message="Command Center confirmed the Case 3 handover was successful.",
+            notification_type="HANDOVER_SUCCESSFUL",
+            project=handoff.project,
+            trainer_item=handoff.trainer_item,
+            workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+            node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+            action_url=project_action_url("ard", handoff.project, handoff.trainer_item),
+            priority="High",
+        )
+        _log_workflow("handover_successful", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD)
+        return {"success": True, "trainer_item": trainer_item, "handoff": handoff.name}
+
+    if action in {"failed", "failure", "handover_failed"}:
+        description = _required_text(payload.get("description") or payload.get("reason") or payload.get("comments"), "Failure description")
+        approval_name = frappe.db.get_value(
+            "SRS Approval",
+            {
+                "command_center_handoff": handoff.name,
+                "approval_type": HANDOVER_FAILURE_GM_APPROVAL,
+                "status": "WAITING",
+            },
+            "name",
+        )
+        if not approval_name:
+            approval = frappe.get_doc(
+                {
+                    "doctype": "SRS Approval",
+                    "workflow_instance": handoff.srs_workflow_instance,
+                    "project": handoff.project,
+                    "trainer_item": handoff.trainer_item,
+                    "command_center_handoff": handoff.name,
+                    "approval_department": _approval_department_for_type(HANDOVER_FAILURE_GM_APPROVAL),
+                    "approval_type": HANDOVER_FAILURE_GM_APPROVAL,
+                    "status": "WAITING",
+                    "required_role": "General Manager",
+                    "assigned_to_user": actor,
+                    "original_case_classification": handoff.command_center_case,
+                    "original_deadline_proposal_days": 0,
+                    "comments": description[:500],
+                }
+            )
+            approval.flags.ignore_permissions = True
+            approval.insert(ignore_permissions=True)
+            approval_name = approval.name
+        handoff.status = COMMAND_CENTER_HANDOFF_HANDOVER_FAILED_WAITING_GM
+        handoff.handover_confirmation_status = "WAITING_GM_DECISION"
+        handoff.handover_failure_description = description[:500]
+        handoff.handover_failed_by = actor
+        handoff.handover_failed_at = now
+        handoff.gm_approval = approval_name
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+        notify_many(
+            _active_users_with_role("General Manager"),
+            title="Handover failed",
+            message="Command Center reported a failed Case 3 handover. GM decision is required.",
+            notification_type="HANDOVER_FAILURE_APPROVAL_REQUIRED",
+            project=handoff.project,
+            trainer_item=handoff.trainer_item,
+            workflow_type=COMMAND_CENTER_WORKFLOW_TYPE,
+            node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD,
+            action_url="/approvals",
+            priority="High",
+        )
+        _log_workflow("handover_failed", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD, message=description)
+        return {"success": True, "trainer_item": trainer_item, "handoff": handoff.name, "approval": approval_name}
+
+    frappe.throw("Select Handover Successful or Handover Failed.", frappe.PermissionError)
 
 
 def _create_command_center_deadline(handoff, actor: str, deadline_days: int) -> dict[str, Any]:
@@ -2934,15 +3145,17 @@ def approve_command_center_srs_ard_gm_approval(approval_name: str, payload: dict
         title = "Supplier delivery file opened"
         message = f"GM approved Case 2 with {deadline_quantity_label(deadline_days)}. Supplier tracking is active."
     else:
-        handoff.status = COMMAND_CENTER_HANDOFF_READY_FOR_ARD
-        handoff.completed_by = actor
-        handoff.completed_at = now
+        handoff.status = _handoff_status_after_command_center_gm_approval(command_case)
+        handoff.case3_cleared_at = now
+        handoff.handover_confirmation_status = "NOT_STARTED"
+        handoff.completed_by = ""
+        handoff.completed_at = None
         handoff.deadline = ""
         handoff.approved_deadline_days = 0
         handoff.flags.ignore_permissions = True
         handoff.save(ignore_permissions=True)
-        title = "Handoff ready for ARD"
-        message = "GM approved direct delivery to ARD. No Command Center or Supplier deadline is required."
+        title = "Handover meeting required"
+        message = "GM approved direct delivery to ARD. Schedule the Case 3 Handover Meeting before ARD starts."
 
     notify_many(
         [handoff.responsible_user],
@@ -3258,6 +3471,83 @@ def approve_global_deadline_extension(approval_name: str, payload: dict[str, Any
     }
 
 
+def resolve_handover_failure_gm_approval(approval_name: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _require_gm(actor)
+    approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.approval_type != HANDOVER_FAILURE_GM_APPROVAL:
+        frappe.throw("Unsupported approval type.", frappe.PermissionError)
+    if approval.status != "WAITING":
+        frappe.throw("Approval has already been completed.", frappe.PermissionError)
+    _assert_item_access(actor, approval.trainer_item)
+    handoff_name = getattr(approval, "command_center_handoff", "") or frappe.db.get_value(
+        "BEDO Command Center Handoff",
+        {"trainer_item": approval.trainer_item, "is_active": 1},
+        "name",
+    )
+    if not handoff_name:
+        frappe.throw("Command Center handoff not found.", frappe.DoesNotExistError)
+    handoff = frappe.get_doc("BEDO Command Center Handoff", handoff_name)
+    if handoff.status != COMMAND_CENTER_HANDOFF_HANDOVER_FAILED_WAITING_GM:
+        frappe.throw("This handover failure is not waiting for GM decision.", frappe.PermissionError)
+
+    action = str(payload.get("action") or payload.get("decision") or "continue_anyway").strip().lower().replace("-", "_")
+    now = _utcnow()
+    approval.approved_by = actor
+    approval.approved_at = now
+    approval.flags.ignore_permissions = True
+    if action in {"continue", "continue_anyway", "approve", "approved"}:
+        approval.status = "APPROVED"
+        approval.comments = str(payload.get("comments") or approval.comments or "GM continued the handover anyway.")[:500]
+        approval.save(ignore_permissions=True)
+        handoff.status = COMMAND_CENTER_HANDOFF_READY_FOR_ARD
+        handoff.handover_confirmation_status = "CONTINUED_ANYWAY"
+        handoff.handover_confirmed_by = actor
+        handoff.handover_confirmed_at = now
+        handoff.completed_by = actor
+        handoff.completed_at = now
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+        _log_workflow("handover_failure_continue_anyway", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=handoff.trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD)
+        return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name}
+
+    if action in {"reset", "reset_command_center"}:
+        approval.status = "APPROVED"
+        approval.comments = str(payload.get("comments") or approval.comments or "GM reset the Command Center handoff.")[:500]
+        approval.save(ignore_permissions=True)
+        if handoff.handover_meeting:
+            frappe.db.set_value(
+                "BEDO Meeting",
+                handoff.handover_meeting,
+                {"status": "SUPERSEDED_BY_RESET", "is_superseded": 1, "superseded_by_reset": approval.name},
+                update_modified=False,
+            )
+            for participant in frappe.get_all("BEDO Meeting Participant", filters={"meeting": handoff.handover_meeting}, pluck="name"):
+                frappe.db.set_value("BEDO Meeting Participant", participant, {"is_active": 0, "superseded_by_reset": approval.name}, update_modified=False)
+        handoff.status = COMMAND_CENTER_HANDOFF_PENDING
+        handoff.command_center_case = ""
+        handoff.deadline_days = 0
+        handoff.approved_deadline_days = 0
+        handoff.deadline = ""
+        handoff.handover_meeting = ""
+        handoff.case3_cleared_at = None
+        handoff.handover_confirmation_status = "NOT_STARTED"
+        handoff.handover_confirmed_by = ""
+        handoff.handover_confirmed_at = None
+        handoff.handover_failure_description = ""
+        handoff.handover_failed_by = ""
+        handoff.handover_failed_at = None
+        handoff.gm_approval = ""
+        handoff.generation = int(handoff.generation or 1) + 1
+        handoff.flags.ignore_permissions = True
+        handoff.save(ignore_permissions=True)
+        _log_workflow("handover_failure_reset_command_center", actor, workflow_type=COMMAND_CENTER_WORKFLOW_TYPE, project=handoff.project, trainer_item=handoff.trainer_item, node_id=COMMAND_CENTER_HANDOFF_TYPE_SRS_TO_ARD)
+        return {"success": True, "trainer_item": handoff.trainer_item, "handoff": handoff.name, "reset": "command_center"}
+
+    frappe.throw("Select Continue Anyway or Reset Command Center.", frappe.PermissionError)
+
+
 def _approval_roles_for_actor(actor: str) -> set[str]:
     roles = set()
     if _is_gm(actor):
@@ -3270,7 +3560,7 @@ def _approval_roles_for_actor(actor: str) -> set[str]:
 def _approval_node_for_type(approval_type: str) -> str:
     if approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return ""
-    if approval_type in {COMMAND_CENTER_SRS_ARD_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL}:
+    if approval_type in {COMMAND_CENTER_SRS_ARD_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL}:
         return ""
     if approval_type in {"GM_CASE_APPROVAL", "SRS_MANAGER_DEADLINE_APPROVAL"}:
         return SRS_NODE_DUAL_GATE_APPROVAL
@@ -3312,6 +3602,16 @@ def _approval_is_actionable(row) -> bool:
             return False
         status = frappe.db.get_value("BEDO Command Center Handoff", handoff_name, "status")
         return status == COMMAND_CENTER_HANDOFF_WAITING_GM
+    if row.approval_type == HANDOVER_FAILURE_GM_APPROVAL:
+        handoff_name = getattr(row, "command_center_handoff", "") or frappe.db.get_value(
+            "BEDO Command Center Handoff",
+            {"trainer_item": row.trainer_item, "is_active": 1},
+            "name",
+        )
+        if not handoff_name:
+            return False
+        status = frappe.db.get_value("BEDO Command Center Handoff", handoff_name, "status")
+        return status == COMMAND_CENTER_HANDOFF_HANDOVER_FAILED_WAITING_GM
     if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
         supplier_file = getattr(row, "supplier_file", "")
         if not supplier_file:
@@ -3376,6 +3676,8 @@ def _approval_label(approval_type: str) -> str:
         return "Command Center Decision Approval"
     if approval_type == COMMAND_CENTER_SRS_ARD_GM_APPROVAL:
         return "Command Center SRS to ARD Approval"
+    if approval_type == HANDOVER_FAILURE_GM_APPROVAL:
+        return "Handover Failure GM Decision"
     if approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
         return "Supplier Deadline Extension Approval"
     if approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
@@ -3397,7 +3699,7 @@ def _approval_display_row(row) -> dict[str, Any]:
     submitted = frappe.db.get_value("SRS Deliverables Matrix", {"workflow_instance": row.workflow_instance}, ["submitted_by", "submitted_at"], as_dict=True) or {}
     submitted_by = submitted.get("submitted_by") or ""
     submitted_at = submitted.get("submitted_at")
-    if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL}:
+    if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL}:
         submitted_by = row.assigned_to_user or ""
         submitted_at = row.creation
     if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
@@ -3458,10 +3760,10 @@ def _approval_display_row(row) -> dict[str, Any]:
         "responsible_user": responsible_user,
         "responsible_user_name": _user_full_name(responsible_user),
         "deadline_due_at": to_cairo_iso((deadline or {}).get("due_at")),
-        "case_classification": row.edited_case_classification or (row.original_case_classification if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL} else workflow.get("case_classification")) or row.original_case_classification or "",
-        "deadline_proposal_days": 0 if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL else row.edited_deadline_proposal_days or (row.original_deadline_proposal_days if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, "PMDP_EXTENSION_APPROVAL", SUPPLIER_DEADLINE_EXTENSION_APPROVAL} else workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days")) or row.original_deadline_proposal_days or 0,
+        "case_classification": row.edited_case_classification or (row.original_case_classification if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL} else workflow.get("case_classification")) or row.original_case_classification or "",
+        "deadline_proposal_days": 0 if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL else row.edited_deadline_proposal_days or (row.original_deadline_proposal_days if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL, "PMDP_EXTENSION_APPROVAL", SUPPLIER_DEADLINE_EXTENSION_APPROVAL} else workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days")) or row.original_deadline_proposal_days or 0,
         "deadline_unit_label": deadline_unit_label(),
-        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
+        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
         "comments": row.comments or "",
         "created_at": to_cairo_iso(row.creation),
     }
@@ -3549,6 +3851,8 @@ def approve_srs_approval(approval: str, actor: str, payload: dict[str, Any] | No
         return approve_supplier_deadline_extension(approval, payload, actor)
     if detail["approval_type"] == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return approve_global_deadline_extension(approval, payload, actor)
+    if detail["approval_type"] == HANDOVER_FAILURE_GM_APPROVAL:
+        return resolve_handover_failure_gm_approval(approval, payload, actor)
     frappe.throw("Unsupported approval type.", frappe.PermissionError)
 
 

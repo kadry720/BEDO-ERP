@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -90,6 +91,31 @@ def test_validate_department_participants_rejects_out_of_department_users():
             active_srs_users,
             department_key="SRS",
         )
+
+
+def test_case3_handover_meeting_ids_are_stable_per_handoff_generation():
+    assert meeting_service.case3_handover_meeting_id("handoff-1", 3) == "CASE3-HANDOVER-handoff-1-G3"
+
+
+def test_required_meeting_leads_confirmed_requires_every_required_lead():
+    assert meeting_service.required_meeting_leads_confirmed(
+        [
+            SimpleNamespace(is_required=1, participation_source="required lead", confirmation_status="CONFIRMED"),
+            SimpleNamespace(is_required=1, participation_source="required lead", confirmation_status="PENDING"),
+            SimpleNamespace(is_required=0, participation_source="selected team member", confirmation_status="PENDING"),
+        ]
+    ) is False
+    assert meeting_service.required_meeting_leads_confirmed(
+        [
+            SimpleNamespace(is_required=1, participation_source="required lead", confirmation_status="CONFIRMED"),
+            SimpleNamespace(is_required=1, participation_source="required lead", confirmation_status="CONFIRMED"),
+        ]
+    ) is True
+
+
+def test_case3_handover_meeting_mutations_are_exposed():
+    assert callable(meeting_service.schedule_case3_handover_meeting)
+    assert callable(meeting_service.confirm_meeting_attendance)
 
 
 def test_meeting_doctypes_and_scheduler_are_registered():

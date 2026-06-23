@@ -21,6 +21,7 @@ from bedo_platform.services.project_service import (
     approve_srs_case_as_gm as approve_srs_case_as_gm_service,
     approve_srs_deadline_as_srs_manager as approve_srs_deadline_as_srs_manager_service,
     assign_srs_project_owner as assign_srs_project_owner_service,
+    confirm_case3_handover_meeting as confirm_case3_handover_meeting_service,
     complete_command_center_case_1 as complete_command_center_case_1_service,
     create_project as create_bedo_project,
     delete_project_cascade as delete_bedo_project_cascade,
@@ -44,10 +45,12 @@ from bedo_platform.services.project_service import (
     release_project_to_srs as release_bedo_project_to_srs,
     request_pmdp_extension as request_pmdp_extension_service,
     request_supplier_deadline_extension as request_supplier_deadline_extension_service,
+    schedule_case3_handover_meeting as schedule_case3_handover_meeting_service,
     select_srs_team as select_srs_team_service,
     submit_pmdp_gate_path as submit_pmdp_gate_path_service,
     submit_pmdp_path as submit_pmdp_path_service,
     submit_command_center_srs_ard_decision as submit_command_center_approval_service,
+    submit_case3_handover_confirmation as submit_case3_handover_confirmation_service,
     submit_mandatory_coordination as submit_mandatory_coordination_service,
     submit_srs_bmdp_path as submit_srs_bmdp_path_service,
     submit_srs_deliverables_matrix as submit_srs_deliverables_matrix_service,
@@ -358,6 +361,24 @@ def get_command_center_handoff(trainer_item: str):
 def submit_command_center_decision(trainer_item: str, payload):
     user = validate_service_request()
     return submit_command_center_approval_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def schedule_case3_handover_meeting(trainer_item: str, payload):
+    user = validate_service_request()
+    return schedule_case3_handover_meeting_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def confirm_case3_handover_meeting(meeting: str, payload):
+    user = validate_service_request()
+    return confirm_case3_handover_meeting_service(meeting, _payload(payload), actor=user)
+
+
+@service_api
+def submit_case3_handover_confirmation(trainer_item: str, payload):
+    user = validate_service_request()
+    return submit_case3_handover_confirmation_service(trainer_item, _payload(payload), actor=user)
 
 
 @service_api

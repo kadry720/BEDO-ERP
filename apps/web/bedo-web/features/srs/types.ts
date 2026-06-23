@@ -171,12 +171,25 @@ export type CommandCenterHandoff = {
   gm_approved_by: string;
   gm_approved_by_name: string;
   gm_approved_at: string;
+  generation?: number;
+  case3_cleared_at?: string;
+  handover_meeting?: string;
+  handover_confirmation_status?: string;
+  handover_confirmed_by?: string;
+  handover_confirmed_by_name?: string;
+  handover_confirmed_at?: string;
+  handover_failure_description?: string;
+  handover_failed_by?: string;
+  handover_failed_by_name?: string;
+  handover_failed_at?: string;
   completed_by: string;
   completed_by_name: string;
   completed_at: string;
   notes: string;
   can_submit_decision: boolean;
   can_complete_case_1: boolean;
+  can_schedule_handover_meeting?: boolean;
+  can_submit_handover_confirmation?: boolean;
 };
 
 export type SupplierFile = {

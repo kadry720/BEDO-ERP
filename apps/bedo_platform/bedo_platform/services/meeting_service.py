@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Iterable
 
-from bedo_platform.constants import GLOBAL_VIEW_ROLES
+from bedo_platform.constants import COMMAND_CENTER_ROLES, GLOBAL_VIEW_ROLES
 from bedo_platform.services.deadline_service import CAIRO_TZ, WORK_START, is_working_day, to_cairo_iso, to_storage_datetime
+from bedo_platform.services.security_audit_service import log_security_event
+from bedo_platform.services.user_profile_service import assert_user_can_login
 
 MEETING_STATUS_DRAFT = "DRAFT"
 MEETING_STATUS_PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
@@ -99,6 +101,20 @@ def validate_department_participants(
     return selected
 
 
+def case3_handover_meeting_id(handoff_name: str, generation: int | str | None = 1) -> str:
+    return f"CASE3-HANDOVER-{handoff_name}-G{int(generation or 1)}"
+
+
+def required_meeting_leads_confirmed(participants: Iterable[object]) -> bool:
+    required = [
+        row
+        for row in participants
+        if int(getattr(row, "is_required", 0) or 0)
+        and getattr(row, "participation_source", "") == "required lead"
+    ]
+    return bool(required) and all(getattr(row, "confirmation_status", "") == "CONFIRMED" for row in required)
+
+
 def _roles(user: str) -> set[str]:
     import frappe
 
@@ -107,6 +123,254 @@ def _roles(user: str) -> set[str]:
 
 def _is_global_viewer(user: str) -> bool:
     return bool(_roles(user) & GLOBAL_VIEW_ROLES)
+
+
+def _primary_department_key(user: str) -> str:
+    import frappe
+
+    department = frappe.db.get_value(
+        "BEDO User Role Assignment",
+        {"user": user, "is_primary_department": 1, "is_active": 1},
+        "department",
+    )
+    if not department:
+        return ""
+    return frappe.db.get_value("BEDO Department", department, "department_key") or ""
+
+
+def _active_users_with_role(role: str) -> list[str]:
+    import frappe
+
+    users = []
+    for row in frappe.get_all("Has Role", filters={"role": role}, fields=["parent"]):
+        if row.parent not in {"Administrator", "Guest"} and assert_user_can_login(row.parent):
+            users.append(row.parent)
+    return sorted(set(users))
+
+
+def _active_users_in_department(department_key: str) -> list[str]:
+    import frappe
+
+    users = []
+    for row in frappe.get_all("User", filters={"enabled": 1}, fields=["name"]):
+        if row.name in {"Administrator", "Guest"} or not assert_user_can_login(row.name):
+            continue
+        if _primary_department_key(row.name) == department_key:
+            users.append(row.name)
+    return sorted(set(users))
+
+
+def _meeting_actor_department(actor: str) -> str:
+    roles = _roles(actor)
+    if "SRS Manager" in roles:
+        return "SRS"
+    if "ARD Manager" in roles:
+        return "ARD"
+    if roles & COMMAND_CENTER_ROLES:
+        return "COMMAND_CENTER"
+    return _primary_department_key(actor)
+
+
+def _upsert_meeting_participant(
+    *,
+    meeting: str,
+    user: str,
+    department: str,
+    participation_source: str,
+    selected_by: str,
+    is_required: int = 0,
+    confirmation_status: str = "PENDING",
+) -> str:
+    import frappe
+
+    existing = frappe.db.get_value("BEDO Meeting Participant", {"meeting": meeting, "user": user}, "name")
+    doc = frappe.get_doc("BEDO Meeting Participant", existing) if existing else frappe.new_doc("BEDO Meeting Participant")
+    doc.meeting = meeting
+    doc.user = user
+    doc.department = department
+    doc.participation_source = participation_source
+    doc.selected_by = selected_by
+    doc.is_required = is_required
+    doc.confirmation_status = doc.confirmation_status or confirmation_status
+    doc.is_active = 1
+    doc.flags.ignore_permissions = True
+    if existing:
+        doc.save(ignore_permissions=True)
+    else:
+        doc.insert(ignore_permissions=True)
+    return doc.name
+
+
+def schedule_case3_handover_meeting(
+    *,
+    handoff,
+    scheduled_at: datetime,
+    actor: str,
+    command_center_colleagues: Iterable[str] | None = None,
+) -> dict[str, object]:
+    import frappe
+    from bedo_platform.services.notification_service import notify_many
+
+    cleared_at = getattr(handoff, "case3_cleared_at", None) or getattr(handoff, "gm_approved_at", None) or datetime.now(CAIRO_TZ)
+    scheduled = validate_case3_handover_time(cleared_at, scheduled_at)
+    generation = int(getattr(handoff, "generation", 1) or 1)
+    meeting_id = case3_handover_meeting_id(handoff.name, generation)
+    existing = frappe.db.get_value("BEDO Meeting", {"meeting_id": meeting_id, "is_superseded": 0}, "name")
+    meeting = frappe.get_doc("BEDO Meeting", existing) if existing else frappe.new_doc("BEDO Meeting")
+    meeting.meeting_id = meeting_id
+    meeting.meeting_type = MEETING_TYPE_HANDOVER
+    meeting.project = handoff.project
+    meeting.trainer_item = handoff.trainer_item
+    meeting.source_workflow = handoff.srs_workflow_instance
+    meeting.source_workflow_generation = generation
+    meeting.source_node = "COMMAND_CENTER_CASE_3_HANDOVER_MEETING"
+    meeting.organizer = actor
+    meeting.organizer_department = "COMMAND_CENTER"
+    meeting.scheduled_at = to_storage_datetime(scheduled)
+    meeting.time_zone = "Africa/Cairo"
+    meeting.expected_end_at = to_storage_datetime(scheduled + STANDARD_MEETING_DURATION)
+    meeting.status = MEETING_STATUS_PENDING_CONFIRMATION
+    meeting.title = "Case 3 Handover Meeting"
+    meeting.description = getattr(handoff, "notes", "") or "Command Center Case 3 SRS to ARD handover."
+    meeting.created_at = getattr(meeting, "created_at", None) or to_storage_datetime(datetime.now(CAIRO_TZ))
+    meeting.related_reference_doctype = "BEDO Command Center Handoff"
+    meeting.related_reference_name = handoff.name
+    meeting.is_superseded = 0
+    meeting.flags.ignore_permissions = True
+    if existing:
+        meeting.save(ignore_permissions=True)
+    else:
+        meeting.insert(ignore_permissions=True)
+
+    _upsert_meeting_participant(
+        meeting=meeting.name,
+        user=actor,
+        department="COMMAND_CENTER",
+        participation_source="organizer",
+        selected_by=actor,
+        confirmation_status="CONFIRMED",
+    )
+    colleagues = validate_department_participants(
+        command_center_colleagues or [],
+        _active_users_in_department("COMMAND_CENTER"),
+        department_key="COMMAND_CENTER",
+    )
+    for user in colleagues:
+        _upsert_meeting_participant(
+            meeting=meeting.name,
+            user=user,
+            department="COMMAND_CENTER",
+            participation_source="selected colleague",
+            selected_by=actor,
+        )
+    for user in _active_users_with_role("SRS Manager"):
+        _upsert_meeting_participant(
+            meeting=meeting.name,
+            user=user,
+            department="SRS",
+            participation_source="required lead",
+            selected_by=actor,
+            is_required=1,
+        )
+    for user in _active_users_with_role("ARD Manager"):
+        _upsert_meeting_participant(
+            meeting=meeting.name,
+            user=user,
+            department="ARD",
+            participation_source="required lead",
+            selected_by=actor,
+            is_required=1,
+        )
+    recipients = _participant_users(meeting.name)
+    if recipients:
+        notify_many(
+            recipients,
+            title="Case 3 Handover Meeting",
+            message=f"Case 3 Handover Meeting is scheduled for {to_cairo_iso(meeting.scheduled_at)}.",
+            notification_type="MEETING_INVITATION",
+            project=handoff.project,
+            trainer_item=handoff.trainer_item,
+            workflow_type=MEETING_TYPE_HANDOVER,
+            node_id="COMMAND_CENTER_CASE_3_HANDOVER_MEETING",
+            action_url="/meetings",
+            priority="High",
+        )
+    log_security_event(
+        "handover_meeting_scheduled",
+        user=actor,
+        project=handoff.project,
+        trainer_item=handoff.trainer_item,
+        workflow_type=MEETING_TYPE_HANDOVER,
+        node_id="COMMAND_CENTER_CASE_3_HANDOVER_MEETING",
+        status="Success",
+        message=meeting_id,
+    )
+    return {"meeting": meeting.name, "meeting_id": meeting_id, "scheduled_at": to_cairo_iso(meeting.scheduled_at)}
+
+
+def confirm_meeting_attendance(meeting: str, selected_users: Iterable[str], actor: str) -> dict[str, object]:
+    import frappe
+
+    if not frappe.db.exists("BEDO Meeting", meeting):
+        frappe.throw("Meeting not found.", frappe.DoesNotExistError)
+    meeting_doc = frappe.get_doc("BEDO Meeting", meeting)
+    if meeting_doc.is_superseded or meeting_doc.status in {MEETING_STATUS_CANCELLED, MEETING_STATUS_SUPERSEDED_BY_RESET}:
+        frappe.throw("Meeting is no longer active.", frappe.PermissionError)
+    participant_name = frappe.db.get_value(
+        "BEDO Meeting Participant",
+        {"meeting": meeting, "user": actor, "is_active": 1},
+        "name",
+    )
+    if not participant_name:
+        frappe.throw("Only active meeting participants can confirm attendance.", frappe.PermissionError)
+    department = _meeting_actor_department(actor)
+    if department not in {"SRS", "ARD", "COMMAND_CENTER"}:
+        frappe.throw("Meeting confirmation is not available for this department.", frappe.PermissionError)
+
+    selected = validate_department_participants(
+        selected_users,
+        _active_users_in_department(department),
+        department_key=department,
+    )
+    source = "selected colleague" if department == "COMMAND_CENTER" else "selected team member"
+    for user in selected:
+        _upsert_meeting_participant(
+            meeting=meeting,
+            user=user,
+            department=department,
+            participation_source=source,
+            selected_by=actor,
+        )
+
+    now = datetime.now(CAIRO_TZ)
+    participant = frappe.get_doc("BEDO Meeting Participant", participant_name)
+    participant.confirmation_status = "CONFIRMED"
+    participant.confirmed_at = to_storage_datetime(now)
+    participant.flags.ignore_permissions = True
+    participant.save(ignore_permissions=True)
+
+    participants = frappe.get_all(
+        "BEDO Meeting Participant",
+        filters={"meeting": meeting, "is_active": 1},
+        fields=["is_required", "participation_source", "confirmation_status"],
+    )
+    all_required_confirmed = required_meeting_leads_confirmed(participants)
+    if all_required_confirmed:
+        meeting_doc.status = MEETING_STATUS_CONFIRMED
+        meeting_doc.confirmed_at = to_storage_datetime(now)
+        meeting_doc.flags.ignore_permissions = True
+        meeting_doc.save(ignore_permissions=True)
+    log_security_event(
+        "meeting_attendance_confirmed",
+        user=actor,
+        project=meeting_doc.project,
+        trainer_item=meeting_doc.trainer_item,
+        workflow_type=meeting_doc.meeting_type,
+        node_id=meeting_doc.source_node,
+        status="Success",
+        message=f"Selected {len(selected)} participant(s)",
+    )
+    return {"success": True, "meeting": meeting, "all_required_confirmed": all_required_confirmed}
 
 
 def _meeting_participants(meeting: str) -> list[dict[str, object]]:

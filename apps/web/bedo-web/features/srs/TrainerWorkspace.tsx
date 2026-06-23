@@ -60,6 +60,7 @@ const neverOpenNodeIds = new Set([
   "CASE_3",
   "CASE_4",
 ]);
+const commandCenterSubTabs = [{ id: "srs-to-ard", label: "SRS → ARD" }];
 
 export function TrainerWorkspace({
   initialWorkspace,
@@ -276,9 +277,12 @@ function CommandCenterTab({
   setWorkspace: (workspace: TrainerWorkspaceData) => void;
 }) {
   const handoff = workspace.command_center_handoff;
+  const [activeCommandCenterSubTab, setActiveCommandCenterSubTab] = useState(commandCenterSubTabs[0].id);
   const [selectedCase, setSelectedCase] = useState(handoff?.command_center_case || "");
   const [deadlineDays, setDeadlineDays] = useState(handoff?.deadline_days ? String(handoff.deadline_days) : "");
   const [notes, setNotes] = useState(handoff?.notes || "");
+  const [meetingTime, setMeetingTime] = useState("");
+  const [handoverFailureReason, setHandoverFailureReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -286,7 +290,9 @@ function CommandCenterTab({
     setSelectedCase(handoff?.command_center_case || "");
     setDeadlineDays(handoff?.deadline_days ? String(handoff.deadline_days) : "");
     setNotes(handoff?.notes || "");
-  }, [handoff?.name, handoff?.command_center_case, handoff?.deadline_days, handoff?.notes]);
+    setMeetingTime("");
+    setHandoverFailureReason(handoff?.handover_failure_description || "");
+  }, [handoff?.name, handoff?.command_center_case, handoff?.deadline_days, handoff?.notes, handoff?.handover_failure_description]);
 
   async function submitDecision() {
     setLoading(true);
@@ -318,6 +324,40 @@ function CommandCenterTab({
     setWorkspace(data);
   }
 
+  async function scheduleHandoverMeeting() {
+    setLoading(true);
+    setError("");
+    const response = await fetch(`/api/command-center/handoffs/${encodeURIComponent(workspace.trainer_item.name)}/case-3-meeting`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduled_at: meetingTime }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setLoading(false);
+    if (!response.ok) {
+      setError(data?.error || "Case 3 handover meeting could not be scheduled.");
+      return;
+    }
+    setWorkspace(data);
+  }
+
+  async function submitHandoverConfirmation(action: "success" | "failed") {
+    setLoading(true);
+    setError("");
+    const response = await fetch(`/api/command-center/handoffs/${encodeURIComponent(workspace.trainer_item.name)}/handover-confirmation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, description: handoverFailureReason }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setLoading(false);
+    if (!response.ok) {
+      setError(data?.error || "Handover confirmation could not be submitted.");
+      return;
+    }
+    setWorkspace(data);
+  }
+
   if (!handoff) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-6 shadow-panel">
@@ -334,6 +374,24 @@ function CommandCenterTab({
   return (
     <div className="space-y-5">
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+      <div className="flex flex-wrap gap-2">
+        {commandCenterSubTabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`focus-ring rounded-t-lg border px-4 py-2 text-sm font-black transition ${
+              activeCommandCenterSubTab === tab.id ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            type="button"
+            onClick={() => setActiveCommandCenterSubTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {activeCommandCenterSubTab !== "srs-to-ard" ? (
+        <div className="rounded-md border border-gray-200 bg-white p-8 text-sm font-semibold text-muted shadow-panel">{placeholderText}</div>
+      ) : (
+      <>
       <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -422,6 +480,79 @@ function CommandCenterTab({
             Mark Ready for ARD
           </Button>
         </div>
+      )}
+      {handoff.command_center_case === "Case 3 - Deliver to ARD directly" && (
+        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-950">Handover Meeting</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Schedule the Case 3 Handover Meeting on the required second working date after GM clearance.</p>
+            </div>
+            <StatusBadge status={handoff.status} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <MiniInfo label="Cleared At" value={formatWorkflowTimestamp(handoff.case3_cleared_at)} />
+            <MiniInfo label="Meeting" value={handoff.handover_meeting || "Not scheduled"} />
+            <MiniInfo label="Confirmation" value={formatStatus(handoff.handover_confirmation_status || "NOT_STARTED")} />
+          </div>
+          {handoff.can_schedule_handover_meeting ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-[260px_auto] md:items-end">
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Meeting date and time</span>
+                <input className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" type="datetime-local" value={meetingTime} onChange={(event) => setMeetingTime(event.target.value)} />
+              </label>
+              <Button type="button" disabled={loading || !meetingTime} onClick={scheduleHandoverMeeting}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                Schedule Handover Meeting
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+              Meeting team selection and lead confirmation are available from the Meetings page for active participants.
+            </div>
+          )}
+        </div>
+      )}
+      {handoff.command_center_case === "Case 3 - Deliver to ARD directly" && (
+        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-panel">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-950">Handover Confirmation</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-600">After the handover meeting, confirm whether the handover succeeded or failed.</p>
+            </div>
+            <StatusBadge status={handoff.handover_confirmation_status || "NOT_STARTED"} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <MiniInfo label="Confirmed By" value={handoff.handover_confirmed_by_name || handoff.handover_confirmed_by || "-"} />
+            <MiniInfo label="Confirmed At" value={formatWorkflowTimestamp(handoff.handover_confirmed_at)} />
+            <MiniInfo label="Failure By" value={handoff.handover_failed_by_name || handoff.handover_failed_by || "-"} />
+          </div>
+          {handoff.handover_failure_description && <MiniInfo className="mt-3" label="Failure Description" value={handoff.handover_failure_description} />}
+          {handoff.can_submit_handover_confirmation ? (
+            <div className="mt-4 grid gap-3">
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Failure description</span>
+                <textarea className="focus-ring mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" rows={3} value={handoverFailureReason} onChange={(event) => setHandoverFailureReason(event.target.value)} placeholder="Required only when the handover failed." />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" disabled={loading} onClick={() => submitHandoverConfirmation("success")}>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Handover Successful
+                </Button>
+                <Button variant="danger" type="button" disabled={loading || !handoverFailureReason.trim()} onClick={() => submitHandoverConfirmation("failed")}>
+                  <X className="h-4 w-4" />
+                  Handover Failed
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+              This confirmation is locked until the handover meeting is scheduled and the required leads confirm attendance.
+            </div>
+          )}
+        </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -531,6 +662,10 @@ function handoffRailClass(status: string, index: number) {
     WAITING_GM_APPROVAL: 1,
     COMMAND_CENTER_IN_PROGRESS: 3,
     ROUTED_TO_SUPPLIERS: 3,
+    HANDOVER_MEETING_PENDING: 3,
+    HANDOVER_MEETING_SCHEDULED: 3,
+    HANDOVER_CONFIRMATION_PENDING: 3,
+    HANDOVER_FAILED_WAITING_GM: 3,
     READY_FOR_ARD: 4,
     COMPLETED: 4,
   };
