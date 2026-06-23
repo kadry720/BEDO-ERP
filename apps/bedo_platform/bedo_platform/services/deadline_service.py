@@ -491,6 +491,7 @@ def _create_global_extension_approval(row, details: dict[str, str]) -> int:
             "trainer_item": row.trainer_item,
             "deadline": row.name,
             "node_id": row.node_id,
+            "approval_department": "SRS",
             "approval_type": GLOBAL_DEADLINE_EXTENSION_APPROVAL,
             "status": "WAITING",
             "required_role": "General Manager",

@@ -24,18 +24,25 @@ const commandCenterCaseOptions = [
   "Case 3 - Deliver to ARD directly",
 ];
 
+const approvalDepartmentOrder = ["SRS", "ARD", "Command Center", "Suppliers"];
+
 export function ApprovalsPage({ initialApprovals }: Props) {
   const [approvals, setApprovals] = useState(initialApprovals);
   const [activeApproval, setActiveApproval] = useState<ApprovalRow | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
+  const departmentTabs = useMemo(() => approvalDepartmentTabs(approvals), [approvals]);
   const approvalTypes = useMemo(() => uniqueSorted(approvals.map((approval) => approval.approval_label)), [approvals]);
   const priorities = useMemo(() => uniqueSorted(approvals.map((approval) => approval.priority)), [approvals]);
-  const visibleApprovals = useMemo(() => filterAndSortApprovals(approvals, { search, typeFilter, priorityFilter, sortBy }), [approvals, search, typeFilter, priorityFilter, sortBy]);
+  const visibleApprovals = useMemo(
+    () => filterAndSortApprovals(approvals, { search, departmentFilter, typeFilter, priorityFilter, sortBy }),
+    [approvals, search, departmentFilter, typeFilter, priorityFilter, sortBy]
+  );
 
   async function refresh() {
     const response = await fetch("/api/approvals");
@@ -91,6 +98,7 @@ export function ApprovalsPage({ initialApprovals }: Props) {
               type="button"
               onClick={() => {
                 setSearch("");
+                setDepartmentFilter("all");
                 setTypeFilter("all");
                 setPriorityFilter("all");
                 setSortBy("newest");
@@ -98,6 +106,31 @@ export function ApprovalsPage({ initialApprovals }: Props) {
             >
               Reset
             </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Approval source">
+            {departmentTabs.map((tab) => {
+              const active = departmentFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-sm font-black ${
+                    active
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                  onClick={() => setDepartmentFilter(tab.value)}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-4 grid items-end gap-3 lg:grid-cols-[minmax(260px,1fr)_220px_180px_220px]">
@@ -168,6 +201,7 @@ function ApprovalCard({ approval, onApprove, onDeny, onEdit }: { approval: Appro
             <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-slate-600">{approval.approval_label}</span>
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusBadgeClass(approval.status)}`}>{formatStatus(approval.status)}</span>
             <span className={priorityClass(approval.priority)}>{approval.priority}</span>
+            <span className="rounded bg-sky-50 px-2.5 py-1 text-xs font-black text-sky-800">{approvalDepartment(approval)}</span>
           </div>
           <h4 className="mt-3 break-words text-xl font-black text-slate-950">
             {approval.project_code} | {approval.project_name}
@@ -252,20 +286,44 @@ function uniqueSorted(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
+function approvalDepartment(approval: ApprovalRow) {
+  return approval.approval_department || "SRS";
+}
+
+function approvalDepartmentTabs(approvals: ApprovalRow[]) {
+  const counts = new Map<string, number>();
+  approvals.forEach((approval) => {
+    const department = approvalDepartment(approval);
+    counts.set(department, (counts.get(department) || 0) + 1);
+  });
+  const knownTabs = approvalDepartmentOrder.map((department) => ({
+    value: department,
+    label: department,
+    count: counts.get(department) || 0,
+  }));
+  const extraTabs = Array.from(counts)
+    .filter(([department]) => !approvalDepartmentOrder.includes(department))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([department, count]) => ({ value: department, label: department, count }));
+  return [{ value: "all", label: "All", count: approvals.length }, ...knownTabs, ...extraTabs];
+}
+
 function filterAndSortApprovals(
   approvals: ApprovalRow[],
-  filters: { search: string; typeFilter: string; priorityFilter: string; sortBy: string }
+  filters: { search: string; departmentFilter: string; typeFilter: string; priorityFilter: string; sortBy: string }
 ) {
   const needle = filters.search.trim().toLowerCase();
   const priorityRank = (priority: string) => (priority.toLowerCase() === "high" ? 0 : 1);
 
   return approvals
     .filter((approval) => {
+      if (filters.departmentFilter !== "all" && approvalDepartment(approval) !== filters.departmentFilter) return false;
       if (filters.typeFilter !== "all" && approval.approval_label !== filters.typeFilter) return false;
       if (filters.priorityFilter !== "all" && approval.priority !== filters.priorityFilter) return false;
       if (!needle) return true;
 
       return [
+        approvalDepartment(approval),
         approval.approval_label,
         approval.project_code,
         approval.project_name,

@@ -196,6 +196,52 @@ def test_supplier_extension_approval_is_actionable_only_when_supplier_waits(monk
     assert project_service._approval_is_actionable(approval_row(SUPPLIER_DEADLINE_EXTENSION_APPROVAL)) is False
 
 
+def test_approval_department_is_inferred_from_approval_type():
+    assert project_service._approval_department_for_type("GM_CASE_APPROVAL") == "SRS"
+    assert project_service._approval_department_for_type(COMMAND_CENTER_SRS_ARD_GM_APPROVAL) == "Command Center"
+    assert project_service._approval_department_for_type(SUPPLIER_DEADLINE_EXTENSION_APPROVAL) == "Suppliers"
+    assert project_service._approval_department_for_type("ARD_INTERRUPTION_GM_APPROVAL") == "ARD"
+
+
+def test_approval_display_row_includes_backfilled_department(monkeypatch):
+    monkeypatch.setattr(project_service, "_user_full_name", lambda user: user or "")
+    monkeypatch.setattr(project_service, "to_cairo_iso", lambda value: str(value or ""))
+    monkeypatch.setattr(project_service, "deadline_unit_label", lambda: "working days")
+    monkeypatch.setattr(project_service, "_node_display_label", lambda node_id: node_id)
+
+    class FakeDB:
+        def get_value(self, doctype, filters, fields, as_dict=False):
+            if as_dict:
+                return {}
+            return ""
+
+    fake_frappe = SimpleNamespace(db=FakeDB())
+    monkeypatch.setitem(sys.modules, "frappe", fake_frappe)
+    row = SimpleNamespace(
+        name="approval-1",
+        approval_type=COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
+        approval_department="",
+        status="WAITING",
+        required_role="General Manager",
+        workflow_instance="workflow-1",
+        project="project-1",
+        trainer_item="trainer-1",
+        command_center_handoff="handoff-1",
+        supplier_file="",
+        deadline="",
+        node_id="",
+        assigned_to_user="commandcenter",
+        original_case_classification="Case 3 - Deliver to ARD directly",
+        edited_case_classification="",
+        original_deadline_proposal_days=0,
+        edited_deadline_proposal_days=0,
+        comments="",
+        creation="2026-06-23 10:00:00",
+    )
+
+    assert project_service._approval_display_row(row)["approval_department"] == "Command Center"
+
+
 def test_global_deadline_extension_is_actionable_only_for_overdue_live_node(monkeypatch):
     row = approval_row(GLOBAL_DEADLINE_EXTENSION_APPROVAL)
     fake_frappe = FakeFrappe(

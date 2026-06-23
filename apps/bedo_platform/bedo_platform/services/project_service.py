@@ -2279,6 +2279,7 @@ def _create_approval(
             "workflow_instance": workflow.name,
             "project": workflow.project,
             "trainer_item": workflow.trainer_item,
+            "approval_department": _approval_department_for_type(approval_type),
             "approval_type": approval_type,
             "status": "WAITING",
             "required_role": required_role,
@@ -2769,6 +2770,7 @@ def submit_command_center_srs_ard_decision(trainer_item: str, payload: dict[str,
             "project": workflow.project,
             "trainer_item": trainer_item,
             "command_center_handoff": handoff.name,
+            "approval_department": _approval_department_for_type(COMMAND_CENTER_SRS_ARD_GM_APPROVAL),
             "approval_type": COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
             "status": "WAITING",
             "required_role": "General Manager",
@@ -3089,6 +3091,7 @@ def request_supplier_deadline_extension(supplier_file: str, payload: dict[str, A
             "supplier_file": doc.name,
             "deadline": doc.deadline,
             "node_id": SUPPLIER_CASE_2_NODE,
+            "approval_department": _approval_department_for_type(SUPPLIER_DEADLINE_EXTENSION_APPROVAL),
             "approval_type": SUPPLIER_DEADLINE_EXTENSION_APPROVAL,
             "status": "WAITING",
             "required_role": "General Manager",
@@ -3280,6 +3283,20 @@ def _approval_node_for_type(approval_type: str) -> str:
     return ""
 
 
+def _approval_department_for_type(approval_type: str) -> str:
+    if approval_type in {
+        "COMMAND_CENTER_GM_APPROVAL",
+        COMMAND_CENTER_SRS_ARD_GM_APPROVAL,
+        "HANDOVER_FAILURE_GM_APPROVAL",
+    }:
+        return "Command Center"
+    if approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
+        return "Suppliers"
+    if str(approval_type or "").startswith("ARD_"):
+        return "ARD"
+    return "SRS"
+
+
 def _approval_is_actionable(row) -> bool:
     import frappe
 
@@ -3416,6 +3433,7 @@ def _approval_display_row(row) -> dict[str, Any]:
     return {
         "name": row.name,
         "approval_type": row.approval_type,
+        "approval_department": getattr(row, "approval_department", "") or _approval_department_for_type(row.approval_type),
         "approval_label": _approval_label(row.approval_type),
         "status": row.status,
         "required_role": row.required_role,
@@ -3470,6 +3488,7 @@ def list_my_pending_approvals(actor: str, status: str = "WAITING") -> dict[str, 
             "supplier_file",
             "deadline",
             "node_id",
+            "approval_department",
             "approval_type",
             "status",
             "required_role",

@@ -221,6 +221,7 @@ export type NotificationRow = {
 export type ApprovalRow = {
   name: string;
   approval_type: string;
+  approval_department: string;
   approval_label: string;
   status: string;
   required_role: string;
