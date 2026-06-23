@@ -45,6 +45,17 @@ ARD_NODE_STATUS_NOT_APPLICABLE = "NOT_APPLICABLE"
 ARD_NODE_STATUS_WAITING_APPROVAL = "WAITING_APPROVAL"
 
 ARD_PROGRESS_OUTCOME_ON_PLAN = "ON_PLAN"
+ARD_INTERRUPTION_GM_APPROVAL = "ARD_INTERRUPTION_GM_APPROVAL"
+ARD_INTERRUPTION_STATUS_WAITING_GM = "WAITING_GM_APPROVAL"
+ARD_INTERRUPTION_STATUS_APPROVED = "APPROVED"
+ARD_INTERRUPTION_STATUS_DENIED = "DENIED"
+ARD_INTERRUPTION_STATUS_RESOLVED = "RESOLVED"
+ARD_INTERRUPTION_PROCUREMENT = "PROCUREMENT_PAUSE"
+ARD_INTERRUPTION_ELECTRONICS = "ELECTRONICS_SYSTEM_DESIGN"
+ARD_INTERRUPTION_CONCEPT_PROOF = "CONCEPT_PROOF_PROTOTYPING"
+ARD_ELECTRONICS_INVENTORY_STOCK = "INVENTORY_STOCK"
+ARD_ELECTRONICS_DESIGN_COMPLETE_NO_INVENTORY = "DESIGN_COMPLETE_NO_INVENTORY"
+ARD_ELECTRONICS_NEW_DESIGN = "NEW_DESIGN"
 
 ARD_FLOWCHART_NODES: list[dict[str, Any]] = [
     {"id": ARD_NODE_HANDOVER_COMPLETE, "label": "Handover Complete", "lane": "handover", "column": "milestone_1", "kind": "display", "clickable": False},
@@ -458,6 +469,7 @@ def _node_availability(workflow, actor: str, state_rows: list[dict[str, Any]]) -
     roles = _roles(actor)
     is_manager = "ARD Manager" in roles
     is_owner = bool(workflow.project_owner and workflow.project_owner == actor)
+    can_handle_interruption = is_owner or "General Manager" in roles or "Command Center Representative" in roles or "SRS Electronics Section Head" in roles
     states = {row["node_id"]: row["status"] for row in state_rows}
 
     def row(node_id: str, can_act: bool, disabled_reason: str = "") -> dict[str, Any]:
@@ -478,9 +490,9 @@ def _node_availability(workflow, actor: str, state_rows: list[dict[str, Any]]) -
         row(ARD_NODE_TEAM_SELECTION, is_owner, "Only the ARD project owner can select the team."),
         row(ARD_NODE_PROGRESS_REVIEW, is_owner, "Only the ARD project owner can submit the progress review outcome."),
         row(ARD_NODE_GM_APPROVAL, False, "GM approval is only opened by interruption requests."),
-        row(ARD_NODE_COMMAND_CENTER_PROCUREMENT, False, "Procurement interruption is inactive unless requested."),
-        row(ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, False, "Electronics interruption is inactive unless requested."),
-        row(ARD_NODE_CONCEPT_PROOF, False, "Concept-Proof interruption is inactive unless requested."),
+        row(ARD_NODE_COMMAND_CENTER_PROCUREMENT, can_handle_interruption, "Procurement interruption is inactive unless requested."),
+        row(ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, can_handle_interruption, "Electronics interruption is inactive unless requested."),
+        row(ARD_NODE_CONCEPT_PROOF, can_handle_interruption, "Concept-Proof interruption is inactive unless requested."),
         row(ARD_NODE_SCMDP_SUBMISSION, is_owner, "Only the ARD project owner can submit SCMDP."),
     ]
 
@@ -832,6 +844,299 @@ def submit_progress_review_outcome(trainer_item: str, payload: dict[str, Any], a
     _set_current_node(workflow, ARD_NODE_SCMDP_SUBMISSION, actor, status=ARD_STATUS_WAITING_SCMDP, responsible_user=actor)
     log_security_event("ard_progress_review_outcome", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_PROGRESS_REVIEW, status="Success", message="On Plan")
     return {"success": True, "workspace": get_ard_workspace(trainer_item, actor)}
+
+
+def _selected_interruption_cases(payload: dict[str, Any]) -> list[str]:
+    raw = payload.get("selected_cases") or payload.get("cases") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    aliases = {
+        "procurement": ARD_INTERRUPTION_PROCUREMENT,
+        "procurement_pause": ARD_INTERRUPTION_PROCUREMENT,
+        "command_center_procurement": ARD_INTERRUPTION_PROCUREMENT,
+        "electronics": ARD_INTERRUPTION_ELECTRONICS,
+        "electronics_system_design": ARD_INTERRUPTION_ELECTRONICS,
+        "concept": ARD_INTERRUPTION_CONCEPT_PROOF,
+        "concept_proof": ARD_INTERRUPTION_CONCEPT_PROOF,
+        "concept_proof_prototyping": ARD_INTERRUPTION_CONCEPT_PROOF,
+    }
+    cases = []
+    for value in raw:
+        key = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+        normalized = aliases.get(key, str(value or "").strip().upper().replace("-", "_").replace(" ", "_"))
+        if normalized in {ARD_INTERRUPTION_PROCUREMENT, ARD_INTERRUPTION_ELECTRONICS, ARD_INTERRUPTION_CONCEPT_PROOF}:
+            cases.append(normalized)
+    return sorted(set(cases))
+
+
+def _active_interruption_for_workflow(workflow):
+    import frappe
+
+    name = frappe.db.get_value(
+        "ARD Interruption Request",
+        {"workflow_instance": workflow.name, "is_superseded": 0, "status": ["in", [ARD_INTERRUPTION_STATUS_WAITING_GM, ARD_INTERRUPTION_STATUS_APPROVED]]},
+        "name",
+    )
+    return frappe.get_doc("ARD Interruption Request", name) if name else None
+
+
+def _interruption_cases(interruption) -> set[str]:
+    import frappe
+
+    try:
+        return set(frappe.parse_json(interruption.selected_cases_json) or [])
+    except Exception:
+        return set()
+
+
+def submit_interruption_request(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    workflow = _workflow_for_item(trainer_item)
+    if workflow.project_owner != actor:
+        frappe.throw("Only the ARD project owner can submit interruption requests.", frappe.PermissionError)
+    if workflow.current_node not in {ARD_NODE_PROGRESS_REVIEW, ARD_NODE_SCMDP_SUBMISSION}:
+        frappe.throw("Interruption requests are only available after ARD team selection.", frappe.PermissionError)
+    cases = _selected_interruption_cases(payload)
+    if not cases:
+        frappe.throw("At least one interruption case is required.", frappe.ValidationError)
+    existing = _active_interruption_for_workflow(workflow)
+    if existing:
+        return {"success": True, "interruption": existing.name, "approval": existing.approval, "created": False}
+
+    now = _utcnow()
+    doc = frappe.get_doc(
+        {
+            "doctype": "ARD Interruption Request",
+            "workflow_instance": workflow.name,
+            "project": workflow.project,
+            "trainer_item": workflow.trainer_item,
+            "generation": int(workflow.generation or 1),
+            "status": ARD_INTERRUPTION_STATUS_WAITING_GM,
+            "selected_cases_json": frappe.as_json(cases),
+            "procurement_notes": str(payload.get("procurement_notes") or payload.get("notes") or "")[:500],
+            "procurement_bom_path": str(payload.get("procurement_bom_path") or payload.get("bom_path") or "")[:500],
+            "electronics_notes": str(payload.get("electronics_notes") or "")[:500],
+            "electronics_bom_path": str(payload.get("electronics_bom_path") or "")[:500],
+            "concept_report_path": str(payload.get("concept_report_path") or "")[:500],
+            "concept_notes": str(payload.get("concept_notes") or "")[:500],
+            "submitted_by": actor,
+            "submitted_at": now,
+            "is_superseded": 0,
+        }
+    )
+    doc.flags.ignore_permissions = True
+    doc.insert(ignore_permissions=True)
+    approval = frappe.get_doc(
+        {
+            "doctype": "SRS Approval",
+            "workflow_instance": workflow.source_workflow or workflow.name,
+            "project": workflow.project,
+            "trainer_item": workflow.trainer_item,
+            "approval_department": "ARD",
+            "approval_type": ARD_INTERRUPTION_GM_APPROVAL,
+            "status": "WAITING",
+            "required_role": "General Manager",
+            "assigned_to_user": actor,
+            "original_deadline_proposal_days": 0,
+            "comments": f"ARD interruption request: {', '.join(cases)}"[:500],
+        }
+    )
+    approval.flags.ignore_permissions = True
+    approval.insert(ignore_permissions=True)
+    doc.approval = approval.name
+    doc.save(ignore_permissions=True)
+    _update_node_state(workflow, ARD_NODE_GM_APPROVAL, ARD_NODE_STATUS_WAITING_APPROVAL, actor, started=True, display_data={"Cases": ", ".join(cases)})
+    for node_id, case_id in [
+        (ARD_NODE_COMMAND_CENTER_PROCUREMENT, ARD_INTERRUPTION_PROCUREMENT),
+        (ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_INTERRUPTION_ELECTRONICS),
+        (ARD_NODE_CONCEPT_PROOF, ARD_INTERRUPTION_CONCEPT_PROOF),
+    ]:
+        if case_id in cases:
+            _update_node_state(workflow, node_id, ARD_NODE_STATUS_WAITING_APPROVAL, actor, started=True)
+    workflow.status = "WAITING_GM_APPROVAL"
+    workflow.current_node = ARD_NODE_GM_APPROVAL
+    workflow.flags.ignore_permissions = True
+    workflow.save(ignore_permissions=True)
+    log_security_event("ard_interruption_requested", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_GM_APPROVAL, status="Success", message=", ".join(cases))
+    return {"success": True, "interruption": doc.name, "approval": approval.name, "created": True}
+
+
+def _resume_or_unlock_scmdp(workflow, actor: str) -> None:
+    import frappe
+
+    active = frappe.db.exists(
+        "ARD Interruption Request",
+        {"workflow_instance": workflow.name, "is_superseded": 0, "status": ARD_INTERRUPTION_STATUS_APPROVED},
+    )
+    if active:
+        return
+    _update_node_state(workflow, ARD_NODE_SCMDP_SUBMISSION, ARD_NODE_STATUS_IN_PROGRESS, actor, responsible_user=workflow.project_owner or actor, started=True)
+    _set_current_node(workflow, ARD_NODE_SCMDP_SUBMISSION, actor, status=ARD_STATUS_WAITING_SCMDP, responsible_user=workflow.project_owner or actor)
+
+
+def resolve_ard_interruption_approval(approval_name: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+
+    _require_role(actor, "General Manager")
+    approval = frappe.get_doc("SRS Approval", approval_name)
+    if approval.approval_type != ARD_INTERRUPTION_GM_APPROVAL:
+        frappe.throw("This approval is not an ARD interruption approval.", frappe.PermissionError)
+    interruption_name = frappe.db.get_value("ARD Interruption Request", {"approval": approval.name, "is_superseded": 0}, "name")
+    if not interruption_name:
+        frappe.throw("ARD interruption request not found.", frappe.DoesNotExistError)
+    interruption = frappe.get_doc("ARD Interruption Request", interruption_name)
+    workflow = frappe.get_doc("ARD Workflow Instance", interruption.workflow_instance)
+    action = str(payload.get("action") or "approve").strip().lower().replace("-", "_")
+    now = _utcnow()
+    approval.approved_by = actor
+    approval.approved_at = now
+    approval.flags.ignore_permissions = True
+    if action in {"deny", "denied", "reject"}:
+        approval.status = "DENIED"
+        approval.comments = str(payload.get("comments") or approval.comments or "GM denied ARD interruption request.")[:500]
+        approval.save(ignore_permissions=True)
+        interruption.status = ARD_INTERRUPTION_STATUS_DENIED
+        interruption.resolved_by = actor
+        interruption.resolved_at = now
+        interruption.flags.ignore_permissions = True
+        interruption.save(ignore_permissions=True)
+        for node_id in [ARD_NODE_GM_APPROVAL, ARD_NODE_COMMAND_CENTER_PROCUREMENT, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_CONCEPT_PROOF]:
+            _update_node_state(workflow, node_id, ARD_NODE_STATUS_NOT_APPLICABLE, actor)
+        _resume_or_unlock_scmdp(workflow, actor)
+        log_security_event("ard_interruption_denied", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_GM_APPROVAL, status="Success")
+        return {"success": True, "interruption": interruption.name}
+
+    approval.status = "APPROVED"
+    approval.comments = str(payload.get("comments") or approval.comments or "GM approved ARD interruption request.")[:500]
+    approval.save(ignore_permissions=True)
+    interruption.status = ARD_INTERRUPTION_STATUS_APPROVED
+    interruption.resolved_by = actor
+    interruption.resolved_at = now
+    interruption.flags.ignore_permissions = True
+    interruption.save(ignore_permissions=True)
+    _update_node_state(workflow, ARD_NODE_GM_APPROVAL, ARD_NODE_STATUS_COMPLETED, actor, completed=True)
+    cases = _interruption_cases(interruption)
+    for node_id, case_id in [
+        (ARD_NODE_COMMAND_CENTER_PROCUREMENT, ARD_INTERRUPTION_PROCUREMENT),
+        (ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_INTERRUPTION_ELECTRONICS),
+        (ARD_NODE_CONCEPT_PROOF, ARD_INTERRUPTION_CONCEPT_PROOF),
+    ]:
+        _update_node_state(workflow, node_id, ARD_NODE_STATUS_IN_PROGRESS if case_id in cases else ARD_NODE_STATUS_NOT_APPLICABLE, actor, started=case_id in cases)
+    workflow.status = "ARD_INTERRUPTION_IN_PROGRESS"
+    workflow.flags.ignore_permissions = True
+    workflow.save(ignore_permissions=True)
+    log_security_event("ard_interruption_approved", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_GM_APPROVAL, status="Success")
+    return {"success": True, "interruption": interruption.name}
+
+
+def _latest_interruption(trainer_item: str):
+    import frappe
+
+    workflow = _workflow_for_item(trainer_item)
+    name = frappe.db.get_value(
+        "ARD Interruption Request",
+        {"workflow_instance": workflow.name, "is_superseded": 0, "status": ARD_INTERRUPTION_STATUS_APPROVED},
+        "name",
+    )
+    if not name:
+        frappe.throw("No approved ARD interruption is active.", frappe.DoesNotExistError)
+    return workflow, frappe.get_doc("ARD Interruption Request", name)
+
+
+def _resolve_interruption_if_done(workflow, interruption, actor: str) -> None:
+    cases = _interruption_cases(interruption)
+    import frappe
+
+    blockers = []
+    if ARD_INTERRUPTION_PROCUREMENT in cases and _node_state_name(workflow, ARD_NODE_COMMAND_CENTER_PROCUREMENT):
+        status = frappe.db.get_value("ARD Workflow Node State", _node_state_name(workflow, ARD_NODE_COMMAND_CENTER_PROCUREMENT), "status")
+        if status != ARD_NODE_STATUS_COMPLETED:
+            blockers.append(ARD_INTERRUPTION_PROCUREMENT)
+    if ARD_INTERRUPTION_ELECTRONICS in cases:
+        status = frappe.db.get_value("ARD Workflow Node State", _node_state_name(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN), "status")
+        if status != ARD_NODE_STATUS_COMPLETED:
+            blockers.append(ARD_INTERRUPTION_ELECTRONICS)
+    if ARD_INTERRUPTION_CONCEPT_PROOF in cases:
+        status = frappe.db.get_value("ARD Workflow Node State", _node_state_name(workflow, ARD_NODE_CONCEPT_PROOF), "status")
+        if status != ARD_NODE_STATUS_COMPLETED:
+            blockers.append(ARD_INTERRUPTION_CONCEPT_PROOF)
+    if blockers:
+        return
+    interruption.status = ARD_INTERRUPTION_STATUS_RESOLVED
+    interruption.flags.ignore_permissions = True
+    interruption.save(ignore_permissions=True)
+    _resume_or_unlock_scmdp(workflow, actor)
+
+
+def confirm_procurement_items_received(trainer_item: str, actor: str) -> dict[str, Any]:
+    _require_role(actor, "Command Center Representative")
+    workflow, interruption = _latest_interruption(trainer_item)
+    _update_node_state(workflow, ARD_NODE_COMMAND_CENTER_PROCUREMENT, ARD_NODE_STATUS_COMPLETED, actor, completed=True)
+    _resolve_interruption_if_done(workflow, interruption, actor)
+    log_security_event("ard_procurement_items_received", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_COMMAND_CENTER_PROCUREMENT, status="Success")
+    return {"success": True, "interruption": interruption.name}
+
+
+def choose_electronics_subcase(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:
+    import frappe
+    from bedo_platform.services.supplier_order_service import create_supplier_order_from_ard
+
+    _require_role(actor, "SRS Electronics Section Head")
+    workflow, interruption = _latest_interruption(trainer_item)
+    subcase = str(payload.get("subcase") or "").strip().upper().replace("-", "_").replace(" ", "_")
+    if subcase not in {ARD_ELECTRONICS_INVENTORY_STOCK, ARD_ELECTRONICS_DESIGN_COMPLETE_NO_INVENTORY, ARD_ELECTRONICS_NEW_DESIGN}:
+        frappe.throw("Unsupported electronics subcase.", frappe.ValidationError)
+    interruption.electronics_subcase = subcase
+    if subcase == ARD_ELECTRONICS_INVENTORY_STOCK:
+        _update_node_state(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_STATUS_COMPLETED, actor, completed=True, display_data={"Electronics Subcase": subcase})
+    else:
+        deadline_days = int(payload.get("supplier_deadline_days") or payload.get("deadline_days") or 0)
+        if deadline_days < 1:
+            frappe.throw("Supplier deadline is required for this electronics subcase.", frappe.ValidationError)
+        order = create_supplier_order_from_ard(
+            interruption=interruption,
+            order_type=f"ELECTRONICS_{subcase}",
+            deadline_days=deadline_days,
+            actor=actor,
+            notes=interruption.electronics_notes or "",
+            bom_path=interruption.electronics_bom_path or "",
+        )
+        interruption.electronics_supplier_order = order["supplier_order"]
+        if subcase == ARD_ELECTRONICS_DESIGN_COMPLETE_NO_INVENTORY:
+            _update_node_state(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_STATUS_COMPLETED, actor, completed=True, display_data={"Electronics Subcase": subcase, "Supplier Order": order["supplier_order"]})
+        else:
+            _update_node_state(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_STATUS_IN_PROGRESS, actor, display_data={"Electronics Subcase": subcase, "Supplier Order": order["supplier_order"]})
+    interruption.flags.ignore_permissions = True
+    interruption.save(ignore_permissions=True)
+    _resolve_interruption_if_done(workflow, interruption, actor)
+    log_security_event("ard_electronics_subcase_selected", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, status="Success", message=subcase)
+    return {"success": True, "interruption": interruption.name}
+
+
+def complete_electronics_action(trainer_item: str, actor: str) -> dict[str, Any]:
+    _require_role(actor, "SRS Electronics Section Head")
+    workflow, interruption = _latest_interruption(trainer_item)
+    _update_node_state(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_STATUS_COMPLETED, actor, completed=True, display_data={"Electronics Subcase": interruption.electronics_subcase or ""})
+    _resolve_interruption_if_done(workflow, interruption, actor)
+    log_security_event("ard_electronics_completed", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, status="Success")
+    return {"success": True, "interruption": interruption.name}
+
+
+def complete_concept_proof(trainer_item: str, actor: str) -> dict[str, Any]:
+    workflow, interruption = _latest_interruption(trainer_item)
+    if workflow.project_owner != actor:
+        import frappe
+
+        frappe.throw("Only the ARD project owner can complete Concept-Proof Prototyping.", frappe.PermissionError)
+    interruption.concept_completed_by = actor
+    interruption.concept_completed_at = _utcnow()
+    interruption.flags.ignore_permissions = True
+    interruption.save(ignore_permissions=True)
+    _update_node_state(workflow, ARD_NODE_CONCEPT_PROOF, ARD_NODE_STATUS_COMPLETED, actor, completed=True, display_data={"Technical Report Path": interruption.concept_report_path or ""})
+    _resolve_interruption_if_done(workflow, interruption, actor)
+    log_security_event("ard_concept_proof_completed", user=actor, project=workflow.project, trainer_item=workflow.trainer_item, workflow_type=ARD_WORKFLOW_TYPE, node_id=ARD_NODE_CONCEPT_PROOF, status="Success")
+    return {"success": True, "interruption": interruption.name}
 
 
 def submit_scmdp(trainer_item: str, payload: dict[str, Any], actor: str) -> dict[str, Any]:

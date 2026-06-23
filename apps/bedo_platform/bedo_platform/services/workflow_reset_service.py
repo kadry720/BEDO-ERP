@@ -179,6 +179,24 @@ def _supersede_ard_workflows(trainer_item: str, reset_id: str) -> int:
                 {"is_active": 0, "superseded_by_reset": reset_id},
                 update_modified=False,
             )
+        for interruption in frappe.get_all("ARD Interruption Request", filters={"workflow_instance": workflow, "is_superseded": 0}, pluck="name"):
+            frappe.db.set_value(
+                "ARD Interruption Request",
+                interruption,
+                {"status": SUPERSEDED_BY_RESET, "is_superseded": 1, "superseded_by_reset": reset_id},
+                update_modified=False,
+            )
+            for supplier_order in frappe.get_all(
+                "BEDO Supplier Order",
+                filters={"source_doctype": "ARD Interruption Request", "source_name": interruption, "is_superseded": 0},
+                pluck="name",
+            ):
+                frappe.db.set_value(
+                    "BEDO Supplier Order",
+                    supplier_order,
+                    {"status": SUPERSEDED_BY_RESET, "is_superseded": 1, "superseded_by_reset": reset_id},
+                    update_modified=False,
+                )
         count += 1
     return count
 

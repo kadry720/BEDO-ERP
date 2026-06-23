@@ -148,6 +148,15 @@ function NodePanel({
         {nodeId === "PROGRESS_REVIEW_MEETING" && (
           <ProgressReviewForm disabled={!canAct} loading={loading} onSubmit={onSubmit} />
         )}
+        {nodeId === "COMMAND_CENTER_PROCUREMENT_CONFIRMATION" && (
+          <InterruptionActionForm disabled={!canAct} loading={loading} action="confirm_procurement" label="Confirm Items Received" onSubmit={onSubmit} />
+        )}
+        {nodeId === "ELECTRONICS_SYSTEM_DESIGN" && (
+          <ElectronicsSubcaseForm disabled={!canAct} loading={loading} onSubmit={onSubmit} />
+        )}
+        {nodeId === "CONCEPT_PROOF_PROTOTYPING" && (
+          <InterruptionActionForm disabled={!canAct} loading={loading} action="complete_concept_proof" label="Confirm Prototyping Complete" onSubmit={onSubmit} />
+        )}
         {nodeId === "SCMDP_SUBMISSION" && (
           <ScmdpForm disabled={!canAct} loading={loading} onSubmit={onSubmit} />
         )}
@@ -219,12 +228,92 @@ function TeamSelectionForm({ disabled, loading, users, onSubmit }: { disabled: b
 }
 
 function ProgressReviewForm({ disabled, loading, onSubmit }: { disabled: boolean; loading: string; onSubmit: (action: string, payload?: Record<string, unknown>) => void }) {
+  const [showInterruption, setShowInterruption] = useState(false);
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-slate-600">The on-plan path unlocks SCMDP. Interruption requests are handled in the next ARD interruption slice.</p>
       <ActionButton loading={loading === "progress_review"} disabled={disabled} onClick={() => onSubmit("progress_review", { outcome: "ON_PLAN" })}>
         Mark On Plan
       </ActionButton>
+      <Button variant="secondary" type="button" disabled={disabled} onClick={() => setShowInterruption((current) => !current)}>
+        Request Interruption
+      </Button>
+      {showInterruption && <InterruptionRequestForm disabled={disabled} loading={loading} onSubmit={onSubmit} />}
+    </div>
+  );
+}
+
+function InterruptionRequestForm({ disabled, loading, onSubmit }: { disabled: boolean; loading: string; onSubmit: (action: string, payload?: Record<string, unknown>) => void }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [notes, setNotes] = useState("");
+  const [bomPath, setBomPath] = useState("");
+  const [conceptPath, setConceptPath] = useState("");
+  const toggle = (value: string, checked: boolean) => setSelected((current) => checked ? [...current, value] : current.filter((item) => item !== value));
+  return (
+    <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+      {[
+        ["PROCUREMENT_PAUSE", "Procurement Pause"],
+        ["ELECTRONICS_SYSTEM_DESIGN", "Electronics System Design"],
+        ["CONCEPT_PROOF_PROTOTYPING", "Concept-Proof Prototyping"],
+      ].map(([value, label]) => (
+        <label key={value} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input className="accent-slate-950" type="checkbox" disabled={disabled} checked={selected.includes(value)} onChange={(event) => toggle(value, event.target.checked)} />
+          {label}
+        </label>
+      ))}
+      <textarea className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={notes} disabled={disabled} onChange={(event) => setNotes(event.target.value)} placeholder="Notes" />
+      <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={bomPath} disabled={disabled} onChange={(event) => setBomPath(event.target.value)} placeholder="Optional BOM path" />
+      <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={conceptPath} disabled={disabled} onChange={(event) => setConceptPath(event.target.value)} placeholder="Concept-Proof technical report path" />
+      <ActionButton
+        loading={loading === "request_interruption"}
+        disabled={disabled || !selected.length}
+        onClick={() => onSubmit("request_interruption", {
+          selected_cases: selected,
+          procurement_notes: notes,
+          procurement_bom_path: bomPath,
+          electronics_notes: notes,
+          electronics_bom_path: bomPath,
+          concept_notes: notes,
+          concept_report_path: conceptPath,
+        })}
+      >
+        Submit Interruption Request
+      </ActionButton>
+    </div>
+  );
+}
+
+function InterruptionActionForm({ disabled, loading, action, label, onSubmit }: { disabled: boolean; loading: string; action: string; label: string; onSubmit: (action: string, payload?: Record<string, unknown>) => void }) {
+  return (
+    <ActionButton loading={loading === action} disabled={disabled} onClick={() => onSubmit(action)}>
+      {label}
+    </ActionButton>
+  );
+}
+
+function ElectronicsSubcaseForm({ disabled, loading, onSubmit }: { disabled: boolean; loading: string; onSubmit: (action: string, payload?: Record<string, unknown>) => void }) {
+  const [subcase, setSubcase] = useState("INVENTORY_STOCK");
+  const [deadlineDays, setDeadlineDays] = useState("");
+  const needsDeadline = subcase !== "INVENTORY_STOCK";
+  return (
+    <div className="space-y-3">
+      <select className="focus-ring w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={subcase} disabled={disabled} onChange={(event) => setSubcase(event.target.value)}>
+        <option value="INVENTORY_STOCK">Inventory Stock</option>
+        <option value="DESIGN_COMPLETE_NO_INVENTORY">Design Complete / No Inventory</option>
+        <option value="NEW_DESIGN">New Design</option>
+      </select>
+      {needsDeadline && (
+        <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" type="number" min={1} value={deadlineDays} disabled={disabled} onChange={(event) => setDeadlineDays(event.target.value)} placeholder="Supplier deadline days" />
+      )}
+      <div className="flex flex-wrap gap-2">
+        <ActionButton loading={loading === "choose_electronics_subcase"} disabled={disabled || (needsDeadline && !deadlineDays)} onClick={() => onSubmit("choose_electronics_subcase", { subcase, supplier_deadline_days: deadlineDays })}>
+          Save Electronics Subcase
+        </ActionButton>
+        {subcase === "NEW_DESIGN" && (
+          <ActionButton loading={loading === "complete_electronics"} disabled={disabled} onClick={() => onSubmit("complete_electronics")}>
+            Complete Electronics Action
+          </ActionButton>
+        )}
+      </div>
     </div>
   );
 }

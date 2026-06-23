@@ -20,6 +20,16 @@ export async function POST(request: Request) {
       await frappeCall("bedo_platform.api.web.select_ard_team", { trainer_item, users: payload.users || [] }, session.user);
     } else if (payload.action === "progress_review") {
       await frappeCall("bedo_platform.api.web.submit_ard_progress_review_outcome", { trainer_item, payload }, session.user);
+    } else if (payload.action === "request_interruption") {
+      await frappeCall("bedo_platform.api.web.submit_ard_interruption_request", { trainer_item, payload }, session.user);
+    } else if (payload.action === "confirm_procurement") {
+      await frappeCall("bedo_platform.api.web.confirm_ard_procurement_items_received", { trainer_item }, session.user);
+    } else if (payload.action === "choose_electronics_subcase") {
+      await frappeCall("bedo_platform.api.web.choose_ard_electronics_subcase", { trainer_item, payload }, session.user);
+    } else if (payload.action === "complete_electronics") {
+      await frappeCall("bedo_platform.api.web.complete_ard_electronics_action", { trainer_item }, session.user);
+    } else if (payload.action === "complete_concept_proof") {
+      await frappeCall("bedo_platform.api.web.complete_ard_concept_proof", { trainer_item }, session.user);
     } else if (payload.action === "submit_scmdp") {
       await frappeCall("bedo_platform.api.web.submit_ard_scmdp", { trainer_item, payload }, session.user);
     } else {

@@ -5,12 +5,17 @@ import frappe
 from bedo_platform.constants import FRAPPE_DESK_TECHNICAL_ROLES, VISIBLE_BUSINESS_ROLE_NAMES, VISIBLE_DEPARTMENTS
 from bedo_platform.services.ard_workflow_service import (
     assign_ard_project_owner as assign_ard_project_owner_service,
+    choose_electronics_subcase as choose_ard_electronics_subcase_service,
     complete_internal_sync_meeting as complete_ard_internal_sync_meeting_service,
+    complete_concept_proof as complete_ard_concept_proof_service,
+    complete_electronics_action as complete_ard_electronics_action_service,
+    confirm_procurement_items_received as confirm_ard_procurement_items_received_service,
     get_ard_flowchart_definition as get_ard_flowchart_definition_service,
     get_ard_workspace as get_ard_workspace_service,
     list_eligible_ard_team_members as list_eligible_ard_team_members_service,
     schedule_internal_sync_meeting as schedule_ard_internal_sync_meeting_service,
     select_ard_team as select_ard_team_service,
+    submit_interruption_request as submit_ard_interruption_request_service,
     submit_progress_review_outcome as submit_ard_progress_review_outcome_service,
     submit_scmdp as submit_ard_scmdp_service,
 )
@@ -328,6 +333,36 @@ def select_ard_team(trainer_item: str, users=None):
 def submit_ard_progress_review_outcome(trainer_item: str, payload=None):
     user = validate_service_request()
     return submit_ard_progress_review_outcome_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def submit_ard_interruption_request(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return submit_ard_interruption_request_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def confirm_ard_procurement_items_received(trainer_item: str):
+    user = validate_service_request()
+    return confirm_ard_procurement_items_received_service(trainer_item, actor=user)
+
+
+@service_api
+def choose_ard_electronics_subcase(trainer_item: str, payload=None):
+    user = validate_service_request()
+    return choose_ard_electronics_subcase_service(trainer_item, _payload(payload), actor=user)
+
+
+@service_api
+def complete_ard_electronics_action(trainer_item: str):
+    user = validate_service_request()
+    return complete_ard_electronics_action_service(trainer_item, actor=user)
+
+
+@service_api
+def complete_ard_concept_proof(trainer_item: str):
+    user = validate_service_request()
+    return complete_ard_concept_proof_service(trainer_item, actor=user)
 
 
 @service_api

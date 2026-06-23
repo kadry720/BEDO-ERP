@@ -124,6 +124,7 @@ SUPPLIER_FILE_COMPLETED = "COMPLETED"
 COMMAND_CENTER_CASE_1_NODE = "COMMAND_CENTER_CASE_1"
 SUPPLIER_CASE_2_NODE = "SUPPLIER_CASE_2_DELIVERY"
 HANDOVER_FAILURE_GM_APPROVAL = "HANDOVER_FAILURE_GM_APPROVAL"
+ARD_INTERRUPTION_GM_APPROVAL = "ARD_INTERRUPTION_GM_APPROVAL"
 
 
 def _utcnow() -> datetime:
@@ -3615,6 +3616,9 @@ def _approval_is_actionable(row) -> bool:
             return False
         status = frappe.db.get_value("BEDO Command Center Handoff", handoff_name, "status")
         return status == COMMAND_CENTER_HANDOFF_HANDOVER_FAILED_WAITING_GM
+    if row.approval_type == ARD_INTERRUPTION_GM_APPROVAL:
+        status = frappe.db.get_value("ARD Interruption Request", {"approval": row.name, "is_superseded": 0}, "status")
+        return status == "WAITING_GM_APPROVAL"
     if row.approval_type == SUPPLIER_DEADLINE_EXTENSION_APPROVAL:
         supplier_file = getattr(row, "supplier_file", "")
         if not supplier_file:
@@ -3685,6 +3689,8 @@ def _approval_label(approval_type: str) -> str:
         return "Supplier Deadline Extension Approval"
     if approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL:
         return "Overdue Deadline Extension"
+    if approval_type == ARD_INTERRUPTION_GM_APPROVAL:
+        return "ARD Interruption Approval"
     return approval_type.replace("_", " ").title()
 
 
@@ -3766,7 +3772,7 @@ def _approval_display_row(row) -> dict[str, Any]:
         "case_classification": row.edited_case_classification or (row.original_case_classification if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL} else workflow.get("case_classification")) or row.original_case_classification or "",
         "deadline_proposal_days": 0 if row.approval_type == GLOBAL_DEADLINE_EXTENSION_APPROVAL else row.edited_deadline_proposal_days or (row.original_deadline_proposal_days if row.approval_type in {"COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL, "PMDP_EXTENSION_APPROVAL", SUPPLIER_DEADLINE_EXTENSION_APPROVAL} else workflow.get("approved_deadline_days") or workflow.get("deadline_proposal_days")) or row.original_deadline_proposal_days or 0,
         "deadline_unit_label": deadline_unit_label(),
-        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
+        "priority": "High" if row.approval_type in {"GM_CASE_APPROVAL", "PMDP_DUAL_GATE_GM_APPROVAL", "COMMAND_CENTER_GM_APPROVAL", COMMAND_CENTER_SRS_ARD_GM_APPROVAL, HANDOVER_FAILURE_GM_APPROVAL, ARD_INTERRUPTION_GM_APPROVAL, SUPPLIER_DEADLINE_EXTENSION_APPROVAL, GLOBAL_DEADLINE_EXTENSION_APPROVAL} else "Normal",
         "comments": row.comments or "",
         "created_at": to_cairo_iso(row.creation),
     }
@@ -3856,6 +3862,10 @@ def approve_srs_approval(approval: str, actor: str, payload: dict[str, Any] | No
         return approve_global_deadline_extension(approval, payload, actor)
     if detail["approval_type"] == HANDOVER_FAILURE_GM_APPROVAL:
         return resolve_handover_failure_gm_approval(approval, payload, actor)
+    if detail["approval_type"] == ARD_INTERRUPTION_GM_APPROVAL:
+        from bedo_platform.services.ard_workflow_service import resolve_ard_interruption_approval
+
+        return resolve_ard_interruption_approval(approval, payload, actor)
     frappe.throw("Unsupported approval type.", frappe.PermissionError)
 
 

@@ -30,6 +30,8 @@ test("ARD workspace component exposes core node actions", () => {
   assert.match(source, /schedule_internal_sync/);
   assert.match(source, /assign_owner/);
   assert.match(source, /select_team/);
+  assert.match(source, /request_interruption/);
+  assert.match(source, /choose_electronics_subcase/);
   assert.match(source, /submit_scmdp/);
 });
 
@@ -43,5 +45,8 @@ test("ARD workflow BFF route uses signed Frappe mutation methods", () => {
   assert.match(source, /bedo_platform\.api\.web\.assign_ard_project_owner/);
   assert.match(source, /bedo_platform\.api\.web\.select_ard_team/);
   assert.match(source, /bedo_platform\.api\.web\.submit_ard_progress_review_outcome/);
+  assert.match(source, /bedo_platform\.api\.web\.submit_ard_interruption_request/);
+  assert.match(source, /bedo_platform\.api\.web\.choose_ard_electronics_subcase/);
+  assert.match(source, /bedo_platform\.api\.web\.complete_ard_concept_proof/);
   assert.match(source, /bedo_platform\.api\.web\.submit_ard_scmdp/);
 });
