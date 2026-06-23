@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,14 +20,16 @@ def test_case3_handover_date_is_second_working_date_after_clearance():
     assert result.isoformat() == "2026-06-23"
 
 
-def test_case3_handover_time_must_be_on_fixed_second_working_date():
+def test_case3_handover_time_must_be_at_least_second_working_date():
     cleared_at = datetime(2026, 6, 21, 10, 15, tzinfo=CAIRO)
-    valid_time = datetime(2026, 6, 23, 11, 30, tzinfo=CAIRO)
-    invalid_time = datetime(2026, 6, 24, 11, 30, tzinfo=CAIRO)
+    earliest_time = datetime(2026, 6, 23, 11, 30, tzinfo=CAIRO)
+    later_time = datetime(2026, 7, 5, 11, 30, tzinfo=CAIRO)
+    too_early_time = datetime(2026, 6, 22, 11, 30, tzinfo=CAIRO)
 
-    assert meeting_service.validate_case3_handover_time(cleared_at, valid_time) == valid_time
-    with pytest.raises(ValueError, match="second working date"):
-        meeting_service.validate_case3_handover_time(cleared_at, invalid_time)
+    assert meeting_service.validate_case3_handover_time(cleared_at, earliest_time) == earliest_time
+    assert meeting_service.validate_case3_handover_time(cleared_at, later_time) == later_time
+    with pytest.raises(ValueError, match="BMDP/PMDP release"):
+        meeting_service.validate_case3_handover_time(cleared_at, too_early_time)
 
 
 def test_progress_review_meeting_uses_two_complete_working_days_then_next_morning():
@@ -138,10 +141,101 @@ def test_meeting_row_includes_confirmation_candidates_for_actor(monkeypatch):
     )
     monkeypatch.setattr(meeting_service, "_meeting_participants", lambda meeting: [])
     monkeypatch.setattr(meeting_service, "_confirmation_candidates_for_actor", lambda actor, meeting: ["srselectronicshead"])
+    monkeypatch.setattr(
+        meeting_service,
+        "_meeting_handover_context",
+        lambda meeting_row: {"project_code": "", "project_name": "", "handover_paths": []},
+    )
 
     result = meeting_service._meeting_row(row, actor="srsmanager")
 
     assert result["confirmation_candidates"] == ["srselectronicshead"]
+
+
+def test_meeting_row_includes_project_and_handover_paths(monkeypatch):
+    row = SimpleNamespace(
+        name="MEET-1",
+        meeting_id="CASE3-HANDOVER-1",
+        meeting_type="HANDOVER_MEETING",
+        project="PROJ-1",
+        trainer_item="ITEM-1",
+        source_workflow="WF-1",
+        source_workflow_generation=1,
+        source_node="COMMAND_CENTER_CASE_3_HANDOVER_MEETING",
+        organizer="commandcenter",
+        organizer_department="COMMAND_CENTER",
+        scheduled_at=None,
+        time_zone="Africa/Cairo",
+        expected_end_at=None,
+        status="PENDING_CONFIRMATION",
+        title="Case 3 Handover Meeting",
+        description="",
+        created_at=None,
+        confirmed_at=None,
+        completed_at=None,
+        overdue_at=None,
+    )
+    monkeypatch.setattr(meeting_service, "_meeting_participants", lambda meeting: [])
+    monkeypatch.setattr(meeting_service, "_confirmation_candidates_for_actor", lambda actor, meeting: [])
+    monkeypatch.setattr(
+        meeting_service,
+        "_meeting_handover_context",
+        lambda meeting_row: {
+            "project_code": "BEDO-001",
+            "project_name": "Press Upgrade",
+            "handover_paths": [
+                {"label": "BMDP Path", "path": "share/bmdp.pdf"},
+                {"label": "PMDP Path", "path": "share/pmdp.pdf"},
+            ],
+        },
+        raising=False,
+    )
+
+    result = meeting_service._meeting_row(row, actor="ardmanager")
+
+    assert result["project_code"] == "BEDO-001"
+    assert result["project_name"] == "Press Upgrade"
+    assert result["handover_paths"] == [
+        {"label": "BMDP Path", "path": "share/bmdp.pdf"},
+        {"label": "PMDP Path", "path": "share/pmdp.pdf"},
+    ]
+
+
+def test_list_my_meetings_only_returns_active_participant_meetings(monkeypatch):
+    calls = []
+
+    class FakeDb:
+        @staticmethod
+        def exists(*_args, **_kwargs):
+            return True
+
+    class FakeFrappe:
+        db = FakeDb()
+        PermissionError = PermissionError
+
+        @staticmethod
+        def get_roles(_user):
+            return ["General Manager"]
+
+        @staticmethod
+        def get_all(doctype, filters=None, fields=None, order_by=None, page_length=None, pluck=None):
+            calls.append((doctype, filters, pluck))
+            if doctype == "BEDO Meeting Participant":
+                assert filters == {"user": "gm", "is_active": 1}
+                assert pluck == "meeting"
+                return ["VISIBLE-MEETING"]
+            if doctype == "BEDO Meeting":
+                assert filters and filters.get("name") == ["in", ["VISIBLE-MEETING"]]
+                return [SimpleNamespace(name="VISIBLE-MEETING")]
+            return []
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+    monkeypatch.setattr(meeting_service, "_meeting_row", lambda row, actor: {"name": row.name})
+
+    result = meeting_service.list_my_meetings("gm")
+
+    assert result == {"meetings": [{"name": "VISIBLE-MEETING"}], "count": 1}
+    assert calls[0][0] == "BEDO Meeting Participant"
 
 
 def test_case3_handover_meeting_mutations_are_exposed():

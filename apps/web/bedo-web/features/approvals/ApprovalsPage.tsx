@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, ClipboardCheck, PencilLine, Search, X } from "lucide-react";
+import { CheckCircle2, PencilLine, Search, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { COMMAND_CENTER_CASE_3, commandCenterDecisionRequiresDeadline } from "@/features/srs/commandCenterRules";
 import type { ApprovalRow } from "@/features/srs/types";
@@ -70,19 +70,6 @@ export function ApprovalsPage({ initialApprovals }: Props) {
 
   return (
     <section className="space-y-6">
-      <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-panel">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500">
-              <ClipboardCheck className="h-4 w-4" />
-              Approval Center
-            </div>
-            <h2 className="mt-2 text-3xl font-black text-slate-950">Pending Approvals</h2>
-            <p className="mt-2 text-sm font-medium text-slate-600">Notifications create awareness. Approval decisions happen here.</p>
-          </div>
-        </div>
-      </header>
-
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-panel">

@@ -28,7 +28,7 @@ from bedo_platform.services.deadline_service import (
     run_deadline_reminder_check,
     run_overdue_check,
 )
-from bedo_platform.services.notification_service import list_my_notifications, mark_all_notifications_read, mark_notification_read
+from bedo_platform.services.notification_service import list_my_notifications, mark_all_notifications_read, mark_notification_read, mark_notification_unread
 from bedo_platform.services.meeting_service import list_my_meetings as list_my_meetings_service
 from bedo_platform.services.project_service import (
     add_trainer_item as add_bedo_trainer_item,
@@ -588,6 +588,12 @@ def list_notifications(limit: int = 25):
 def mark_notification_as_read(notification: str):
     user = validate_service_request()
     return mark_notification_read(user, notification)
+
+
+@service_api
+def mark_notification_as_unread(notification: str):
+    user = validate_service_request()
+    return mark_notification_unread(user, notification)
 
 
 @service_api

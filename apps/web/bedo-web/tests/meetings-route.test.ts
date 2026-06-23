@@ -19,4 +19,8 @@ test("meeting cards expose details and attendance confirmation controls", () => 
   assert.match(source, /Confirm attendance/);
   assert.match(source, /confirmation_candidates/);
   assert.match(source, /api\/meetings\/\$\{routeSegment\(meeting\.name\)\}\/confirm/);
+  assert.match(source, /project_code/);
+  assert.match(source, /project_name/);
+  assert.match(source, /handover_paths/);
+  assert.doesNotMatch(source, /Meeting Center/);
 });

@@ -8,11 +8,18 @@ export type MeetingParticipant = {
   confirmed_at?: string;
 };
 
+export type MeetingHandoverPath = {
+  label: string;
+  path: string;
+};
+
 export type MeetingRow = {
   name: string;
   meeting_id?: string;
   meeting_type: string;
   project?: string;
+  project_code?: string;
+  project_name?: string;
   trainer_item?: string;
   source_workflow?: string;
   source_workflow_generation?: number;
@@ -31,4 +38,5 @@ export type MeetingRow = {
   overdue_at?: string;
   participants: MeetingParticipant[];
   confirmation_candidates?: string[];
+  handover_paths?: MeetingHandoverPath[];
 };

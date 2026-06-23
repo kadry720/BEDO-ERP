@@ -486,12 +486,12 @@ function CommandCenterTab({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h3 className="text-lg font-black text-slate-950">Handover Meeting</h3>
-              <p className="mt-1 text-sm font-semibold text-slate-600">Schedule the Case 3 Handover Meeting on the required second working date after GM clearance.</p>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Schedule the Case 3 Handover Meeting at least two working days after BMDP/PMDP release.</p>
             </div>
             <StatusBadge status={handoff.status} />
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <MiniInfo label="Cleared At" value={formatWorkflowTimestamp(handoff.case3_cleared_at)} />
+            <MiniInfo label="BMDP/PMDP Released" value={formatWorkflowTimestamp(handoff.submitted_at || handoff.case3_cleared_at)} />
             <MiniInfo label="Meeting" value={handoff.handover_meeting || "Not scheduled"} />
             <MiniInfo label="Confirmation" value={formatStatus(handoff.handover_confirmation_status || "NOT_STARTED")} />
           </div>

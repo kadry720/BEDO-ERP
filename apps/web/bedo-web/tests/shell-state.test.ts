@@ -11,11 +11,13 @@ test("shell state combines notification and approval badge data in one call", as
       ],
     }),
     getPendingApprovalCount: async () => ({ count: 3 }),
+    listPendingMeetings: async () => ({ count: 2, meetings: [] }),
   });
 
   assert.equal(state.unreadNotifications, 1);
   assert.equal(state.pendingApprovals, 3);
-  assert.equal(state.total, 4);
+  assert.equal(state.pendingMeetings, 2);
+  assert.equal(state.total, 6);
   assert.equal(state.notifications.length, 2);
 });
 
@@ -25,10 +27,14 @@ test("shell state keeps the page usable when one backend badge source fails", as
       throw new Error("notifications unavailable");
     },
     getPendingApprovalCount: async () => ({ count: 2 }),
+    listPendingMeetings: async () => {
+      throw new Error("meetings unavailable");
+    },
   });
 
   assert.equal(state.unreadNotifications, 0);
   assert.equal(state.pendingApprovals, 2);
+  assert.equal(state.pendingMeetings, 0);
   assert.equal(state.total, 2);
   assert.deepEqual(state.notifications, []);
 });

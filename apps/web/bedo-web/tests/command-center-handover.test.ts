@@ -25,4 +25,6 @@ test("command center workspace uses reusable sub-tabs and shows case 3 handover 
   assert.match(source, /Handover Confirmation/);
   assert.match(source, /case-3-meeting/);
   assert.match(source, /handover-confirmation/);
+  assert.match(source, /at least two working days after/);
+  assert.doesNotMatch(source, /on the required second working date/);
 });

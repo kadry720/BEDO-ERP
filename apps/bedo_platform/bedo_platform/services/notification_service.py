@@ -219,6 +219,16 @@ def mark_notification_read(user: str, notification: str) -> dict[str, bool]:
     return {"success": True}
 
 
+def mark_notification_unread(user: str, notification: str) -> dict[str, bool]:
+    import frappe
+
+    owner = frappe.db.get_value("BEDO Notification", notification, "recipient_user")
+    if owner != user:
+        frappe.throw("Notification not found.", frappe.PermissionError)
+    frappe.db.set_value("BEDO Notification", notification, {"is_read": 0, "read_at": None})
+    return {"success": True}
+
+
 def mark_all_notifications_read(user: str) -> dict[str, bool]:
     import frappe
 

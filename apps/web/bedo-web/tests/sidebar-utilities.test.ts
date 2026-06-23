@@ -9,12 +9,16 @@ test("sidebar bottom contains labeled utility links and logout form", () => {
   assert.match(source, /SidebarUtilityNav/);
   assert.match(source, /href="\/meetings"/);
   assert.match(source, /label="Meetings"/);
+  assert.match(source, /label="Meetings"[^>]+badge=\{shellState\.pendingMeetings\}/s);
   assert.match(source, /href="\/notifications"/);
   assert.match(source, /label="Notifications"/);
   assert.match(source, /href="\/approvals"/);
   assert.match(source, /label="Approvals"/);
   assert.match(source, /action="\/api\/auth\/logout"/);
   assert.match(source, />Log out</);
+  assert.doesNotMatch(source, /ArrowLeft/);
+  assert.doesNotMatch(source, /aria-label="Back"/);
+  assert.doesNotMatch(source, />Back</);
 });
 
 test("top bar no longer renders duplicate utility controls", () => {

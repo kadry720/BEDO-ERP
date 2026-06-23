@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, CheckCircle2, ChevronDown, Clock, Loader2, UsersRound } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, Loader2, UsersRound } from "lucide-react";
 import { routeSegment } from "@/lib/route-ids";
 import type { MeetingParticipant, MeetingRow } from "./types";
 
@@ -19,6 +19,7 @@ export function MeetingsPage({ initialMeetings, currentUser }: { initialMeetings
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || "Meetings could not be refreshed.");
     setMeetings(data.meetings || []);
+    window.dispatchEvent(new Event("bedo:meetings-changed"));
   }
 
   async function confirmAttendance(meeting: MeetingRow, selectedUsers: string[]) {
@@ -41,19 +42,6 @@ export function MeetingsPage({ initialMeetings, currentUser }: { initialMeetings
 
   return (
     <section className="space-y-6">
-      <header className="rounded-lg border border-slate-200 bg-white p-6 shadow-panel">
-        <div className="flex items-start gap-3">
-          <div className="rounded-md bg-slate-950 p-2 text-white">
-            <CalendarClock className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-xs font-black uppercase tracking-wide text-slate-500">Meetings</div>
-            <h2 className="mt-2 text-3xl font-black text-slate-950">Meeting Center</h2>
-            <p className="mt-2 text-sm font-medium text-slate-600">Handover, ARD sync, and progress review meetings that need your attention.</p>
-          </div>
-        </div>
-      </header>
-
       {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
       <MeetingSection title="Awaiting Confirmation" meetings={grouped.awaiting} tone="amber" currentUser={currentUser} openMeeting={openMeeting} confirmingMeeting={confirmingMeeting} onToggle={setOpenMeeting} onConfirm={confirmAttendance} />
@@ -135,6 +123,7 @@ function MeetingCard({
   const canConfirm = Boolean(currentParticipant) && currentParticipant?.confirmation_status !== "CONFIRMED" && !["COMPLETED", "CANCELLED", "SUPERSEDED_BY_RESET"].includes(meeting.status);
   const pendingRequired = meeting.participants.filter((participant) => Number(participant.is_required || 0) && participant.confirmation_status !== "CONFIRMED");
   const candidates = meeting.confirmation_candidates || [];
+  const handoverPaths = meeting.handover_paths || [];
 
   function toggleSelected(user: string) {
     setSelectedUsers((previous) => (previous.includes(user) ? previous.filter((candidate) => candidate !== user) : [...previous, user]));
@@ -152,6 +141,7 @@ function MeetingCard({
       {meeting.description && <p className="mt-3 line-clamp-3 text-sm font-medium opacity-80">{meeting.description}</p>}
       <div className="mt-4 grid gap-3 text-sm">
         <InfoRow icon={<Clock className="h-4 w-4" />} label="Scheduled" value={formatDateTime(meeting.scheduled_at, meeting.time_zone)} />
+        <InfoRow icon={<CheckCircle2 className="h-4 w-4" />} label="Project" value={meetingProjectLabel(meeting)} />
         <InfoRow icon={<UsersRound className="h-4 w-4" />} label="Organizer" value={meeting.organizer} />
         <InfoRow icon={<CheckCircle2 className="h-4 w-4" />} label="Participants" value={participantSummary(meeting)} />
       </div>
@@ -169,11 +159,26 @@ function MeetingCard({
       {isOpen && (
         <div className="mt-4 space-y-4 rounded-md border border-current/20 bg-white/70 p-4 text-sm">
           <div className="grid gap-3 md:grid-cols-2">
-            <MiniInfo label="Project" value={meeting.project || "-"} />
+            <MiniInfo label="Project code" value={meeting.project_code || meeting.project || "-"} />
+            <MiniInfo label="Project name" value={meeting.project_name || "-"} />
             <MiniInfo label="Trainer item" value={meeting.trainer_item || "-"} />
             <MiniInfo label="Workflow node" value={formatStatus(meeting.source_node || "-")} />
             <MiniInfo label="Expected end" value={formatDateTime(meeting.expected_end_at || "", meeting.time_zone)} />
           </div>
+
+          {handoverPaths.length > 0 && (
+            <div>
+              <div className="text-xs font-black uppercase tracking-wide opacity-60">Handover paths</div>
+              <div className="mt-2 grid gap-2">
+                {handoverPaths.map((item) => (
+                  <div key={`${item.label}-${item.path}`} className="rounded-md border border-current/20 px-3 py-2">
+                    <div className="text-[11px] font-black uppercase tracking-wide opacity-60">{item.label}</div>
+                    <div className="break-words font-bold">{item.path}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="text-xs font-black uppercase tracking-wide opacity-60">Pending required confirmation</div>
@@ -296,6 +301,10 @@ function participantSummary(meeting: MeetingRow) {
   if (!meeting.participants.length) return "No participants";
   const confirmed = meeting.participants.filter((participant) => participant.confirmation_status === "CONFIRMED").length;
   return `${meeting.participants.length} participant(s), ${confirmed} confirmed`;
+}
+
+function meetingProjectLabel(meeting: MeetingRow) {
+  return [meeting.project_code || meeting.project, meeting.project_name].filter(Boolean).join(" - ") || "-";
 }
 
 function formatDateTime(value: string, timeZone: string) {

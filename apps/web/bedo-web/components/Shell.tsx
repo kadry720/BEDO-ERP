@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Bell,
   BellRing,
   CalendarClock,
@@ -20,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { normalizeProjectActionUrl } from "@/lib/route-ids";
-import { canAccessRoute, displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
+import { displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
 import { shellPollIntervals, shouldPollShellWhenVisible } from "@/lib/shell-polling";
 import type { NotificationRow } from "@/features/srs/types";
 import type { ShellState } from "@/server/shell-state";
@@ -31,31 +30,23 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-const navigationStackPrefix = "bedo_navigation_stack";
 const approvalNotificationTypes = new Set(["GM_APPROVAL_REQUIRED", "SRS_MANAGER_APPROVAL_REQUIRED", "GM_APPROVAL_COMPLETED"]);
 const idleTimeoutMs = 30 * 60 * 1000;
 const reminderDelayMs = 10 * 60 * 1000;
 const emptyShellState: ShellState = {
   unreadNotifications: 0,
   pendingApprovals: 0,
+  pendingMeetings: 0,
   total: 0,
   notifications: [],
 };
 
 export function Shell({ session, children }: { session: BedoUserContext; children: ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [previousPath, setPreviousPath] = useState<string | null>(null);
   const [shellState, setShellState] = useState<ShellState>(emptyShellState);
   const navItems = useMemo(() => phaseNavItems(session), [session]);
   const pageTitle = pageTitleFor(pathname, navItems);
-  const navigationStackKey = useMemo(() => `${navigationStackPrefix}:${session.user}`, [session.user]);
-  const currentPath = useMemo(() => {
-    const query = searchParams.toString();
-    return query ? `${pathname}?${query}` : pathname;
-  }, [pathname, searchParams]);
 
   const refreshShellState = useCallback(async () => {
     try {
@@ -68,36 +59,6 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
       return null;
     }
   }, []);
-
-  useEffect(() => {
-    const stack = readNavigationStack(navigationStackKey).filter((path) => canUseBackPath(path, session));
-    const currentIndex = stack.length - 1;
-    const previousIndex = stack.length - 2;
-
-    if (stack[currentIndex] === currentPath) {
-      setPreviousPath(stack[previousIndex] || null);
-      return;
-    }
-
-    if (stack[previousIndex] === currentPath) {
-      stack.pop();
-    } else {
-      stack.push(currentPath);
-    }
-
-    const trimmedStack = stack.slice(-50);
-    writeNavigationStack(navigationStackKey, trimmedStack);
-    setPreviousPath(trimmedStack.length > 1 ? trimmedStack[trimmedStack.length - 2] : null);
-  }, [currentPath, navigationStackKey, session]);
-
-  function goBack() {
-    if (!previousPath) return;
-    if (!canUseBackPath(previousPath, session)) {
-      setPreviousPath(null);
-      return;
-    }
-    router.push(previousPath);
-  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
@@ -124,22 +85,6 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
         </div>
-        {previousPath && (
-          <div className="border-b border-slate-900 px-3 py-3">
-            <button
-              type="button"
-              className={`focus-ring flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900 hover:text-white ${
-                collapsed ? "justify-center" : ""
-              }`}
-              onClick={goBack}
-              title="Back"
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="truncate">Back</span>}
-            </button>
-          </div>
-        )}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
           {navItems.map((item) => (
             <SidebarNavItem key={item.href} item={item} active={isActive(pathname, item.href)} collapsed={collapsed} />
@@ -160,6 +105,7 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
 type AttentionSummary = {
   unreadNotifications: number;
   pendingApprovals: number;
+  pendingMeetings: number;
   total: number;
 };
 
@@ -222,6 +168,10 @@ function SessionLifecycle({
     setAttentionOpen(false);
     if ((attention?.pendingApprovals || 0) > 0) {
       router.push("/approvals");
+      return;
+    }
+    if ((attention?.pendingMeetings || 0) > 0) {
+      router.push("/meetings");
       return;
     }
     router.push("/notifications");
@@ -329,7 +279,7 @@ function AttentionModal({
           <div>
             <h2 className="text-xl font-black text-slate-950">Items need your attention</h2>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-              You have {summary.unreadNotifications} unread notification(s) and {summary.pendingApprovals} pending approval(s).
+              You have {summary.unreadNotifications} unread notification(s), {summary.pendingApprovals} pending approval(s), and {summary.pendingMeetings} pending meeting(s).
             </p>
           </div>
         </div>
@@ -390,36 +340,6 @@ function SessionConflictModal({ onAllow, onDeny }: { onAllow: () => void; onDeny
   );
 }
 
-function readNavigationStack(key: string) {
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(key) || "[]");
-    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeNavigationStack(key: string, stack: string[]) {
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(stack));
-  } catch {
-    return;
-  }
-}
-
-function canUseBackPath(path: string, session: BedoUserContext) {
-  const pathname = path.split(/[?#]/)[0] || "/";
-  if (pathname === "/forbidden" || pathname === "/login") return false;
-  if (pathname.startsWith("/profile") || pathname.startsWith("/meetings") || pathname.startsWith("/notifications") || pathname.startsWith("/approvals")) return true;
-  if (pathname === "/access-not-configured") return session.landing_route === "/access-not-configured";
-  if (pathname === "/admin/users" || pathname.startsWith("/admin/users/")) return canAccessRoute(session, "/admin/users");
-  if (pathname === "/gm" || pathname.startsWith("/gm/")) return canAccessRoute(session, "/gm");
-  if (pathname === "/srs" || pathname.startsWith("/srs/")) return canAccessRoute(session, "/srs");
-  if (pathname === "/ard" || pathname.startsWith("/ard/")) return canAccessRoute(session, "/ard");
-  if (pathname === "/command-center" || pathname.startsWith("/command-center/")) return canAccessRoute(session, "/command-center");
-  return session.modules.some((module) => pathname === module.route || pathname.startsWith(`${module.route}/`));
-}
-
 function phaseNavItems(session: BedoUserContext): NavItem[] {
   const allowed = new Set(session.modules.map((module) => module.route));
   const items: NavItem[] = [];
@@ -463,15 +383,19 @@ function SidebarUtilityNav({
       void refreshShellState();
     }
     window.addEventListener("bedo:approvals-changed", refreshCount);
+    window.addEventListener("bedo:notifications-changed", refreshCount);
+    window.addEventListener("bedo:meetings-changed", refreshCount);
     return () => {
       window.removeEventListener("bedo:approvals-changed", refreshCount);
+      window.removeEventListener("bedo:notifications-changed", refreshCount);
+      window.removeEventListener("bedo:meetings-changed", refreshCount);
     };
   }, [refreshShellState]);
 
   return (
     <div className="border-t border-slate-800 px-3 py-4">
       <div className="space-y-1">
-        <SidebarUtilityLink href="/meetings" label="Meetings" icon={CalendarClock} collapsed={collapsed} />
+        <SidebarUtilityLink href="/meetings" label="Meetings" icon={CalendarClock} collapsed={collapsed} badge={shellState.pendingMeetings} />
         <SidebarUtilityLink href="/notifications" label="Notifications" icon={Bell} collapsed={collapsed} badge={shellState.unreadNotifications} />
         <SidebarUtilityLink href="/approvals" label="Approvals" icon={ClipboardCheck} collapsed={collapsed} badge={shellState.pendingApprovals} />
       </div>
@@ -552,12 +476,18 @@ function MobileUtilityBar({
       void refreshShellState();
     }
     window.addEventListener("bedo:approvals-changed", refreshCount);
-    return () => window.removeEventListener("bedo:approvals-changed", refreshCount);
+    window.addEventListener("bedo:notifications-changed", refreshCount);
+    window.addEventListener("bedo:meetings-changed", refreshCount);
+    return () => {
+      window.removeEventListener("bedo:approvals-changed", refreshCount);
+      window.removeEventListener("bedo:notifications-changed", refreshCount);
+      window.removeEventListener("bedo:meetings-changed", refreshCount);
+    };
   }, [refreshShellState]);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white px-2 py-2 shadow-2xl lg:hidden">
-      <MobileUtilityLink href="/meetings" label="Meetings" icon={CalendarClock} />
+      <MobileUtilityLink href="/meetings" label="Meetings" icon={CalendarClock} badge={shellState.pendingMeetings} />
       <MobileUtilityLink href="/notifications" label="Notifications" icon={Bell} badge={shellState.unreadNotifications} />
       <MobileUtilityLink href="/approvals" label="Approvals" icon={ClipboardCheck} badge={shellState.pendingApprovals} />
       <MobileUtilityLink href="/profile" label="Profile" icon={UserCircle} />

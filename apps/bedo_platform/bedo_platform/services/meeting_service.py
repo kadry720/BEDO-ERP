@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Iterable
 
-from bedo_platform.constants import COMMAND_CENTER_ROLES, GLOBAL_VIEW_ROLES
+from bedo_platform.constants import COMMAND_CENTER_ROLES
 from bedo_platform.services.deadline_service import CAIRO_TZ, WORK_START, is_working_day, to_cairo_iso, to_storage_datetime
 from bedo_platform.services.security_audit_service import log_security_event
 from bedo_platform.services.user_profile_service import assert_user_can_login
@@ -51,9 +51,9 @@ def calculate_case3_handover_date(cleared_at: datetime) -> date:
 
 def validate_case3_handover_time(cleared_at: datetime, scheduled_at: datetime) -> datetime:
     scheduled = _as_cairo(scheduled_at)
-    expected_date = calculate_case3_handover_date(cleared_at)
-    if scheduled.date() != expected_date:
-        raise ValueError("Case 3 Handover Meeting must be scheduled on the second working date after clearance.")
+    earliest_date = calculate_case3_handover_date(cleared_at)
+    if scheduled.date() < earliest_date:
+        raise ValueError("Case 3 Handover Meeting must be scheduled at least the second working date after BMDP/PMDP release.")
     return scheduled
 
 
@@ -115,16 +115,6 @@ def required_meeting_leads_confirmed(participants: Iterable[object]) -> bool:
     return bool(required) and all(getattr(row, "confirmation_status", "") == "CONFIRMED" for row in required)
 
 
-def _roles(user: str) -> set[str]:
-    import frappe
-
-    return set(frappe.get_roles(user))
-
-
-def _is_global_viewer(user: str) -> bool:
-    return bool(_roles(user) & GLOBAL_VIEW_ROLES)
-
-
 def _primary_department_key(user: str) -> str:
     import frappe
 
@@ -136,6 +126,12 @@ def _primary_department_key(user: str) -> str:
     if not department:
         return ""
     return frappe.db.get_value("BEDO Department", department, "department_key") or ""
+
+
+def _roles(user: str) -> set[str]:
+    import frappe
+
+    return set(frappe.get_roles(user))
 
 
 def _active_users_with_role(role: str) -> list[str]:
@@ -211,8 +207,8 @@ def schedule_case3_handover_meeting(
     import frappe
     from bedo_platform.services.notification_service import notify_many
 
-    cleared_at = getattr(handoff, "case3_cleared_at", None) or getattr(handoff, "gm_approved_at", None) or datetime.now(CAIRO_TZ)
-    scheduled = validate_case3_handover_time(cleared_at, scheduled_at)
+    released_at = getattr(handoff, "submitted_at", None) or getattr(handoff, "case3_cleared_at", None) or getattr(handoff, "gm_approved_at", None) or datetime.now(CAIRO_TZ)
+    scheduled = validate_case3_handover_time(released_at, scheduled_at)
     generation = int(getattr(handoff, "generation", 1) or 1)
     meeting_id = case3_handover_meeting_id(handoff.name, generation)
     existing = frappe.db.get_value("BEDO Meeting", {"meeting_id": meeting_id, "is_superseded": 0}, "name")
@@ -419,6 +415,34 @@ def _confirmation_candidates_for_actor(actor: str, meeting: str) -> list[str]:
     ]
 
 
+def _meeting_handover_context(row) -> dict[str, object]:
+    import frappe
+
+    project = frappe.db.get_value("BEDO Project", row.project, ["project_code", "project_name"], as_dict=True) if row.project else {}
+    workflow = (
+        frappe.db.get_value(
+            "SRS Workflow Instance",
+            row.source_workflow,
+            ["bmdp_path", "pmdp_path", "pmdp_gate_path"],
+            as_dict=True,
+        )
+        if row.source_workflow
+        else {}
+    )
+    handover_paths = []
+    if workflow and workflow.get("bmdp_path"):
+        handover_paths.append({"label": "BMDP Path", "path": str(workflow.get("bmdp_path") or "")})
+    if workflow and workflow.get("pmdp_path"):
+        handover_paths.append({"label": "PMDP Path", "path": str(workflow.get("pmdp_path") or "")})
+    if workflow and workflow.get("pmdp_gate_path"):
+        handover_paths.append({"label": "Gate 2 PMDP Path", "path": str(workflow.get("pmdp_gate_path") or "")})
+    return {
+        "project_code": (project or {}).get("project_code") or "",
+        "project_name": (project or {}).get("project_name") or "",
+        "handover_paths": handover_paths,
+    }
+
+
 def _meeting_row(row, *, actor: str) -> dict[str, object]:
     return {
         "name": row.name,
@@ -443,6 +467,7 @@ def _meeting_row(row, *, actor: str) -> dict[str, object]:
         "overdue_at": to_cairo_iso(row.overdue_at),
         "participants": _meeting_participants(row.name),
         "confirmation_candidates": _confirmation_candidates_for_actor(actor, row.name),
+        **_meeting_handover_context(row),
     }
 
 
@@ -452,17 +477,14 @@ def list_my_meetings(actor: str, *, status: str = "") -> dict[str, object]:
     filters: dict[str, object] = {"is_superseded": 0}
     if status:
         filters["status"] = status
-    if _is_global_viewer(actor) or "General Manager" in _roles(actor):
-        meeting_names = None
-    else:
-        meeting_names = frappe.get_all(
-            "BEDO Meeting Participant",
-            filters={"user": actor, "is_active": 1},
-            pluck="meeting",
-        )
-        if not meeting_names:
-            return {"meetings": [], "count": 0}
-        filters["name"] = ["in", sorted(set(meeting_names))]
+    meeting_names = frappe.get_all(
+        "BEDO Meeting Participant",
+        filters={"user": actor, "is_active": 1},
+        pluck="meeting",
+    )
+    if not meeting_names:
+        return {"meetings": [], "count": 0}
+    filters["name"] = ["in", sorted(set(meeting_names))]
     rows = frappe.get_all(
         "BEDO Meeting",
         filters=filters,

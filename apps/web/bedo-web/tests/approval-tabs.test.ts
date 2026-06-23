@@ -13,4 +13,5 @@ test("approval center groups pending approvals by department source", () => {
   assert.match(pageSource, /aria-label="Approval source"/);
   assert.match(pageSource, /departmentFilter/);
   assert.match(pageSource, /approval\.approval_department/);
+  assert.doesNotMatch(pageSource, /Approval Center/);
 });
