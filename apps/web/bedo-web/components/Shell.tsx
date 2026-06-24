@@ -9,6 +9,7 @@ import {
   BellRing,
   CalendarClock,
   ClipboardCheck,
+  Cpu,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -352,6 +353,7 @@ function phaseNavItems(session: BedoUserContext): NavItem[] {
   const items: NavItem[] = [];
   if (allowed.has("/gm")) items.push({ href: "/gm", label: "GM Support Office Dashboard", icon: LayoutDashboard });
   if (allowed.has("/srs")) items.push({ href: "/srs", label: "SRS Dashboard", icon: ClipboardCheck });
+  if (session.roles.includes("SRS Electronics Section Head")) items.push({ href: "/srs/ard-electronics-cases", label: "ARD Electronics Cases", icon: Cpu });
   if (allowed.has("/ard")) items.push({ href: "/ard", label: "ARD Dashboard", icon: ClipboardCheck });
   if (allowed.has("/command-center")) items.push({ href: "/command-center", label: "Command Center Dashboard", icon: ClipboardCheck });
   if (isAdminUser(session)) items.push({ href: "/admin/users", label: "Admin Dashboard", icon: Users });
@@ -656,7 +658,7 @@ function TopBar({ pageTitle, onOpenMobileNav }: { pageTitle: string; onOpenMobil
 }
 
 function pageTitleFor(pathname: string, navItems: NavItem[]) {
-  const matched = navItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const matched = [...navItems].sort((left, right) => right.href.length - left.href.length).find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   if (matched) return matched.label;
   if (pathname.startsWith("/meetings")) return "Meetings";
   if (pathname.startsWith("/approvals")) return "Approvals";

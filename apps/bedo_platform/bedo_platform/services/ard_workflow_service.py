@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
-from bedo_platform.constants import ARD_ROLES
+from bedo_platform.constants import ARD_ROLES, SRS_ELECTRONICS_SECTION_HEAD_ROLE
 from bedo_platform.services.deadline_service import CAIRO_TZ, to_cairo_iso, to_storage_datetime
 from bedo_platform.services.meeting_service import (
     MEETING_STATUS_COMPLETED,
@@ -132,6 +133,10 @@ def _require_role(actor: str, role: str) -> None:
         frappe.throw(f"{role} access is required.", frappe.PermissionError)
 
 
+def is_srs_electronics_section_head(actor: str) -> bool:
+    return SRS_ELECTRONICS_SECTION_HEAD_ROLE in _roles(actor)
+
+
 def _user_full_name(user: str) -> str:
     if not user:
         return ""
@@ -165,6 +170,93 @@ def _active_ard_users() -> list[str]:
     for role in sorted(ARD_ROLES):
         users.update(_active_users_with_role(role))
     return sorted(users)
+
+
+def _value(row: Any, key: str, default: Any = "") -> Any:
+    if isinstance(row, dict):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def _display_data_value(raw_display_data: Any, key: str) -> str:
+    if not raw_display_data:
+        return ""
+    if isinstance(raw_display_data, dict):
+        return str(raw_display_data.get(key) or "")
+    try:
+        parsed = json.loads(str(raw_display_data))
+    except Exception:
+        return ""
+    if isinstance(parsed, dict):
+        return str(parsed.get(key) or "")
+    return ""
+
+
+def list_srs_electronics_ard_cases(actor: str) -> list[dict[str, Any]]:
+    import frappe
+
+    if not is_srs_electronics_section_head(actor):
+        frappe.throw(f"{SRS_ELECTRONICS_SECTION_HEAD_ROLE} access is required.", frappe.PermissionError)
+
+    rows: list[dict[str, Any]] = []
+    state_rows = frappe.get_all(
+        "ARD Workflow Node State",
+        filters={
+            "node_id": ARD_NODE_ELECTRONICS_SYSTEM_DESIGN,
+            "is_superseded": 0,
+            "status": ["in", [ARD_NODE_STATUS_READY, ARD_NODE_STATUS_IN_PROGRESS]],
+        },
+        fields=[
+            "workflow_instance",
+            "status",
+            "responsible_user",
+            "started_at",
+            "completed_at",
+            "display_data",
+        ],
+        order_by="modified desc",
+    )
+    for state in state_rows:
+        workflow = frappe.db.get_value(
+            "ARD Workflow Instance",
+            {"name": _value(state, "workflow_instance"), "is_superseded": 0},
+            ["name", "project", "trainer_item", "current_node", "status", "is_superseded"],
+            as_dict=True,
+        )
+        if not workflow:
+            continue
+        project = frappe.db.get_value(
+            "BEDO Project",
+            _value(workflow, "project"),
+            ["project_code", "project_name", "end_user"],
+            as_dict=True,
+        ) or {}
+        trainer = frappe.db.get_value(
+            "BEDO Trainer Item",
+            _value(workflow, "trainer_item"),
+            ["trainer_item_name", "quantity"],
+            as_dict=True,
+        ) or {}
+        rows.append(
+            {
+                "workflow_instance": _value(workflow, "name"),
+                "project": _value(workflow, "project"),
+                "project_code": _value(project, "project_code"),
+                "project_name": _value(project, "project_name"),
+                "end_user": _value(project, "end_user"),
+                "trainer_item": _value(workflow, "trainer_item"),
+                "trainer_item_name": _value(trainer, "trainer_item_name"),
+                "quantity": int(_value(trainer, "quantity", 0) or 0),
+                "ard_status": _value(workflow, "status"),
+                "current_node": _value(workflow, "current_node"),
+                "electronics_status": _value(state, "status"),
+                "electronics_subcase": _display_data_value(_value(state, "display_data"), "Electronics Subcase"),
+                "responsible_user": _value(state, "responsible_user"),
+                "started_at": to_cairo_iso(_value(state, "started_at")),
+                "completed_at": to_cairo_iso(_value(state, "completed_at")),
+            }
+        )
+    return rows
 
 
 def _workflow_for_item(trainer_item: str):
@@ -631,7 +723,7 @@ def _node_availability(workflow, actor: str, state_rows: list[dict[str, Any]]) -
     roles = _roles(actor)
     is_manager = "ARD Manager" in roles
     is_owner = bool(workflow.project_owner and workflow.project_owner == actor)
-    can_handle_interruption = is_owner or "General Manager" in roles or "Command Center Representative" in roles or "SRS Electronics Section Head" in roles
+    can_handle_interruption = is_owner or "General Manager" in roles or "Command Center Representative" in roles or SRS_ELECTRONICS_SECTION_HEAD_ROLE in roles
     states = {row["node_id"]: row["status"] for row in state_rows}
 
     def row(node_id: str, can_act: bool, disabled_reason: str = "") -> dict[str, Any]:
@@ -1244,7 +1336,7 @@ def choose_electronics_subcase(trainer_item: str, payload: dict[str, Any], actor
     import frappe
     from bedo_platform.services.supplier_order_service import create_supplier_order_from_ard
 
-    _require_role(actor, "SRS Electronics Section Head")
+    _require_role(actor, SRS_ELECTRONICS_SECTION_HEAD_ROLE)
     workflow, interruption = _latest_interruption(trainer_item)
     subcase = str(payload.get("subcase") or "").strip().upper().replace("-", "_").replace(" ", "_")
     if subcase not in {ARD_ELECTRONICS_INVENTORY_STOCK, ARD_ELECTRONICS_DESIGN_COMPLETE_NO_INVENTORY, ARD_ELECTRONICS_NEW_DESIGN}:
@@ -1277,7 +1369,7 @@ def choose_electronics_subcase(trainer_item: str, payload: dict[str, Any], actor
 
 
 def complete_electronics_action(trainer_item: str, actor: str) -> dict[str, Any]:
-    _require_role(actor, "SRS Electronics Section Head")
+    _require_role(actor, SRS_ELECTRONICS_SECTION_HEAD_ROLE)
     workflow, interruption = _latest_interruption(trainer_item)
     _update_node_state(workflow, ARD_NODE_ELECTRONICS_SYSTEM_DESIGN, ARD_NODE_STATUS_COMPLETED, actor, completed=True, display_data={"Electronics Subcase": interruption.electronics_subcase or ""})
     _resolve_interruption_if_done(workflow, interruption, actor)

@@ -12,7 +12,7 @@ Date: `2026-06-24`
   - Output summary: `tsc --noEmit` exited 0.
 - `npm.cmd run test:unit`
   - Result: pass
-  - Output summary: 52 tests, 52 passed, 0 failed.
+  - Output summary after part-2 additions: 61 tests, 61 passed, 0 failed.
 - `npm.cmd run build`
   - Result: pass
   - Output summary: Next.js 16.2.7 production build compiled, generated 48 static pages, exited 0.
@@ -21,7 +21,7 @@ Date: `2026-06-24`
 
 - `$env:PYTHONPATH='apps/bedo_platform'; python -m pytest apps/bedo_platform/bedo_platform/tests`
   - Result: pass
-  - Output summary: 114 tests, 114 passed.
+  - Output summary after part-2 additions: 119 tests, 119 passed.
 - `python -m pytest tests`
   - Result: pass
   - Output summary: 11 tests, 11 passed.

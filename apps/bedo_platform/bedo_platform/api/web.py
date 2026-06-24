@@ -13,6 +13,7 @@ from bedo_platform.services.ard_workflow_service import (
     get_ard_project_detail as get_ard_project_detail_service,
     get_ard_flowchart_definition as get_ard_flowchart_definition_service,
     get_ard_workspace as get_ard_workspace_service,
+    list_srs_electronics_ard_cases as list_srs_electronics_ard_cases_service,
     list_eligible_ard_team_members as list_eligible_ard_team_members_service,
     schedule_internal_sync_meeting as schedule_ard_internal_sync_meeting_service,
     select_ard_team as select_ard_team_service,
@@ -304,6 +305,12 @@ def get_ard_project_detail(project: str):
 def get_ard_workspace(trainer_item: str):
     user = validate_service_request()
     return get_ard_workspace_service(trainer_item, actor=user)
+
+
+@service_api
+def list_srs_electronics_ard_cases():
+    user = validate_service_request()
+    return list_srs_electronics_ard_cases_service(actor=user)
 
 
 @service_api

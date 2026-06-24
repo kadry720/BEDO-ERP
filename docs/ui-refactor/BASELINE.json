@@ -1,0 +1,9 @@
+{
+  "source_repository": "https://github.com/kadry720/BEDO-ERP.git",
+  "source_branch": "codex/ard-workflow-meetings-reset-overhaul",
+  "source_sha": "f91eda5ea40032c7957748863fb2f68aa1ed0d54",
+  "isolated_clone_path": "C:\\Users\\kadoo\\OneDrive\\Documents\\BEDO-ERP-master-frontend-ui-ux-refactor-part2",
+  "target_branch": "master-frontend-ui-ux-refactor-part2",
+  "previous_ui_refactor_commit": "afeed2172acbbf1ceea36599498900312ef5be29",
+  "created_at": "2026-06-24"
+}

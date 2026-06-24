@@ -8,6 +8,7 @@ def test_visible_business_roles_match_srs_phase_allowlist():
         "General Manager",
         "SRS Manager",
         "SRS Section Head",
+        "SRS Electronics Section Head",
         "SRS Team Leader",
         "SRS Engineer",
         "Command Center Representative",

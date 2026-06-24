@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Edit3, Save, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { Button } from "@/components/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import type { AdminBootstrap, AdminUser, SecurityEvent } from "@/features/admin/types";
 
 const hiddenAdminTableUsers = new Set(["administrator", "guest", "systemadmin", "useradmin", "securityauditor", "globalviewer"]);
@@ -487,27 +488,23 @@ function DeleteUserConfirmModal({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-label="Delete user confirmation">
-      <div className="w-full max-w-md rounded-md border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
-          <div>
-            <div className="text-xs font-black uppercase tracking-wide text-red-700">Delete User</div>
-            <h2 className="mt-1 text-xl font-black text-slate-950">{user.first_name} {user.last_name}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-600">{user.username} - {user.email}</p>
-          </div>
-          <button className="focus-ring rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={onClose} aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-5 py-4 text-sm font-semibold leading-6 text-slate-700">
-          This removes the BEDO account if the backend confirms it is safe to delete. Protected users remain blocked by the existing API behavior.
-        </div>
-        <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+    <Dialog
+      eyebrow="Delete User"
+      title={`${user.first_name} ${user.last_name}`}
+      description={`${user.username} - ${user.email}`}
+      size="sm"
+      onClose={onClose}
+      footer={
+        <>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
           <Button variant="danger" type="button" onClick={onConfirm}>Delete user</Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <p className="text-sm font-semibold leading-6 text-slate-700">
+        This removes the BEDO account if the backend confirms it is safe to delete. Protected users remain blocked by the existing API behavior.
+      </p>
+    </Dialog>
   );
 }
 

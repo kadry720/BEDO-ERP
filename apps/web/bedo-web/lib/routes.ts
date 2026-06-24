@@ -26,6 +26,7 @@ export const adminRoute = "/admin/users";
 export const routeLabels: Record<string, string> = {
   "/gm": "GM Support Office Dashboard",
   "/srs": "SRS Dashboard",
+  "/srs/ard-electronics-cases": "ARD Electronics Cases",
   "/ard": "ARD Dashboard",
   "/command-center": "Command Center Dashboard",
   "/admin/users": "Admin Dashboard",

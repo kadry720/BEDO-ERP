@@ -147,10 +147,13 @@ BASE_PLATFORM_ROLES = [
     "BEDO Global Viewer",
 ]
 
+SRS_ELECTRONICS_SECTION_HEAD_ROLE = "SRS Electronics Section Head"
+
 VISIBLE_BUSINESS_ROLES = [
     "General Manager",
     "SRS Manager",
     "SRS Section Head",
+    SRS_ELECTRONICS_SECTION_HEAD_ROLE,
     "SRS Team Leader",
     "SRS Engineer",
     "Command Center Representative",
@@ -234,6 +237,19 @@ ROLE_CATALOG = [
     }
     for role_name in BASE_PLATFORM_ROLES
 ]
+
+ROLE_CATALOG.append(
+    {
+        "role_key": _role_key(SRS_ELECTRONICS_SECTION_HEAD_ROLE),
+        "role_name": SRS_ELECTRONICS_SECTION_HEAD_ROLE,
+        "frappe_role": SRS_ELECTRONICS_SECTION_HEAD_ROLE,
+        "department_key": "",
+        "role_category": "Capability",
+        "is_managerial": 0,
+        "is_active": 1,
+        "description": "Capability role for SRS Electronics heads handling ARD electronics interruption cases.",
+    }
+)
 
 for department_key, role_names in DEPARTMENT_ROLES.items():
     for role_name in role_names:
@@ -363,7 +379,7 @@ for section_index, section_name in enumerate(SRS_SECTION_OPTIONS, start=1):
             "SRS",
             f"{section_name} Section Head",
             "SRS",
-            ["SRS Section Head"],
+            ["SRS Section Head", SRS_ELECTRONICS_SECTION_HEAD_ROLE] if section_name == "Electronics" else ["SRS Section Head"],
             phone_base,
         )
     )
