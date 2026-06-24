@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import type { ArdWorkspaceData } from "@/features/ard/types";
+import type { ArdProjectDetailData, ArdWorkspaceData } from "@/features/ard/types";
 import type { BedoProject, SrsFlowchartDefinition, TrainerItemList, TrainerWorkspace as TrainerWorkspaceData } from "@/features/srs/types";
 import type { BedoUserContext } from "@/lib/routes";
 import { canAccessRoute, isArdUser, isGeneralManager, isSrsUser } from "@/lib/routes";
@@ -78,6 +78,14 @@ export async function loadTrainerWorkspaceOrForbidden(user: string, trainerItemN
       frappeCall<SrsFlowchartDefinition>("bedo_platform.api.web.get_srs_flowchart_definition", {}, user),
     ]);
     return { workspace, flowchart };
+  } catch {
+    redirect("/forbidden");
+  }
+}
+
+export async function loadArdProjectDetailOrForbidden(user: string, projectName: string) {
+  try {
+    return await frappeCall<ArdProjectDetailData>("bedo_platform.api.web.get_ard_project_detail", { project: projectName }, user);
   } catch {
     redirect("/forbidden");
   }

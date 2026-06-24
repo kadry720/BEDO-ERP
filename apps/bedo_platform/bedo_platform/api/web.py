@@ -10,6 +10,7 @@ from bedo_platform.services.ard_workflow_service import (
     complete_concept_proof as complete_ard_concept_proof_service,
     complete_electronics_action as complete_ard_electronics_action_service,
     confirm_procurement_items_received as confirm_ard_procurement_items_received_service,
+    get_ard_project_detail as get_ard_project_detail_service,
     get_ard_flowchart_definition as get_ard_flowchart_definition_service,
     get_ard_workspace as get_ard_workspace_service,
     list_eligible_ard_team_members as list_eligible_ard_team_members_service,
@@ -291,6 +292,12 @@ def get_srs_flowchart_definition():
 def get_ard_flowchart_definition():
     validate_service_request()
     return get_ard_flowchart_definition_service()
+
+
+@service_api
+def get_ard_project_detail(project: str):
+    user = validate_service_request()
+    return get_ard_project_detail_service(project, actor=user)
 
 
 @service_api

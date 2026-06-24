@@ -19,6 +19,38 @@ test("ARD project route renders the ARD workspace for trainer item routes", () =
   assert.match(source, /<ArdWorkspace/);
 });
 
+test("ARD project route uses ARD project detail instead of SRS project detail", () => {
+  const route = join(import.meta.dirname, "..", "app", "(app)", "ard", "project", "[...parts]", "page.tsx");
+  const source = readFileSync(route, "utf-8");
+
+  assert.match(source, /loadArdProjectDetailOrForbidden/);
+  assert.match(source, /<ArdProjectDetail/);
+  assert.doesNotMatch(source, /features\/srs\/ProjectDetail/);
+});
+
+test("ARD project detail screen exposes ARD workflow columns and no SRS approval labels", () => {
+  const component = join(import.meta.dirname, "..", "features", "ard", "ArdProjectDetail.tsx");
+
+  assert.equal(existsSync(component), true);
+  const source = readFileSync(component, "utf-8");
+  assert.match(source, /ARD Project Owner/);
+  assert.match(source, /ARD Team/);
+  assert.match(source, /Current ARD Step/);
+  assert.match(source, /Open Workflow/);
+  assert.doesNotMatch(source, /Awaiting SRS Manager Approval/);
+  assert.doesNotMatch(source, /Awaiting GM Approval/);
+});
+
+test("ARD project detail table keeps SRS table proportions and single-line actions", () => {
+  const component = join(import.meta.dirname, "..", "features", "ard", "ArdProjectDetail.tsx");
+  const source = readFileSync(component, "utf-8");
+
+  assert.match(source, /min-w-\[860px\]/);
+  assert.match(source, /whitespace-nowrap/);
+  assert.match(source, /Open Workflow/);
+  assert.doesNotMatch(source, /Open ARD Workflow/);
+});
+
 test("ARD workspace component exposes core node actions", () => {
   const source = readFileSync(join(import.meta.dirname, "..", "features", "ard", "ArdWorkspace.tsx"), "utf-8");
 
@@ -33,6 +65,23 @@ test("ARD workspace component exposes core node actions", () => {
   assert.match(source, /request_interruption/);
   assert.match(source, /choose_electronics_subcase/);
   assert.match(source, /submit_scmdp/);
+});
+
+test("ARD workspace uses the SRS canvas flowchart pattern instead of the old card grid", () => {
+  const source = readFileSync(join(import.meta.dirname, "..", "features", "ard", "ArdWorkspace.tsx"), "utf-8");
+
+  assert.match(source, /useLayoutEffect/);
+  assert.match(source, /frameRef/);
+  assert.match(source, /ARD_FLOWCHART_DIMENSIONS/);
+  assert.match(source, /ARD_NODE_POSITIONS/);
+  assert.match(source, /ARD_CONNECTOR_ROUTES/);
+  assert.match(source, /function ArdFlowchart/);
+  assert.match(source, /function FlowNode/);
+  assert.match(source, /function NodeModal/);
+  assert.match(source, /fixed inset-0 z-50/);
+  assert.match(source, /marker id="ard-arrow"/);
+  assert.doesNotMatch(source, /grid gap-5 xl:grid-cols-\[1fr_420px\]/);
+  assert.doesNotMatch(source, /<aside className="space-y-5">/);
 });
 
 test("ARD workflow BFF route uses signed Frappe mutation methods", () => {

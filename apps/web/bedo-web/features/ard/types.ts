@@ -65,3 +65,14 @@ export type ArdWorkspaceData = {
 };
 
 export type ArdFlowchartDefinition = SrsFlowchartDefinition;
+
+export type ArdProjectTrainerItem = TrainerItem & {
+  workflow: null;
+  ard_workflow: ArdWorkflow;
+  team_members: ArdTeamMember[];
+};
+
+export type ArdProjectDetailData = {
+  project: BedoProject;
+  trainer_items: ArdProjectTrainerItem[];
+};

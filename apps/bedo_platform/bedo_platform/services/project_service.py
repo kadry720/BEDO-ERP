@@ -1475,6 +1475,40 @@ def _project_counts(project_names: list[str]) -> dict[str, dict[str, int]]:
     return {project: dict(values) for project, values in counts.items()}
 
 
+def _ard_project_counts(project_names: list[str]) -> dict[str, dict[str, int]]:
+    import frappe
+
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    if not project_names:
+        return {}
+    workflows = frappe.get_all(
+        "ARD Workflow Instance",
+        filters={"project": ["in", project_names], "is_superseded": 0},
+        fields=["project", "status", "current_node", "project_owner"],
+    )
+    team_counts: dict[str, int] = defaultdict(int)
+    for row in frappe.get_all(
+        "ARD Workflow Team Member",
+        filters={"project": ["in", project_names], "is_active": 1, "is_project_owner": 0},
+        fields=["project"],
+    ):
+        team_counts[row.project] += 1
+
+    for workflow in workflows:
+        counts[workflow.project]["trainer_items"] += 1
+        if workflow.status == "ARD_COMPLETE":
+            counts[workflow.project]["completed"] += 1
+        else:
+            counts[workflow.project]["srs_in_progress"] += 1
+        if not workflow.project_owner:
+            counts[workflow.project]["awaiting_owner_assignment"] += 1
+        if team_counts.get(workflow.project, 0):
+            counts[workflow.project]["in_coordination"] += 1
+        if workflow.current_node == "SCMDP_SUBMISSION":
+            counts[workflow.project]["in_action_paths"] += 1
+    return {project: dict(values) for project, values in counts.items()}
+
+
 def list_visible_projects(actor: str, page: int = 1, page_size: int = 25) -> dict[str, Any]:
     import frappe
 
@@ -1511,7 +1545,8 @@ def list_visible_projects(actor: str, page: int = 1, page_size: int = 25) -> dic
         start=start,
         page_length=page_size,
     )
-    counts = _project_counts([row.name for row in projects])
+    project_names = [row.name for row in projects]
+    counts = _ard_project_counts(project_names) if _is_ard_user(actor) else _project_counts(project_names)
     return {
         "projects": [{**dict(project), "counts": counts.get(project.name, {})} for project in projects],
         "page": page,

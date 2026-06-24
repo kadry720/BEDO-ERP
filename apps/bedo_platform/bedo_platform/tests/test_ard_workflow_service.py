@@ -6,6 +6,7 @@ import pytest
 
 from bedo_platform.services import project_service
 from bedo_platform.services import ard_workflow_service
+from bedo_platform.services import meeting_service
 
 
 def test_ard_workflow_doctypes_exist():
@@ -45,6 +46,40 @@ def test_ard_workflow_service_exposes_core_transitions():
     assert callable(ard_workflow_service.select_ard_team)
     assert callable(ard_workflow_service.submit_progress_review_outcome)
     assert callable(ard_workflow_service.submit_scmdp)
+
+
+def test_ard_safe_meeting_passes_actor_to_meeting_row(monkeypatch):
+    class FakeDb:
+        @staticmethod
+        def exists(doctype, name):
+            assert doctype == "BEDO Meeting"
+            assert name == "MEET-1"
+            return True
+
+        @staticmethod
+        def get_value(doctype, name, fields=None, as_dict=False):
+            assert doctype == "BEDO Meeting"
+            assert name == "MEET-1"
+            assert as_dict is True
+            return SimpleNamespace(name="MEET-1")
+
+    class FakeFrappe:
+        db = FakeDb()
+
+    captured = {}
+
+    def fake_meeting_row(row, *, actor):
+        captured["actor"] = actor
+        return {"name": row.name, "actor": actor}
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+    monkeypatch.setattr(meeting_service, "_meeting_row", fake_meeting_row)
+
+    assert ard_workflow_service._safe_meeting("MEET-1", actor="ardmanager") == {
+        "name": "MEET-1",
+        "actor": "ardmanager",
+    }
+    assert captured["actor"] == "ardmanager"
 
 
 def test_ard_flowchart_definition_contains_actionable_transition_labels():
@@ -138,6 +173,30 @@ def test_ard_non_manager_cannot_open_unassigned_ard_workflow(monkeypatch):
         ard_workflow_service._assert_can_view_workflow(SimpleNamespace(name="ARD-WF-1"), "ardengineer1")
 
 
+def test_ard_primary_assignment_resolves_business_role_from_role_catalog(monkeypatch):
+    class FakeDb:
+        @staticmethod
+        def get_value(doctype, filters=None, fields=None, as_dict=False):
+            if doctype == "BEDO User Role Assignment":
+                assert "business_role" not in fields
+                return {"role_catalog": "ROLE-CATALOG-ARD-ENGINEER", "department": "DEPT-ARD"}
+            if doctype == "BEDO Role Catalog":
+                return "ARD Engineer"
+            if doctype == "BEDO Department":
+                return "ARD"
+            return None
+
+    class FakeFrappe:
+        db = FakeDb()
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+
+    assert ard_workflow_service._primary_assignment("ardengineer1@bedo.local") == {
+        "business_role": "ARD Engineer",
+        "department": "ARD",
+    }
+
+
 def test_ard_project_trainer_list_filters_to_visible_ard_trainers(monkeypatch):
     captured_filters = {}
 
@@ -159,3 +218,99 @@ def test_ard_project_trainer_list_filters_to_visible_ard_trainers(monkeypatch):
     project_service.list_trainer_items_for_project("PROJECT-1", "ardmanager")
 
     assert captured_filters["name"] == ["in", ["TRAINER-1", "TRAINER-2"]]
+
+
+def test_ard_project_detail_returns_ard_workflow_data_without_srs_workflow(monkeypatch):
+    class FakeDb:
+        @staticmethod
+        def get_value(doctype, name_or_filters, fields=None, as_dict=False):
+            if doctype == "BEDO Project":
+                return {
+                    "name": "PROJECT-1",
+                    "project_code": "P-001",
+                    "project_name": "Project One",
+                    "end_user": "End User",
+                    "po_deadline_date": "2026-07-01",
+                    "status": "RELEASED_TO_SRS",
+                }
+            if doctype == "User":
+                return {"first_name": "ARD", "last_name": "Owner", "username": "ardowner"} if as_dict else None
+            return None
+
+    class FakeFrappe:
+        db = FakeDb()
+
+        @staticmethod
+        def get_roles(user):
+            return ["ARD Manager"] if user == "ardmanager" else []
+
+        @staticmethod
+        def get_all(doctype, filters=None, fields=None, pluck=None, order_by=None, **_kwargs):
+            if doctype == "ARD Workflow Instance":
+                return [
+                    SimpleNamespace(
+                        name="ARD-WF-1",
+                        project="PROJECT-1",
+                        trainer_item="TRAINER-1",
+                        source_handoff="HANDOFF-1",
+                        source_workflow="SRS-WF-1",
+                        generation=1,
+                        status=ard_workflow_service.ARD_STATUS_IN_PROGRESS,
+                        current_node=ard_workflow_service.ARD_NODE_OWNER_ASSIGNMENT,
+                        project_owner="ardowner",
+                        started_by="commandcenter",
+                        started_at=None,
+                        internal_sync_meeting="",
+                        progress_review_meeting="",
+                        completed_by="",
+                        completed_at=None,
+                    )
+                ]
+            if doctype == "BEDO Trainer Item":
+                assert filters["name"] == ["in", ["TRAINER-1"]]
+                return [
+                    SimpleNamespace(
+                        name="TRAINER-1",
+                        project="PROJECT-1",
+                        trainer_name="Website",
+                        trainer_item_name="Website_1",
+                        quantity=1,
+                        price_egp=5000,
+                        original_quantity=1,
+                        separation_mode="NONE",
+                        sequence_no=1,
+                        status="ARD_IN_PROGRESS",
+                        current_node=ard_workflow_service.ARD_NODE_OWNER_ASSIGNMENT,
+                        current_responsible_user="ardmanager",
+                        released_to_srs_at=None,
+                    )
+                ]
+            if doctype == "ARD Workflow Team Member":
+                return [
+                    SimpleNamespace(
+                        workflow_instance="ARD-WF-1",
+                        trainer_item="TRAINER-1",
+                        user="ardowner",
+                        full_name="ARD Owner",
+                        department="ARD",
+                        business_role="ARD Engineer",
+                        is_project_owner=1,
+                        selected_by="ardmanager",
+                        selected_at=None,
+                    )
+                ]
+            if doctype == "BEDO Deadline":
+                return []
+            if doctype == "SRS Workflow Instance":
+                raise AssertionError("ARD project detail must not query SRS workflows")
+            return []
+
+    monkeypatch.setitem(sys.modules, "frappe", FakeFrappe)
+
+    result = ard_workflow_service.get_ard_project_detail("PROJECT-1", "ardmanager")
+
+    assert result["project"]["name"] == "PROJECT-1"
+    assert result["trainer_items"][0]["name"] == "TRAINER-1"
+    assert result["trainer_items"][0]["ard_workflow"]["current_node"] == ard_workflow_service.ARD_NODE_OWNER_ASSIGNMENT
+    assert result["trainer_items"][0]["workflow"] is None
+    assert result["trainer_items"][0]["team_members"][0]["business_role"] == "ARD Engineer"

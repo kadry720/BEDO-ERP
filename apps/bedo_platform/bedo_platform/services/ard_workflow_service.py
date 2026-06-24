@@ -148,13 +148,16 @@ def _primary_assignment(user: str) -> dict[str, str]:
     row = frappe.db.get_value(
         "BEDO User Role Assignment",
         {"user": user, "is_active": 1, "is_primary_department": 1},
-        ["business_role", "department"],
+        ["role_catalog", "department"],
         as_dict=True,
     ) or {}
+    business_role = ""
+    if row.get("role_catalog"):
+        business_role = frappe.db.get_value("BEDO Role Catalog", row.get("role_catalog"), "role_name") or ""
     department = ""
     if row.get("department"):
         department = frappe.db.get_value("BEDO Department", row.get("department"), "department_key") or row.get("department") or ""
-    return {"business_role": row.get("business_role") or "", "department": department or ""}
+    return {"business_role": business_role, "department": department or ""}
 
 
 def _active_ard_users() -> list[str]:
@@ -281,7 +284,7 @@ def _safe_team_member(row) -> dict[str, Any]:
     }
 
 
-def _safe_meeting(meeting: str) -> dict[str, Any] | None:
+def _safe_meeting(meeting: str, *, actor: str) -> dict[str, Any] | None:
     if not meeting:
         return None
     import frappe
@@ -316,7 +319,7 @@ def _safe_meeting(meeting: str) -> dict[str, Any] | None:
         ],
         as_dict=True,
     )
-    return _meeting_row(row) if row else None
+    return _meeting_row(row, actor=actor) if row else None
 
 
 def _project_row(project: str) -> dict[str, Any]:
@@ -363,6 +366,137 @@ def _workflow_row(workflow) -> dict[str, Any]:
         "scmdp_submitted_at": to_cairo_iso(getattr(workflow, "scmdp_submitted_at", None)),
         "completed_by": workflow.completed_by or "",
         "completed_at": to_cairo_iso(workflow.completed_at),
+    }
+
+
+def _row_value(row, field: str, default: Any = "") -> Any:
+    if hasattr(row, "get"):
+        return row.get(field, default)
+    return getattr(row, field, default)
+
+
+def _safe_trainer_item_for_project(row) -> dict[str, Any]:
+    return {
+        "name": _row_value(row, "name"),
+        "project": _row_value(row, "project"),
+        "trainer_name": _row_value(row, "trainer_name"),
+        "trainer_item_name": _row_value(row, "trainer_item_name"),
+        "quantity": int(_row_value(row, "quantity", 0) or 0),
+        "original_quantity": int(_row_value(row, "original_quantity", 0) or 0),
+        "separation_mode": _row_value(row, "separation_mode"),
+        "sequence_no": int(_row_value(row, "sequence_no", 0) or 0),
+        "status": _row_value(row, "status"),
+        "current_node": _row_value(row, "current_node"),
+        "current_responsible_user": _row_value(row, "current_responsible_user"),
+        "current_responsible_name": _user_full_name(_row_value(row, "current_responsible_user")),
+        "released_to_srs_at": to_cairo_iso(_row_value(row, "released_to_srs_at", None)),
+    }
+
+
+def _safe_ard_deadline(row) -> dict[str, Any]:
+    from bedo_platform.services.deadline_service import server_now_iso
+
+    return {
+        "node_id": _row_value(row, "node_id"),
+        "start_at": to_cairo_iso(_row_value(row, "start_at", None)),
+        "due_at": to_cairo_iso(_row_value(row, "due_at", None)),
+        "status": _row_value(row, "status"),
+        "deadline_status": "ACTIVE",
+        "server_now": server_now_iso(),
+    }
+
+
+def get_ard_project_detail(project: str, actor: str) -> dict[str, Any]:
+    import frappe
+
+    visible_projects = set(ard_visible_project_names(actor))
+    if project not in visible_projects:
+        frappe.throw("You do not have access to this ARD project.", frappe.PermissionError)
+
+    visible_items = ard_visible_trainer_item_names(actor)
+    if not visible_items:
+        return {"project": _project_row(project), "trainer_items": []}
+
+    workflows = frappe.get_all(
+        "ARD Workflow Instance",
+        filters={"project": project, "trainer_item": ["in", visible_items], "is_superseded": 0},
+        fields=[
+            "name",
+            "project",
+            "trainer_item",
+            "source_handoff",
+            "source_workflow",
+            "generation",
+            "status",
+            "current_node",
+            "project_owner",
+            "started_by",
+            "started_at",
+            "internal_sync_meeting",
+            "progress_review_meeting",
+            "scmdp_path",
+            "scmdp_submitted_by",
+            "scmdp_submitted_at",
+            "completed_by",
+            "completed_at",
+        ],
+        order_by="creation asc",
+    )
+    workflow_by_item = {row.trainer_item: row for row in workflows}
+    trainer_items = sorted(workflow_by_item)
+    if not trainer_items:
+        return {"project": _project_row(project), "trainer_items": []}
+
+    item_rows = frappe.get_all(
+        "BEDO Trainer Item",
+        filters={"project": project, "name": ["in", trainer_items], "is_deleted": 0},
+        fields=[
+            "name",
+            "project",
+            "trainer_name",
+            "trainer_item_name",
+            "quantity",
+            "original_quantity",
+            "separation_mode",
+            "sequence_no",
+            "status",
+            "current_node",
+            "current_responsible_user",
+            "released_to_srs_at",
+        ],
+        order_by="creation asc",
+    )
+    team_rows = frappe.get_all(
+        "ARD Workflow Team Member",
+        filters={"workflow_instance": ["in", [row.name for row in workflows]], "is_active": 1},
+        fields=["workflow_instance", "trainer_item", "user", "full_name", "department", "business_role", "is_project_owner", "selected_by", "selected_at"],
+        order_by="is_project_owner desc, creation asc",
+    )
+    teams_by_item: dict[str, list[dict[str, Any]]] = {}
+    for row in team_rows:
+        teams_by_item.setdefault(row.trainer_item, []).append(_safe_team_member(row))
+
+    deadline_rows = frappe.get_all(
+        "BEDO Deadline",
+        filters={"project": project, "trainer_item": ["in", trainer_items], "workflow_type": ARD_WORKFLOW_TYPE, "status": "ACTIVE"},
+        fields=["trainer_item", "node_id", "start_at", "due_at", "status"],
+        order_by="due_at asc",
+    )
+    deadlines = {row.trainer_item: _safe_ard_deadline(row) for row in deadline_rows}
+
+    return {
+        "project": _project_row(project),
+        "trainer_items": [
+            {
+                **_safe_trainer_item_for_project(row),
+                "workflow": None,
+                "ard_workflow": _workflow_row(workflow_by_item[row.name]),
+                "team_members": teams_by_item.get(row.name, []),
+                "deadline": deadlines.get(row.name),
+            }
+            for row in item_rows
+            if row.name in workflow_by_item
+        ],
     }
 
 
@@ -565,8 +699,8 @@ def get_ard_workspace(trainer_item: str, actor: str) -> dict[str, Any]:
         "team_members": team_members,
         "node_availability": _node_availability(workflow, actor, node_states),
         "meetings": {
-            "internal_sync": _safe_meeting(workflow.internal_sync_meeting),
-            "progress_review": _safe_meeting(workflow.progress_review_meeting),
+            "internal_sync": _safe_meeting(workflow.internal_sync_meeting, actor=actor),
+            "progress_review": _safe_meeting(workflow.progress_review_meeting, actor=actor),
         },
         "ard_users": list_eligible_ard_team_members(actor),
         "deadlines": [
