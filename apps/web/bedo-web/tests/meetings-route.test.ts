@@ -12,10 +12,13 @@ test("meetings app route and BFF route are wired through signed Frappe API", () 
   assert.match(readFileSync(apiRoute, "utf-8"), /bedo_platform\.api\.web\.list_my_meetings/);
 });
 
-test("meeting cards expose details and attendance confirmation controls", () => {
+test("meeting agenda exposes detail and attendance confirmation controls", () => {
   const source = readFileSync(join(import.meta.dirname, "..", "features", "meetings", "MeetingsPage.tsx"), "utf-8");
 
-  assert.match(source, /openMeeting/);
+  assert.match(source, /MeetingAgendaList/);
+  assert.match(source, /MeetingDetail/);
+  assert.match(source, /setSelectedMeetingName/);
+  assert.match(source, /SegmentedControl/);
   assert.match(source, /Confirm attendance/);
   assert.match(source, /confirmation_candidates/);
   assert.match(source, /api\/meetings\/\$\{routeSegment\(meeting\.name\)\}\/confirm/);

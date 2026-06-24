@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, PencilLine, Search, X } from "lucide-react";
 import { Button } from "@/components/Button";
 import { COMMAND_CENTER_CASE_3, commandCenterDecisionRequiresDeadline } from "@/features/srs/commandCenterRules";
@@ -29,6 +29,9 @@ const approvalDepartmentOrder = ["SRS", "ARD", "Command Center", "Suppliers"];
 export function ApprovalsPage({ initialApprovals }: Props) {
   const [approvals, setApprovals] = useState(initialApprovals);
   const [activeApproval, setActiveApproval] = useState<ApprovalRow | null>(null);
+  const [selectedApprovalName, setSelectedApprovalName] = useState(initialApprovals[0]?.name || "");
+  const [approvalDetails, setApprovalDetails] = useState<Record<string, Record<string, unknown>>>({});
+  const [loadingDetail, setLoadingDetail] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -43,14 +46,37 @@ export function ApprovalsPage({ initialApprovals }: Props) {
     () => filterAndSortApprovals(approvals, { search, departmentFilter, typeFilter, priorityFilter, sortBy }),
     [approvals, search, departmentFilter, typeFilter, priorityFilter, sortBy]
   );
+  const selectedApproval = visibleApprovals.find((approval) => approval.name === selectedApprovalName) || visibleApprovals[0] || null;
+
+  useEffect(() => {
+    if (selectedApproval) void loadApprovalDetail(selectedApproval);
+  }, [selectedApproval?.name]);
 
   async function refresh() {
     const response = await fetch("/api/approvals");
     if (response.ok) {
       const data = await response.json();
-      setApprovals(data.approvals || []);
+      const nextApprovals = data.approvals || [];
+      setApprovals(nextApprovals);
+      setSelectedApprovalName((current) => nextApprovals.some((approval: ApprovalRow) => approval.name === current) ? current : nextApprovals[0]?.name || "");
       window.dispatchEvent(new Event("bedo:approvals-changed"));
     }
+  }
+
+  async function loadApprovalDetail(approval: ApprovalRow) {
+    if (approvalDetails[approval.name] || loadingDetail === approval.name) return;
+    setLoadingDetail(approval.name);
+    const response = await fetch(`/api/approvals/${approval.name}`);
+    const data = await response.json().catch(() => ({}));
+    setLoadingDetail("");
+    if (response.ok) {
+      setApprovalDetails((current) => ({ ...current, [approval.name]: data as Record<string, unknown> }));
+    }
+  }
+
+  function selectApproval(approval: ApprovalRow) {
+    setSelectedApprovalName(approval.name);
+    void loadApprovalDetail(approval);
   }
 
   async function approve(approval: ApprovalRow, payload?: Record<string, unknown>) {
@@ -149,16 +175,27 @@ export function ApprovalsPage({ initialApprovals }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-4 p-5">
-          {visibleApprovals.map((approval) => (
-            <ApprovalCard
-              key={approval.name}
-              approval={approval}
-              onApprove={(payload) => (isGlobalDeadlineExtensionApproval(approval) ? setActiveApproval(approval) : approve(approval, payload))}
-              onDeny={() => approve(approval, { action: "deny" })}
-              onEdit={() => setActiveApproval(approval)}
+        <div className="grid gap-4 p-5 xl:grid-cols-[minmax(320px,430px)_1fr]">
+          <div className="min-w-0 rounded-md border border-slate-200">
+            {visibleApprovals.map((approval) => (
+              <ApprovalQueueItem
+                key={approval.name}
+                approval={approval}
+                active={selectedApproval?.name === approval.name}
+                onSelect={() => selectApproval(approval)}
+              />
+            ))}
+          </div>
+          {selectedApproval && (
+            <ApprovalDetailPanel
+              approval={selectedApproval}
+              detail={approvalDetails[selectedApproval.name]}
+              loading={loadingDetail === selectedApproval.name}
+              onApprove={(payload) => (isGlobalDeadlineExtensionApproval(selectedApproval) ? setActiveApproval(selectedApproval) : approve(selectedApproval, payload))}
+              onDeny={() => approve(selectedApproval, { action: "deny" })}
+              onEdit={() => setActiveApproval(selectedApproval)}
             />
-          ))}
+          )}
           {!approvals.length && <EmptyApprovals message="No pending approvals." />}
           {Boolean(approvals.length) && !visibleApprovals.length && <EmptyApprovals message="No approvals match the current filters." />}
         </div>
@@ -172,6 +209,136 @@ export function ApprovalsPage({ initialApprovals }: Props) {
         />
       )}
     </section>
+  );
+}
+
+function ApprovalQueueItem({ approval, active, onSelect }: { approval: ApprovalRow; active: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`focus-ring block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 ${active ? "bg-slate-950 text-white" : "bg-white hover:bg-slate-50"}`}
+      onClick={onSelect}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={`text-[11px] font-black uppercase tracking-wide ${active ? "text-slate-300" : "text-slate-500"}`}>{approvalDepartment(approval)}</div>
+          <div className="mt-1 truncate text-sm font-black">{approval.approval_label}</div>
+          <div className={`mt-1 truncate text-xs font-semibold ${active ? "text-slate-300" : "text-slate-500"}`}>{approval.project_code} | {approval.project_name}</div>
+          <div className={`mt-1 truncate text-xs font-semibold ${active ? "text-slate-300" : "text-slate-600"}`}>{approval.trainer_item_name}</div>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black ${active ? "border-white/20 bg-white/10 text-white" : statusBadgeClass(approval.status)}`}>{formatStatus(approval.status)}</span>
+      </div>
+    </button>
+  );
+}
+
+function ApprovalDetailPanel({
+  approval,
+  detail,
+  loading,
+  onApprove,
+  onDeny,
+  onEdit,
+}: {
+  approval: ApprovalRow;
+  detail?: Record<string, unknown>;
+  loading: boolean;
+  onApprove: (payload?: Record<string, unknown>) => void;
+  onDeny: () => void;
+  onEdit: () => void;
+}) {
+  const globalExtension = isGlobalDeadlineExtensionApproval(approval);
+  const supplierExtension = isSupplierExtensionApproval(approval);
+  const handoverFailure = isHandoverFailureApproval(approval);
+  const canDeny = isPmdpDualGateApproval(approval) || supplierExtension;
+  const canEdit = !canDeny && !globalExtension && !handoverFailure;
+  const detailRows = approvalDetailRows(detail);
+
+  return (
+    <article className="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-slate-600">{approval.approval_label}</span>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusBadgeClass(approval.status)}`}>{formatStatus(approval.status)}</span>
+            <span className={priorityClass(approval.priority)}>{approval.priority}</span>
+            <span className="rounded bg-sky-50 px-2.5 py-1 text-xs font-black text-sky-800">{approvalDepartment(approval)}</span>
+          </div>
+          <h4 className="mt-3 break-words text-xl font-black text-slate-950">
+            {approval.project_code} | {approval.project_name}
+          </h4>
+          <p className="mt-1 break-words text-sm font-semibold text-slate-600">{approval.trainer_item_name}</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+          <div className="text-[11px] font-black uppercase tracking-wide text-slate-500">Deadline Proposal</div>
+          <div className="mt-1 text-lg font-black text-slate-950">{formatDeadlineAmount(approval)}</div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
+        <DetailBlock label="End User" value={approval.end_user} />
+        <DetailBlock label="PO Deadline" value={approval.po_deadline_date} />
+        {globalExtension && <DetailBlock label="Overdue Node" value={approval.target_node_label || approval.target_node || "-"} />}
+        {globalExtension && <DetailBlock label="Responsible" value={approval.responsible_user_name || approval.responsible_user || "-"} />}
+        {globalExtension && <DetailBlock label="Current Due" value={formatApprovalDateTime(approval.deadline_due_at)} />}
+        <DetailBlock label="Submitted By" value={approval.submitted_by_name || approval.submitted_by || "-"} />
+        <DetailBlock label="Submitted At" value={formatApprovalDateTime(approval.submitted_at || approval.created_at)} />
+        <DetailBlock label="Project Owner" value={approval.project_owner_name || approval.project_owner || "-"} />
+        {approval.comments && <DetailBlock className="md:col-span-2 xl:col-span-3" label={globalExtension ? "Overdue Details" : "Comment"} value={approval.comments} />}
+        {!globalExtension && <DetailBlock className="md:col-span-2 xl:col-span-3" label="Case" value={approval.case_classification || "-"} />}
+      </div>
+
+      <div className="border-t border-slate-100 px-5 py-4">
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">Loaded Detail</div>
+        {loading ? (
+          <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">Loading approval detail...</div>
+        ) : detailRows.length ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {detailRows.map(([label, value]) => <DetailBlock key={label} label={label} value={value} />)}
+          </div>
+        ) : (
+          <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">No extra detail fields returned.</div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+        {handoverFailure ? (
+          <>
+            <Button className="min-h-9 px-3" type="button" onClick={() => onApprove({ action: "continue_anyway" })}>
+              <CheckCircle2 className="h-4 w-4" />
+              Continue Anyway
+            </Button>
+            <Button className="min-h-9 px-3" variant="danger" type="button" onClick={() => onApprove({ action: "reset_command_center" })}>
+              <X className="h-4 w-4" />
+              Reset Command Center
+            </Button>
+          </>
+        ) : (
+          <Button className="min-h-9 px-3" type="button" onClick={() => onApprove()}>
+            <CheckCircle2 className="h-4 w-4" />
+            {globalExtension ? "Approve Extension" : "Approve"}
+          </Button>
+        )}
+        {globalExtension && (
+          <Button className="min-h-9 px-3" variant="secondary" type="button" disabled>
+            <X className="h-4 w-4" />
+            Deny
+          </Button>
+        )}
+        {canDeny && (
+          <Button className="min-h-9 px-3" variant="danger" type="button" onClick={onDeny}>
+            <X className="h-4 w-4" />
+            Deny
+          </Button>
+        )}
+        {canEdit && (
+          <Button className="min-h-9 px-3" variant="secondary" type="button" onClick={onEdit}>
+            <PencilLine className="h-4 w-4" />
+            Edit
+          </Button>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -354,6 +521,15 @@ function filterAndSortApprovals(
       if (filters.sortBy === "project") return `${left.project_code} ${left.project_name}`.localeCompare(`${right.project_code} ${right.project_name}`);
       return dateValue(right.created_at || right.submitted_at) - dateValue(left.created_at || left.submitted_at);
     });
+}
+
+function approvalDetailRows(detail?: Record<string, unknown>): Array<[string, string]> {
+  if (!detail) return [];
+  const nested = typeof detail.approval === "object" && detail.approval !== null ? detail.approval as Record<string, unknown> : detail;
+  return Object.entries(nested)
+    .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
+    .slice(0, 8)
+    .map(([key, value]) => [key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()), String(value)]);
 }
 
 function dateValue(value?: string) {

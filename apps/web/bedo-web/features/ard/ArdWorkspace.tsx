@@ -1,10 +1,8 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ComponentType, type ReactNode } from "react";
 import {
-  AlertTriangle,
   CalendarClock,
-  CheckCircle2,
   ClipboardCheck,
   Clock3,
   Copy,
@@ -12,14 +10,14 @@ import {
   FileInput,
   GitBranch,
   Loader2,
-  Lock,
   PackageCheck,
-  Route,
   ShieldCheck,
   Users,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/Button";
+import { WorkflowActionDialog } from "@/components/workflow/WorkflowActionDialog";
+import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
+import { WorkflowOutputSummary } from "@/components/workflow/WorkflowOutputSummary";
 import type { ArdFlowchartDefinition, ArdWorkspaceData } from "@/features/ard/types";
 import type { SrsNodeDefinition, SrsNodeState } from "@/features/srs/types";
 import {
@@ -119,89 +117,6 @@ const ARD_NODE_ICONS: Record<string, FlowIcon> = {
   SCMDP_SUBMISSION: FileInput,
 };
 
-const TONE_STYLES: Record<ReturnType<typeof statusTone>, { label: string; dot: string; chipBg: string; chipText: string; border: string; bg: string; accent: string; title: string }> = {
-  complete: {
-    label: "Complete",
-    dot: "#16a34a",
-    chipBg: "rgba(22,163,74,0.12)",
-    chipText: "#15803d",
-    border: "#16a34a",
-    bg: "#f0fdf4",
-    accent: "#16a34a",
-    title: "#14532d",
-  },
-  "in-progress": {
-    label: "In Progress",
-    dot: "#d97706",
-    chipBg: "rgba(217,119,6,0.14)",
-    chipText: "#b45309",
-    border: "#d97706",
-    bg: "#fffbeb",
-    accent: "#d97706",
-    title: "#7c2d12",
-  },
-  pending: {
-    label: "Pending",
-    dot: "#64748b",
-    chipBg: "rgba(100,116,139,0.14)",
-    chipText: "#475569",
-    border: "#cbd5e1",
-    bg: "#f8fafc",
-    accent: "#94a3b8",
-    title: "#475569",
-  },
-  "awaiting-approval": {
-    label: "Awaiting Approval",
-    dot: "#2563eb",
-    chipBg: "rgba(37,99,235,0.12)",
-    chipText: "#1d4ed8",
-    border: "#2563eb",
-    bg: "#eff6ff",
-    accent: "#2563eb",
-    title: "#1e3a8a",
-  },
-  locked: {
-    label: "Locked",
-    dot: "#94a3b8",
-    chipBg: "rgba(148,163,184,0.16)",
-    chipText: "#64748b",
-    border: "#cbd5e1",
-    bg: "#f8fafc",
-    accent: "#94a3b8",
-    title: "#475569",
-  },
-  "not-applicable": {
-    label: "Inactive Path",
-    dot: "#020617",
-    chipBg: "rgba(15,23,42,0.78)",
-    chipText: "#e2e8f0",
-    border: "#020617",
-    bg: "#020617",
-    accent: "#64748b",
-    title: "#cbd5e1",
-  },
-  overdue: {
-    label: "Overdue",
-    dot: "#dc2626",
-    chipBg: "rgba(220,38,38,0.12)",
-    chipText: "#b91c1c",
-    border: "#dc2626",
-    bg: "#fef2f2",
-    accent: "#dc2626",
-    title: "#7f1d1d",
-  },
-};
-
-const STATUS_ICONS: Record<ReturnType<typeof statusTone>, FlowIcon> = {
-  complete: CheckCircle2,
-  "in-progress": Loader2,
-  pending: Clock3,
-  "awaiting-approval": ShieldCheck,
-  locked: Lock,
-  "not-applicable": X,
-  overdue: AlertTriangle,
-};
-
 export function ArdWorkspace({
   initialWorkspace,
   flowchart,
@@ -260,218 +175,66 @@ function ArdFlowchart({
   setActiveNode: (node: string | null) => void;
 }) {
   const now = useServerClock(workspace.server_now);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
   const availability = useMemo(() => new Map(workspace.node_availability.map((node) => [node.nodeId, node])), [workspace.node_availability]);
   const flowchartNodeIds = useMemo(() => new Set(flowchart.nodes.map((node) => node.id)), [flowchart.nodes]);
-  const diagramWidth = ARD_FLOWCHART_DIMENSIONS.laneLabelWidth + ARD_FLOWCHART_DIMENSIONS.canvasWidth;
-  const diagramHeight = ARD_FLOWCHART_DIMENSIONS.deadlineHeaderHeight + ARD_FLOWCHART_DIMENSIONS.canvasHeight;
-  const deadlineColumnMeta = useMemo(() => new Map(flowchart.deadline_columns.map((column) => [column.id, column])), [flowchart.deadline_columns]);
   const notApplicableNodeIds = new Set(workspace.node_states.filter((state) => state.status === "NOT_APPLICABLE").map((state) => state.node_id));
   const applicableNodeCount = flowchart.nodes.filter((node) => !notApplicableNodeIds.has(node.id)).length;
   const completeCount = workspace.node_states.filter((state) => flowchartNodeIds.has(state.node_id) && state.status === "COMPLETED" && !notApplicableNodeIds.has(state.node_id)).length;
   const progress = applicableNodeCount ? Math.round((completeCount / applicableNodeCount) * 100) : 0;
-  const activeDeadlineState = workspace.node_states.find((state) => flowchartNodeIds.has(state.node_id) && isActiveDeadlineState(state));
-
-  useLayoutEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-
-    const updateScale = () => {
-      const availableWidth = frame.clientWidth;
-      setScale(Math.min(1, availableWidth / diagramWidth));
-    };
-
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(frame);
-    return () => observer.disconnect();
-  }, [diagramWidth]);
+  const activeDeadlineState = workspace.node_states.find((state) => flowchartNodeIds.has(state.node_id) && isActiveDeadlineState(state))!;
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4 shadow-panel md:p-5">
-      <div className="mb-5 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">ARD Workflow</p>
-            <h2 className="mt-1 text-lg font-bold text-white">{workspace.trainer_item.trainer_item_name}</h2>
-            <p className="text-xs text-slate-300">{workspace.project.project_code} | {workspace.project.end_user}</p>
-          </div>
-          {activeDeadlineState ? (
-            <CountdownBadge startAt={activeDeadlineState.deadline_start_at} dueAt={activeDeadlineState.deadline_due_at} serverNow={workspace.server_now} now={now} />
-          ) : (
-            <StatusBadge status={workspace.workflow.status} />
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-px bg-slate-100 lg:grid-cols-4">
-          <HeaderStat label="Trainer Item" value={workspace.trainer_item.trainer_item_name} />
-          <HeaderStat label="Current Stage" value={formatArdNodeId(workspace.workflow.current_node, flowchart)} />
-          <HeaderStat label="Status" value={formatStatus(workspace.workflow.status)} tone={statusTone(workspace.workflow.status)} />
-          <HeaderStatProgress label="ARD Progress" value={progress} />
-        </div>
-      </div>
-
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-slate-200 bg-white px-4 py-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Legend</span>
-        {(["complete", "in-progress", "pending", "awaiting-approval", "locked", "not-applicable", "overdue"] as const).map((tone) => (
-          <span key={tone} className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TONE_STYLES[tone].dot }} />
-            <span className="text-xs font-medium text-slate-600">{TONE_STYLES[tone].label}</span>
-          </span>
-        ))}
-      </div>
-
-      <div
-        ref={frameRef}
-        className="overflow-hidden rounded-md border border-slate-200 bg-white"
-        style={{
-          backgroundColor: "#f8fafc",
-          backgroundImage:
-            "linear-gradient(to right, rgba(148,163,184,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.10) 1px, transparent 1px)",
-          backgroundSize: `${32 * scale}px ${32 * scale}px`,
-        }}
-      >
-        <div style={{ minWidth: diagramWidth * scale, width: "100%", height: diagramHeight * scale }}>
-          <div style={{ width: diagramWidth, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-            {ARD_FLOWCHART_DIMENSIONS.deadlineHeaderHeight > 0 && ARD_DEADLINE_BANDS.length > 0 && (
-              <div className="flex border-b border-slate-200 bg-slate-100">
-                <div className="shrink-0 border-r border-slate-200" style={{ width: ARD_FLOWCHART_DIMENSIONS.laneLabelWidth }} />
-                <div className="relative" style={{ width: ARD_FLOWCHART_DIMENSIONS.canvasWidth, height: ARD_FLOWCHART_DIMENSIONS.deadlineHeaderHeight }}>
-                  {ARD_DEADLINE_BANDS.map((column, index) => (
-                    <div
-                      key={column.id}
-                      className={`absolute top-0 h-full ${index > 0 ? "border-l border-slate-300" : ""}`}
-                      style={{ left: column.x, width: column.w }}
-                    >
-                      <DeadlineHeader label={deadlineColumnMeta.get(column.id)?.label || column.label} detail={deadlineColumnMeta.get(column.id)?.detail || column.detail} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex">
-              <div className="relative shrink-0 border-r border-slate-200" style={{ width: ARD_FLOWCHART_DIMENSIONS.laneLabelWidth, height: ARD_FLOWCHART_DIMENSIONS.canvasHeight }}>
-                {ARD_LANE_BANDS.map((lane, index) => (
-                  <div
-                    key={lane.id}
-                    className={`absolute left-0 flex w-full items-center justify-center px-4 text-center ${index > 0 ? "border-t border-slate-700/40" : ""}`}
-                    style={{ top: lane.y, height: lane.h, backgroundColor: index % 2 === 0 ? "#1e293b" : "#0f172a" }}
-                  >
-                    <span>
-                      <span className="block text-[13px] font-semibold uppercase tracking-wide text-slate-100">{deadlineColumnMeta.get(lane.id)?.label || lane.label}</span>
-                      <span className="mt-1 block text-[11px] font-medium leading-snug text-slate-300">{deadlineColumnMeta.get(lane.id)?.detail || lane.detail}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                className="relative"
-                style={{
-                  width: ARD_FLOWCHART_DIMENSIONS.canvasWidth,
-                  height: ARD_FLOWCHART_DIMENSIONS.canvasHeight,
-                  backgroundColor: "#f8fafc",
-                  backgroundImage:
-                    "linear-gradient(to right, rgba(148,163,184,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.10) 1px, transparent 1px)",
-                  backgroundSize: "32px 32px",
-                }}
-              >
-                {ARD_LANE_BANDS.map((lane, index) => (
-                  <div
-                    key={lane.id}
-                    className="absolute left-0 w-full"
-                    style={{
-                      top: lane.y,
-                      height: lane.h,
-                      backgroundColor: index % 2 === 1 ? "rgba(148,163,184,0.05)" : "transparent",
-                      borderTop: index > 0 ? "1px dashed rgba(148,163,184,0.45)" : "none",
-                    }}
-                  />
-                ))}
-
-                {ARD_DEADLINE_BANDS.map((column, index) => (
-                  <div
-                    key={column.id}
-                    className={`absolute top-0 h-full ${index > 0 ? "border-l border-dashed border-slate-300" : ""}`}
-                    style={{
-                      left: column.x,
-                      width: column.w,
-                      backgroundColor: index % 2 === 0 ? "rgba(241,245,249,0.55)" : "rgba(255,255,255,0.44)",
-                    }}
-                  />
-                ))}
-
-                <svg className="pointer-events-none absolute inset-0" width={ARD_FLOWCHART_DIMENSIONS.canvasWidth} height={ARD_FLOWCHART_DIMENSIONS.canvasHeight}>
-                  <defs>
-                    <marker id="ard-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-                    </marker>
-                  </defs>
-                  {flowchart.edges.map((edge) => {
-                    const path = ardEdgePath(edge.from, edge.to);
-                    const sourceStatus = states.get(edge.from)?.status;
-                    const targetStatus = states.get(edge.to)?.status;
-                    const notApplicable = sourceStatus === "NOT_APPLICABLE" || targetStatus === "NOT_APPLICABLE";
-                    const active = sourceStatus === "COMPLETED" && !notApplicable;
-                    return (
-                      <path
-                        key={`${edge.from}-${edge.to}`}
-                        d={path}
-                        fill="none"
-                        markerEnd="url(#ard-arrow)"
-                        stroke={notApplicable ? "#020617" : active ? "#16a34a" : "#94a3b8"}
-                        strokeDasharray={notApplicable ? "2 7" : undefined}
-                        opacity={notApplicable ? 0.5 : 1}
-                        strokeLinecap="round"
-                        strokeWidth={active ? 2.5 : 1.75}
-                      />
-                    );
-                  })}
-                </svg>
-
-                {activeDeadlineState && (
-                  <div className="absolute" style={countdownPosition(activeDeadlineState.node_id)}>
-                    <CountdownBadge
-                      startAt={activeDeadlineState.deadline_start_at}
-                      dueAt={activeDeadlineState.deadline_due_at}
-                      serverNow={workspace.server_now}
-                      now={now}
-                      compact
-                    />
-                  </div>
-                )}
-
-                {flowchart.nodes.map((node) => {
-                  const state = states.get(node.id);
-                  const available = availability.get(node.id);
-                  return (
-                    <FlowNode
-                      key={node.id}
-                      node={node}
-                      state={state}
-                      availability={available}
-                      now={now}
-                      onOpen={() => {
-                        if (canOpenNodeModal(node, state, available)) setActiveNode(node.id);
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <WorkflowCanvas
+      eyebrow="ARD Workflow"
+      title={workspace.trainer_item.trainer_item_name}
+      subtitle={`${workspace.project.project_code} | ${workspace.project.end_user}`}
+      dimensions={ARD_FLOWCHART_DIMENSIONS}
+      laneBands={ARD_LANE_BANDS}
+      deadlineBands={ARD_DEADLINE_BANDS}
+      deadlineColumns={flowchart.deadline_columns}
+      nodes={flowchart.nodes}
+      edges={flowchart.edges}
+      states={states}
+      availability={availability}
+      headerStats={[
+        { label: "Trainer Item", value: workspace.trainer_item.trainer_item_name },
+        { label: "Current Stage", value: formatArdNodeId(workspace.workflow.current_node, flowchart) },
+        { label: "Status", value: formatStatus(workspace.workflow.status), tone: statusTone(workspace.workflow.status) },
+        { label: "ARD Progress", value: String(progress) },
+      ]}
+      markerId="ard-arrow"
+      connectorRoutes={ARD_CONNECTOR_ROUTES}
+      activeDeadlineState={activeDeadlineState}
+      now={now}
+      status={workspace.workflow.status}
+      nodeIcons={ARD_NODE_ICONS}
+      nodeSubtitles={ARD_NODE_SUBTITLES}
+      canOpenNode={canOpenNodeModal}
+      isDeadlineOverdue={isDeadlineOverdue}
+      statusTone={statusTone}
+      formatStatus={formatStatus}
+      nodeSummary={nodeCardSummary}
+      positionForNode={ardNodePosition}
+      anchorPoint={ardAnchorPoint}
+      renderStatusBadge={(status) => <StatusBadge status={status} />}
+      renderDeadlineBadge={(state, compact) => (
+        <CountdownBadge
+          startAt={state.deadline_start_at}
+          dueAt={state.deadline_due_at}
+          serverNow={workspace.server_now}
+          now={now}
+          compact={compact}
+        />
+      )}
+      onOpenNode={setActiveNode}
+    >
       {activeNode && (
         <NodeModal
-          nodeId={activeNode}
+          nodeId={activeNode || ""}
           workspace={workspace}
           flowchart={flowchart}
-          state={states.get(activeNode)}
-          availability={availability.get(activeNode)}
+          state={states.get(activeNode || "")}
+          availability={availability.get(activeNode || "")}
           onClose={() => setActiveNode(null)}
           onUpdated={(next) => {
             setWorkspace(next);
@@ -479,63 +242,8 @@ function ArdFlowchart({
           }}
         />
       )}
-    </div>
+    </WorkflowCanvas>
   );
-}
-
-function HeaderStat({ label, value, tone }: { label: string; value: string; tone?: ReturnType<typeof statusTone> }) {
-  return (
-    <div className="bg-white px-5 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 truncate text-sm font-semibold" style={{ color: tone ? TONE_STYLES[tone].chipText : "#1e293b" }}>
-        {value || "-"}
-      </p>
-    </div>
-  );
-}
-
-function HeaderStatProgress({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-white px-5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <span className="text-xs font-bold text-slate-700">{value}%</span>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-slate-800" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function DeadlineHeader({ label, detail }: { label: string; detail: string }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-0.5 px-3 text-center">
-      <span className="text-[13px] font-bold uppercase tracking-wide text-slate-700">{label}</span>
-      <span className="text-[11px] font-medium text-slate-500">{detail}</span>
-    </div>
-  );
-}
-
-function ardEdgePath(fromId: string, toId: string) {
-  const route = ARD_CONNECTOR_ROUTES[`${fromId}->${toId}`] || { fromSide: "right" as const, toSide: "left" as const };
-  const start = ardAnchorPoint(fromId, route.fromSide);
-  const end = ardAnchorPoint(toId, route.toSide);
-  const points = route.points || defaultOrthogonalPoints(start, end, route.fromSide, route.toSide);
-  return [`M ${start.x} ${start.y}`, ...points.map((point) => `L ${point.x} ${point.y}`), `L ${end.x} ${end.y}`].join(" ");
-}
-
-function defaultOrthogonalPoints(start: { x: number; y: number }, end: { x: number; y: number }, fromSide: string, toSide: string) {
-  if (start.x === end.x || start.y === end.y) return [];
-  if ((fromSide === "left" || fromSide === "right") && (toSide === "left" || toSide === "right")) {
-    const midX = Math.round((start.x + end.x) / 2);
-    return [{ x: midX, y: start.y }, { x: midX, y: end.y }];
-  }
-  if ((fromSide === "top" || fromSide === "bottom") && (toSide === "top" || toSide === "bottom")) {
-    const midY = Math.round((start.y + end.y) / 2);
-    return [{ x: start.x, y: midY }, { x: end.x, y: midY }];
-  }
-  return [{ x: end.x, y: start.y }];
 }
 
 function ardNodePosition(node: Pick<SrsNodeDefinition, "id">) {
@@ -550,105 +258,10 @@ function ardAnchorPoint(nodeId: string, side: ConnectorSide) {
   return { x: position.x + position.w, y: position.y + position.h / 2 };
 }
 
-function countdownPosition(nodeId: string) {
-  const position = ardNodePosition({ id: nodeId });
-  return { left: position.x, top: Math.max(8, position.y - 36) };
-}
-
 function canOpenNodeModal(node: SrsNodeDefinition, state?: SrsNodeState, availability?: NodeAvailability) {
   if (state?.status === "NOT_APPLICABLE") return false;
   if (state?.status === "COMPLETED") return true;
   return Boolean(node.clickable && availability?.canOpen);
-}
-
-function FlowNode({
-  node,
-  state,
-  availability,
-  now,
-  onOpen,
-}: {
-  node: SrsNodeDefinition;
-  state?: SrsNodeState;
-  availability?: NodeAvailability;
-  now: Date;
-  onOpen: () => void;
-}) {
-  const position = ardNodePosition(node);
-  const overdue = isDeadlineOverdue(state, now);
-  const status = overdue ? "OVERDUE" : state?.status || "LOCKED";
-  const isComplete = status === "COMPLETED";
-  const isInactivePath = status === "NOT_APPLICABLE";
-  const canOpen = canOpenNodeModal(node, state, availability);
-  const canAct = Boolean(availability?.canOpen) && !isComplete && !isInactivePath;
-  const tone = statusTone(status);
-  const style = TONE_STYLES[tone];
-  const StatusIcon = STATUS_ICONS[tone];
-  const NodeIcon = ARD_NODE_ICONS[node.id] || Route;
-  const subtitle = ARD_NODE_SUBTITLES[node.id];
-  const showSubtitle = Boolean(subtitle && !isComplete && !isInactivePath);
-  const summary = nodeCardSummary(node.id, state);
-  const content = (
-    <>
-      <span className="absolute bottom-2 left-0 top-2 w-1 rounded-full" style={{ backgroundColor: style.accent }} />
-      <div className={`flex items-start gap-2 pl-1.5 ${isInactivePath ? "opacity-30 blur-[1.2px]" : ""}`}>
-        <NodeIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: style.accent }} />
-        <div className="min-w-0">
-          <div className="whitespace-normal break-words text-[12.5px] font-semibold leading-snug" style={{ color: style.title }}>
-            {node.label}
-          </div>
-          {showSubtitle && <div className="mt-0.5 whitespace-normal break-words text-[10.5px] leading-snug text-slate-500">{subtitle}</div>}
-          {summary && <div className="mt-1 truncate text-[10.5px] font-bold leading-snug text-slate-700" title={summary}>{summary}</div>}
-        </div>
-      </div>
-      <div className={`mt-1.5 pl-1.5 ${isInactivePath ? "opacity-30 blur-[1.2px]" : ""}`}>
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium leading-none" style={{ backgroundColor: style.chipBg, color: style.chipText }}>
-          <StatusIcon className={`h-3 w-3 ${tone === "in-progress" ? "animate-spin" : ""}`} />
-          {formatStatus(status)}
-        </span>
-      </div>
-      {isInactivePath && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-slate-950/70">
-          <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-200">Inactive path</span>
-        </div>
-      )}
-      {!canOpen && availability?.disabledReason && node.clickable && !isInactivePath && (
-        <div className="mt-1.5 whitespace-normal break-words pl-1.5 text-[11px] font-medium leading-tight text-slate-500">{availability.disabledReason}</div>
-      )}
-    </>
-  );
-
-  const className = `absolute flex flex-col justify-center rounded-xl border px-3 py-2 text-left transition-all ${
-    canOpen ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400" : "cursor-default"
-  }`;
-  const styleProps: CSSProperties = {
-    left: position.x,
-    top: position.y,
-    width: position.w,
-    height: position.h,
-    borderColor: style.border,
-    backgroundColor: style.bg,
-    boxShadow: isInactivePath
-      ? "inset 0 0 0 1px rgba(255,255,255,0.08), 0 8px 18px rgba(2,6,23,0.25)"
-      : tone === "in-progress" || tone === "awaiting-approval"
-        ? "0 4px 14px rgba(217,119,6,0.20)"
-        : "0 1px 3px rgba(15,23,42,0.08)",
-    filter: isInactivePath ? "grayscale(1)" : undefined,
-  };
-
-  if (canOpen) {
-    return (
-      <button className={className} style={styleProps} type="button" onClick={onOpen} title={canAct ? node.label : `${node.label} output`}>
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <div className={className} style={styleProps} title={availability?.disabledReason || "Display-only step"}>
-      {content}
-    </div>
-  );
 }
 
 function nodeCardSummary(nodeId: string, state?: SrsNodeState) {
@@ -701,62 +314,36 @@ function NodeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-md bg-white shadow-xl">
-        <div className="border-b border-gray-200 px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold uppercase text-muted">{readOnly ? "Workflow Output" : "ARD Action"}</div>
-              <h3 className="mt-1 text-xl font-bold text-ink">{node?.label || formatArdNodeId(nodeId, flowchart)}</h3>
-            </div>
-            <button className="focus-ring rounded-md p-2 hover:bg-gray-100" type="button" onClick={onClose} aria-label="Close">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-4 grid gap-3 rounded-md border border-gray-200 bg-panel p-3 text-sm sm:grid-cols-3">
-            <div>
-              <div className="text-xs font-bold uppercase text-muted">Project</div>
-              <div className="mt-1 font-semibold text-ink">{workspace.project.project_code}</div>
-            </div>
-            <div>
-              <div className="text-xs font-bold uppercase text-muted">Trainer Item</div>
-              <div className="mt-1 font-semibold text-ink">{workspace.trainer_item.trainer_item_name}</div>
-            </div>
-            <div>
-              <div className="text-xs font-bold uppercase text-muted">Status</div>
-              <div className="mt-1">
-                <StatusBadge status={state?.status || workspace.workflow.status} />
-              </div>
-            </div>
-          </div>
-          {modalDeadlineState && (
-            <div className="mt-3">
-              <CountdownBadge startAt={modalDeadlineState.deadline_start_at} dueAt={modalDeadlineState.deadline_due_at} serverNow={workspace.server_now} />
-            </div>
-          )}
+    <WorkflowActionDialog
+      meta={{
+        overline: readOnly ? "Workflow Output" : "ARD Action",
+        title: node?.label || formatArdNodeId(nodeId, flowchart),
+        projectCode: workspace.project.project_code,
+        trainerItem: workspace.trainer_item.trainer_item_name,
+        status: <StatusBadge status={state?.status || workspace.workflow.status} />,
+        deadline: modalDeadlineState ? <CountdownBadge startAt={modalDeadlineState.deadline_start_at} dueAt={modalDeadlineState.deadline_due_at} serverNow={workspace.server_now} /> : undefined,
+      }}
+      error={error}
+      onClose={onClose}
+    >
+      {readOnly ? (
+        <ArdNodeOutputSummary nodeId={nodeId} state={state} workspace={workspace} />
+      ) : availability?.canOpen ? (
+        <ArdNodeAction
+          nodeId={nodeId}
+          disabled={!availability?.canAct}
+          disabledReason={availability?.disabledReason}
+          loading={loading}
+          workspace={workspace}
+          state={state}
+          onSubmit={submit}
+        />
+      ) : (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-600">
+          {availability?.disabledReason || "This workflow step is not available."}
         </div>
-        <div className="min-h-0 overflow-y-auto px-6 py-5">
-          {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>}
-          {readOnly ? (
-            <ArdNodeOutputSummary nodeId={nodeId} state={state} workspace={workspace} />
-          ) : availability?.canOpen ? (
-            <ArdNodeAction
-              nodeId={nodeId}
-              disabled={!availability?.canAct}
-              disabledReason={availability?.disabledReason}
-              loading={loading}
-              workspace={workspace}
-              state={state}
-              onSubmit={submit}
-            />
-          ) : (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-600">
-              {availability?.disabledReason || "This workflow step is not available."}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      )}
+    </WorkflowActionDialog>
   );
 }
 
@@ -894,10 +481,17 @@ function ProgressReviewForm({ disabled, loading, onSubmit }: { disabled: boolean
 
 function InterruptionRequestForm({ disabled, loading, onSubmit }: { disabled: boolean; loading: string; onSubmit: (action: string, payload?: Record<string, unknown>) => void }) {
   const [selected, setSelected] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
-  const [bomPath, setBomPath] = useState("");
-  const [conceptPath, setConceptPath] = useState("");
+  const [procurementNotes, setProcurementNotes] = useState("");
+  const [procurementBomPath, setProcurementBomPath] = useState("");
+  const [electronicsNotes, setElectronicsNotes] = useState("");
+  const [electronicsBomPath, setElectronicsBomPath] = useState("");
+  const [conceptNotes, setConceptNotes] = useState("");
+  const [conceptReportPath, setConceptReportPath] = useState("");
   const toggle = (value: string, checked: boolean) => setSelected((current) => checked ? [...current, value] : current.filter((item) => item !== value));
+  const showProcurement = selected.includes("PROCUREMENT_PAUSE");
+  const showElectronics = selected.includes("ELECTRONICS_SYSTEM_DESIGN");
+  const showConcept = selected.includes("CONCEPT_PROOF_PROTOTYPING");
+
   return (
     <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
       {[
@@ -910,25 +504,49 @@ function InterruptionRequestForm({ disabled, loading, onSubmit }: { disabled: bo
           {label}
         </label>
       ))}
-      <textarea className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={notes} disabled={disabled} onChange={(event) => setNotes(event.target.value)} placeholder="Notes" />
-      <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={bomPath} disabled={disabled} onChange={(event) => setBomPath(event.target.value)} placeholder="Optional BOM path" />
-      <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={conceptPath} disabled={disabled} onChange={(event) => setConceptPath(event.target.value)} placeholder="Concept-Proof technical report path" />
+      {showProcurement && (
+        <InterruptionCaseSection title="Procurement Pause">
+          <textarea className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={procurementNotes} disabled={disabled} onChange={(event) => setProcurementNotes(event.target.value)} placeholder="Procurement notes" />
+          <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={procurementBomPath} disabled={disabled} onChange={(event) => setProcurementBomPath(event.target.value)} placeholder="Procurement BOM path" />
+        </InterruptionCaseSection>
+      )}
+      {showElectronics && (
+        <InterruptionCaseSection title="Electronics System Design">
+          <textarea className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={electronicsNotes} disabled={disabled} onChange={(event) => setElectronicsNotes(event.target.value)} placeholder="Electronics notes" />
+          <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={electronicsBomPath} disabled={disabled} onChange={(event) => setElectronicsBomPath(event.target.value)} placeholder="Electronics BOM path" />
+        </InterruptionCaseSection>
+      )}
+      {showConcept && (
+        <InterruptionCaseSection title="Concept-Proof Prototyping">
+          <textarea className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={conceptNotes} disabled={disabled} onChange={(event) => setConceptNotes(event.target.value)} placeholder="Concept-proof notes" />
+          <input className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={conceptReportPath} disabled={disabled} onChange={(event) => setConceptReportPath(event.target.value)} placeholder="Concept-proof technical report path" />
+        </InterruptionCaseSection>
+      )}
       <ActionButton
         loading={loading === "request_interruption"}
         disabled={disabled || !selected.length}
         onClick={() => onSubmit("request_interruption", {
           selected_cases: selected,
-          procurement_notes: notes,
-          procurement_bom_path: bomPath,
-          electronics_notes: notes,
-          electronics_bom_path: bomPath,
-          concept_notes: notes,
-          concept_report_path: conceptPath,
+          procurement_notes: procurementNotes,
+          procurement_bom_path: procurementBomPath,
+          electronics_notes: electronicsNotes,
+          electronics_bom_path: electronicsBomPath,
+          concept_notes: conceptNotes,
+          concept_report_path: conceptReportPath,
         })}
       >
         Submit Interruption Request
       </ActionButton>
     </div>
+  );
+}
+
+function InterruptionCaseSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
+      <div className="text-xs font-black uppercase tracking-wide text-slate-500">{title}</div>
+      {children}
+    </section>
   );
 }
 
@@ -1030,20 +648,7 @@ type OutputRow = {
 
 function ArdNodeOutputSummary({ nodeId, state, workspace }: { nodeId: string; state?: SrsNodeState; workspace: ArdWorkspaceData }) {
   const rows = nodeOutputRows(nodeId, state, workspace);
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-black text-emerald-800">
-          <CheckCircle2 className="h-4 w-4" />
-          Step complete
-        </div>
-        <p className="mt-1 text-sm font-medium text-emerald-900/80">Recorded ARD workflow output is shown below.</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {rows.map((row) => <OutputCard key={row.label} row={row} />)}
-      </div>
-    </div>
-  );
+  return <WorkflowOutputSummary rows={rows} description="Recorded ARD workflow output is shown below." />;
 }
 
 function OutputCard({ row }: { row: OutputRow }) {
@@ -1124,7 +729,9 @@ function nodeOutputRows(nodeId: string, state: SrsNodeState | undefined, workspa
       value: String(value),
       copyable: label.toLowerCase().includes("path"),
     }));
-  const rows: OutputRow[] = [...displayRows];
+  const rows: OutputRow[] = nodeId === "ARD_PROJECT_OWNER_ASSIGNMENT"
+    ? displayRows.filter((row) => !row.label.toLowerCase().includes("project owner"))
+    : [...displayRows];
 
   if (nodeId === "INTERNAL_ARD_SYNC_MEETING" && workspace.meetings.internal_sync) {
     rows.push({ label: "Meeting", value: workspace.meetings.internal_sync.title || "Internal ARD Sync Meeting" });
@@ -1138,7 +745,8 @@ function nodeOutputRows(nodeId: string, state: SrsNodeState | undefined, workspa
 
   if (nodeId === "ARD_PROJECT_OWNER_ASSIGNMENT") {
     const owner = workspace.team_members.find((member) => member.is_project_owner);
-    rows.push({ label: "ARD Project Owner", value: owner?.full_name || workspace.workflow.project_owner || "-" });
+    const displayOwner = displayRows.find((row) => row.label.toLowerCase().includes("project owner"));
+    rows.push({ label: "ARD Project Owner", value: owner?.full_name || displayOwner?.value || workspace.workflow.project_owner || "-" });
   }
 
   if (state?.completed_at) rows.push({ label: "Completed At", value: formatWorkflowTimestamp(state.completed_at) });

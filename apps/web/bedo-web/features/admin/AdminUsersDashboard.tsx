@@ -45,6 +45,9 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
   const [users, setUsers] = useState(bootstrap.users);
   const [query, setQuery] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<AdminUser | null>(null);
+  const [adminError, setAdminError] = useState("");
+  const [adminSuccess, setAdminSuccess] = useState("");
 
   const filtered = useMemo(() => {
     const needle = query.toLowerCase().trim();
@@ -63,28 +66,43 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
   }, [activeTab, tabs]);
 
   async function submitUser(payload: Record<string, FormDataEntryValue | FormDataEntryValue[]>, mode: UserFormMode, targetUser?: string) {
+    setAdminError("");
+    setAdminSuccess("");
     const response = await fetch("/api/admin/users", {
       method: mode === "create" ? "POST" : "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(mode === "edit" ? { ...payload, user: targetUser } : payload)
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setAdminError(data?.error || "User could not be saved.");
+      return;
+    }
     if (response.ok) {
-      const data = await response.json();
       setUsers(data.users);
       setEditingUser(null);
+      setAdminSuccess(mode === "create" ? "User created." : "User updated.");
     }
   }
 
   async function deleteUser(user: AdminUser) {
+    setAdminError("");
+    setAdminSuccess("");
     const response = await fetch("/api/admin/users", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user: user.user })
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setAdminError(data?.error || "User could not be deleted.");
+      return;
+    }
     if (response.ok) {
-      const data = await response.json();
       setUsers(data.users);
       if (editingUser?.user === user.user) setEditingUser(null);
+      setDeleteCandidate(null);
+      setAdminSuccess("User deleted.");
     }
   }
 
@@ -114,6 +132,9 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
           </button>
         ))}
       </div>
+
+      {adminSuccess && <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-800">{adminSuccess}</div>}
+      {adminError && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">{adminError}</div>}
 
       {canManageUsers && activeTab === "Users" && (
         <div className="grid gap-6 xl:grid-cols-[minmax(360px,440px)_1fr]">
@@ -184,7 +205,7 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
                           <IconButton label="Edit user" onClick={() => setEditingUser(user)}>
                             <Edit3 className="h-4 w-4" />
                           </IconButton>
-                          <IconButton label="Delete user" disabled={!user.can_delete} onClick={() => deleteUser(user)}>
+                          <IconButton label={user.can_delete ? "Delete user" : "Protected user cannot be deleted"} disabled={!user.can_delete} onClick={() => setDeleteCandidate(user)}>
                             <Trash2 className="h-4 w-4" />
                           </IconButton>
                         </div>
@@ -199,6 +220,13 @@ export function AdminUsersDashboard({ bootstrap, securityEvents }: { bootstrap: 
       )}
 
       {activeTab === "Security Logs" && <SecurityLogs initialEvents={securityEvents} />}
+      {deleteCandidate && (
+        <DeleteUserConfirmModal
+          user={deleteCandidate}
+          onClose={() => setDeleteCandidate(null)}
+          onConfirm={() => deleteUser(deleteCandidate)}
+        />
+      )}
     </section>
   );
 }
@@ -446,6 +474,40 @@ function FilterInput({ label, value, onChange, type = "text" }: { label: string;
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+function DeleteUserConfirmModal({
+  user,
+  onClose,
+  onConfirm,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-label="Delete user confirmation">
+      <div className="w-full max-w-md rounded-md border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-red-700">Delete User</div>
+            <h2 className="mt-1 text-xl font-black text-slate-950">{user.first_name} {user.last_name}</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{user.username} - {user.email}</p>
+          </div>
+          <button className="focus-ring rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={onClose} aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-5 py-4 text-sm font-semibold leading-6 text-slate-700">
+          This removes the BEDO account if the backend confirms it is safe to delete. Protected users remain blocked by the existing API behavior.
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" type="button" onClick={onConfirm}>Delete user</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

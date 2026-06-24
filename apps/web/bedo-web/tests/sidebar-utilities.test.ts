@@ -24,10 +24,25 @@ test("sidebar bottom contains labeled utility links and logout form", () => {
 test("top bar no longer renders duplicate utility controls", () => {
   const source = readFileSync(join(import.meta.dirname, "..", "components", "Shell.tsx"), "utf-8");
   const topBarStart = source.indexOf("function TopBar(");
-  const topBarEnd = source.indexOf("function NotificationBell(");
+  const topBarEnd = source.indexOf("function pageTitleFor(");
   const topBarSource = source.slice(topBarStart, topBarEnd);
 
   assert.doesNotMatch(topBarSource, /NotificationBell/);
   assert.doesNotMatch(topBarSource, /ApprovalIcon/);
   assert.doesNotMatch(topBarSource, /UserMenu/);
+});
+
+test("mobile menu opens a full navigation drawer and legacy shell popovers are removed", () => {
+  const source = readFileSync(join(import.meta.dirname, "..", "components", "Shell.tsx"), "utf-8");
+
+  assert.match(source, /MobileNavigationDrawer/);
+  assert.match(source, /aria-label="Open navigation"/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /Dashboards/);
+  assert.match(source, /Work Queue/);
+  assert.match(source, /href="\/profile"/);
+  assert.doesNotMatch(source, /function NotificationBell/);
+  assert.doesNotMatch(source, /function ApprovalIcon/);
+  assert.doesNotMatch(source, /function UserMenu/);
 });

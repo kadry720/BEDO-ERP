@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, KeyRound, Loader2, Save, ShieldCheck, UserRound } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Save, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/Button";
 import type { BedoUserContext } from "@/lib/routes";
 
@@ -49,6 +49,12 @@ export function ProfileForm({ profile, session }: { profile: Profile; session: B
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
   const initials = useMemo(() => initialsFor(formState), [formState]);
+  const originalProfile = useMemo(() => ({ ...profile, middle_name: profile.middle_name || "" }), [profile]);
+  const profileDirty = useMemo(
+    () => (["username", "first_name", "middle_name", "last_name", "email", "phone_number"] as const).some((field) => formState[field] !== originalProfile[field]),
+    [formState, originalProfile]
+  );
+  const passwordDirty = Object.values(passwordState).some(Boolean);
 
   function updateProfileField(field: keyof Profile, value: string) {
     setFormState((current) => ({ ...current, [field]: value }));
@@ -142,6 +148,11 @@ export function ProfileForm({ profile, session }: { profile: Profile; session: B
               ))}
             </div>
           </div>
+          {(profileDirty || passwordDirty) && (
+            <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-amber-800">
+              Unsaved changes
+            </div>
+          )}
         </aside>
 
         <div className="space-y-5">
@@ -266,17 +277,28 @@ function PasswordField({
   autoComplete: string;
   onChange: (field: keyof PasswordState, value: string) => void;
 }) {
+  const [visible, setVisible] = useState(false);
   return (
     <label className="block">
       <span className="text-sm font-bold text-ink">{label}</span>
-      <input
-        className="focus-ring mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-        name={name}
-        type="password"
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(event) => onChange(name, event.target.value)}
-      />
+      <span className="mt-2 flex rounded-md border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-amber-400">
+        <input
+          className="w-full rounded-l-md border-0 px-3 py-2 text-sm outline-none"
+          name={name}
+          type={visible ? "text" : "password"}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(event) => onChange(name, event.target.value)}
+        />
+        <button
+          className="inline-flex w-10 shrink-0 items-center justify-center rounded-r-md text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+          type="button"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+        >
+          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </span>
       {error && <span className="mt-1 block text-xs font-semibold text-red-700">{error}</span>}
     </label>
   );

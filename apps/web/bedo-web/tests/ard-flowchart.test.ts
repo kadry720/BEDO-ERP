@@ -67,19 +67,24 @@ test("ARD workspace component exposes core node actions", () => {
   assert.match(source, /submit_scmdp/);
 });
 
-test("ARD workspace uses the SRS canvas flowchart pattern instead of the old card grid", () => {
+test("ARD workspace reuses the shared workflow canvas instead of the old card grid", () => {
   const source = readFileSync(join(import.meta.dirname, "..", "features", "ard", "ArdWorkspace.tsx"), "utf-8");
 
-  assert.match(source, /useLayoutEffect/);
-  assert.match(source, /frameRef/);
   assert.match(source, /ARD_FLOWCHART_DIMENSIONS/);
   assert.match(source, /ARD_NODE_POSITIONS/);
   assert.match(source, /ARD_CONNECTOR_ROUTES/);
+  assert.match(source, /WorkflowCanvas/);
+  assert.match(source, /WorkflowActionDialog/);
+  assert.match(source, /WorkflowOutputSummary/);
   assert.match(source, /function ArdFlowchart/);
-  assert.match(source, /function FlowNode/);
   assert.match(source, /function NodeModal/);
-  assert.match(source, /fixed inset-0 z-50/);
-  assert.match(source, /marker id="ard-arrow"/);
+  assert.match(source, /markerId="ard-arrow"/);
+  assert.match(source, /connectorRoutes={ARD_CONNECTOR_ROUTES}/);
+  assert.match(source, /positionForNode={ardNodePosition}/);
+  assert.match(source, /anchorPoint={ardAnchorPoint}/);
+  assert.doesNotMatch(source, /useLayoutEffect/);
+  assert.doesNotMatch(source, /frameRef/);
+  assert.doesNotMatch(source, /function FlowNode/);
   assert.doesNotMatch(source, /grid gap-5 xl:grid-cols-\[1fr_420px\]/);
   assert.doesNotMatch(source, /<aside className="space-y-5">/);
 });
@@ -98,4 +103,20 @@ test("ARD workflow BFF route uses signed Frappe mutation methods", () => {
   assert.match(source, /bedo_platform\.api\.web\.choose_ard_electronics_subcase/);
   assert.match(source, /bedo_platform\.api\.web\.complete_ard_concept_proof/);
   assert.match(source, /bedo_platform\.api\.web\.submit_ard_scmdp/);
+});
+
+test("ARD interruption form keeps case-specific notes and path payloads separate", () => {
+  const source = readFileSync(join(import.meta.dirname, "..", "features", "ard", "ArdWorkspace.tsx"), "utf-8");
+
+  assert.match(source, /procurementNotes/);
+  assert.match(source, /procurementBomPath/);
+  assert.match(source, /electronicsNotes/);
+  assert.match(source, /electronicsBomPath/);
+  assert.match(source, /conceptNotes/);
+  assert.match(source, /conceptReportPath/);
+  assert.match(source, /procurement_notes: procurementNotes/);
+  assert.match(source, /electronics_notes: electronicsNotes/);
+  assert.match(source, /concept_report_path: conceptReportPath/);
+  assert.match(source, /filter\(\(row\) => !row\.label\.toLowerCase\(\)\.includes\("project owner"\)\)/);
+  assert.match(source, /label: "ARD Project Owner"/);
 });

@@ -17,11 +17,10 @@ import {
   Shield,
   UserCircle,
   Users,
+  X,
 } from "lucide-react";
-import { normalizeProjectActionUrl } from "@/lib/route-ids";
 import { displayName, isAdminUser, routeLabels, type BedoUserContext } from "@/lib/routes";
 import { shellPollIntervals, shouldPollShellWhenVisible } from "@/lib/shell-polling";
-import type { NotificationRow } from "@/features/srs/types";
 import type { ShellState } from "@/server/shell-state";
 
 type NavItem = {
@@ -30,7 +29,6 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-const approvalNotificationTypes = new Set(["GM_APPROVAL_REQUIRED", "SRS_MANAGER_APPROVAL_REQUIRED", "GM_APPROVAL_COMPLETED"]);
 const idleTimeoutMs = 30 * 60 * 1000;
 const reminderDelayMs = 10 * 60 * 1000;
 const emptyShellState: ShellState = {
@@ -44,6 +42,7 @@ const emptyShellState: ShellState = {
 export function Shell({ session, children }: { session: BedoUserContext; children: ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [shellState, setShellState] = useState<ShellState>(emptyShellState);
   const navItems = useMemo(() => phaseNavItems(session), [session]);
   const pageTitle = pageTitleFor(pathname, navItems);
@@ -94,10 +93,18 @@ export function Shell({ session, children }: { session: BedoUserContext; childre
       </aside>
 
       <div className={`transition-[padding] duration-200 ${collapsed ? "lg:pl-20" : "lg:pl-72"}`}>
-        <TopBar pageTitle={pageTitle} />
+        <TopBar pageTitle={pageTitle} onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main className="px-4 pb-24 pt-5 md:px-6 lg:px-8 lg:pb-5">{children}</main>
         <MobileUtilityBar session={session} shellState={shellState} refreshShellState={refreshShellState} />
       </div>
+      <MobileNavigationDrawer
+        open={mobileNavOpen}
+        session={session}
+        navItems={navItems}
+        pathname={pathname}
+        shellState={shellState}
+        onClose={() => setMobileNavOpen(false)}
+      />
     </div>
   );
 }
@@ -522,218 +529,129 @@ function MobileUtilityLink({
   );
 }
 
-function TopBar({ pageTitle }: { pageTitle: string }) {
+function MobileNavigationDrawer({
+  open,
+  session,
+  navItems,
+  pathname,
+  shellState,
+  onClose,
+}: {
+  open: boolean;
+  session: BedoUserContext;
+  navItems: NavItem[];
+  pathname: string;
+  shellState: ShellState;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Mobile navigation">
+      <button className="absolute inset-0 cursor-default bg-slate-950/55" type="button" aria-label="Close navigation" onClick={onClose} />
+      <aside className="absolute inset-y-0 left-0 flex w-[min(22rem,calc(100vw-2rem))] flex-col bg-slate-950 text-slate-100 shadow-2xl">
+        <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
+          <div>
+            <div className="text-base font-black tracking-wide text-white">BEDO</div>
+            <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Industrial Process Governance</div>
+          </div>
+          <button className="focus-ring rounded-md p-2 text-slate-300 hover:bg-slate-900 hover:text-white" type="button" onClick={onClose} aria-label="Close navigation">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <div className="mb-2 px-2 text-[11px] font-black uppercase tracking-wide text-slate-500">Dashboards</div>
+          <div className="space-y-1">
+            {navItems.map((item) => (
+              <MobileDrawerLink key={item.href} href={item.href} label={item.label} icon={item.icon} active={isActive(pathname, item.href)} onClose={onClose} />
+            ))}
+          </div>
+
+          <div className="mb-2 mt-6 px-2 text-[11px] font-black uppercase tracking-wide text-slate-500">Work Queue</div>
+          <div className="space-y-1">
+            <MobileDrawerLink href="/meetings" label="Meetings" icon={CalendarClock} active={isActive(pathname, "/meetings")} badge={shellState.pendingMeetings} onClose={onClose} />
+            <MobileDrawerLink href="/notifications" label="Notifications" icon={Bell} active={isActive(pathname, "/notifications")} badge={shellState.unreadNotifications} onClose={onClose} />
+            <MobileDrawerLink href="/approvals" label="Approvals" icon={ClipboardCheck} active={isActive(pathname, "/approvals")} badge={shellState.pendingApprovals} onClose={onClose} />
+            <MobileDrawerLink href="/profile" label="Profile" icon={UserCircle} active={isActive(pathname, "/profile")} onClose={onClose} />
+          </div>
+        </nav>
+
+        <div className="border-t border-slate-800 p-3">
+          <Link href="/profile" onClick={onClose} className="mb-3 flex min-h-12 items-center gap-3 rounded-md border border-slate-800 px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900 hover:text-white">
+            <ProfileAvatar session={session} />
+            <span className="min-w-0 truncate">{displayName(session)}</span>
+          </Link>
+          <form action="/api/auth/logout" method="post">
+            <button className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-red-600 px-3 text-sm font-black text-white hover:bg-red-700" type="submit">
+              <LogOut className="h-4 w-4" />
+              Log out
+            </button>
+          </form>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function MobileDrawerLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+  badge = 0,
+  onClose,
+}: {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  active: boolean;
+  badge?: number;
+  onClose: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClose}
+      className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-bold transition ${
+        active ? "bg-amber-500 text-slate-950" : "text-slate-300 hover:bg-slate-900 hover:text-white"
+      }`}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badge > 0 && <span className="min-w-5 rounded-full bg-white px-1.5 py-0.5 text-center text-[10px] font-black text-slate-950">{badge}</span>}
+    </Link>
+  );
+}
+
+function TopBar({ pageTitle, onOpenMobileNav }: { pageTitle: string; onOpenMobileNav: () => void }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 shadow-sm backdrop-blur md:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        <Menu className="h-5 w-5 text-slate-400 lg:hidden" />
+        <button
+          className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 lg:hidden"
+          type="button"
+          onClick={onOpenMobileNav}
+          aria-label="Open navigation"
+          aria-haspopup="dialog"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <div className="min-w-0">
           <h1 className="truncate text-lg font-black text-slate-950">{pageTitle}</h1>
           <p className="hidden text-xs font-medium text-slate-500 sm:block">BEDO enterprise workspace</p>
         </div>
       </div>
     </header>
-  );
-}
-
-function NotificationBell({
-  openSignal,
-  shellState,
-  refreshShellState,
-}: {
-  openSignal: number;
-  shellState: ShellState;
-  refreshShellState: () => Promise<ShellState | null>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [data, setData] = useState<{ notifications: NotificationRow[]; unread: number }>(() => notificationDataFromShellState(shellState));
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  async function load() {
-    const response = await fetch("/api/notifications");
-    if (response.ok) setData(await response.json());
-  }
-
-  useEffect(() => {
-    setData(notificationDataFromShellState(shellState));
-  }, [shellState]);
-
-  useEffect(() => {
-    if (!openSignal) return;
-    setOpen(true);
-    void load();
-  }, [openSignal]);
-
-  useEffect(() => {
-    function onClick(event: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
-
-  async function markRead(notification?: string) {
-    const response = await fetch("/api/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(notification ? { notification } : {}),
-    });
-    if (response.ok) {
-      setData(await response.json());
-      void refreshShellState();
-    }
-  }
-
-  return (
-    <div ref={panelRef} className="relative">
-      <button
-        type="button"
-        className="focus-ring relative rounded-md border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
-        onClick={() => {
-          setOpen((value) => {
-            const nextOpen = !value;
-            if (nextOpen) void load();
-            return nextOpen;
-          });
-        }}
-        title="Notifications"
-      >
-        {data.unread ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
-        {data.unread > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{data.unread}</span>}
-      </button>
-      {open && <NotificationPanel data={data} markRead={markRead} />}
-    </div>
-  );
-}
-
-function notificationDataFromShellState(shellState: ShellState) {
-  return {
-    notifications: shellState.notifications,
-    unread: shellState.unreadNotifications,
-  };
-}
-
-function NotificationPanel({ data, markRead }: { data: { notifications: NotificationRow[]; unread: number }; markRead: (notification?: string) => void }) {
-  const unread = data.notifications.filter((item) => !item.is_read);
-  const earlier = data.notifications.filter((item) => item.is_read);
-  return (
-    <div className="absolute right-0 top-12 z-50 w-[min(430px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <div>
-          <div className="text-sm font-black text-slate-950">Notifications</div>
-          <div className="text-xs font-medium text-slate-500">{data.unread} unread</div>
-        </div>
-        <button className="rounded-md px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100" type="button" onClick={() => markRead()}>
-          Mark all read
-        </button>
-      </div>
-      <div className="max-h-[70vh] overflow-y-auto p-3">
-        <NotificationSection title="Unread" rows={unread} markRead={markRead} />
-        <NotificationSection title="Earlier" rows={earlier} markRead={markRead} />
-        {!data.notifications.length && (
-          <div className="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-sm font-semibold text-slate-500">No notifications.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NotificationSection({ title, rows, markRead }: { title: string; rows: NotificationRow[]; markRead: (notification?: string) => void }) {
-  if (!rows.length) return null;
-  return (
-    <section className="mb-3 last:mb-0">
-      <div className="mb-2 px-1 text-[11px] font-black uppercase tracking-wide text-slate-500">{title}</div>
-      <div className="grid gap-2">
-        {rows.map((row) => (
-          <NotificationRowItem key={row.name} row={row} markRead={markRead} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function NotificationRowItem({ row, markRead }: { row: NotificationRow; markRead: (notification?: string) => void }) {
-  const actionUrl = notificationActionUrl(row);
-  return (
-    <div className={`rounded-md border p-3 ${row.is_read ? "border-slate-200 bg-white" : "border-blue-200 bg-blue-50/70"}`}>
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-md bg-slate-900 p-2 text-white">
-          <Bell className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-slate-950">{row.title || row.type_label}</div>
-              <div className="mt-0.5 text-xs font-semibold text-slate-500">{row.type_label}</div>
-            </div>
-            {!row.is_read && <span className="mt-1 h-2 w-2 rounded-full bg-blue-600" />}
-          </div>
-          {(row.project_name || row.trainer_item_name) && (
-            <div className="mt-2 truncate text-xs font-semibold text-slate-700">
-              {[row.project_code, row.project_name, row.trainer_item_name].filter(Boolean).join(" | ")}
-            </div>
-          )}
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{row.message}</p>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium text-slate-500">{formatDate(row.created_at)}</span>
-            <div className="flex items-center gap-2">
-              {!row.is_read && (
-                <button className="rounded-md px-2 py-1 text-xs font-bold text-slate-600 hover:bg-white" type="button" onClick={() => markRead(row.name)}>
-                  Mark read
-                </button>
-              )}
-              {actionUrl && (
-                <Link className="rounded-md bg-slate-900 px-2 py-1 text-xs font-bold text-white hover:bg-slate-700" href={actionUrl}>
-                  Open
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function notificationActionUrl(row: NotificationRow) {
-  if (approvalNotificationTypes.has(row.notification_type)) return "/approvals";
-  if (!row.action_url) return "";
-  return normalizeProjectActionUrl(row.action_url);
-}
-
-function ApprovalIcon({ count, refreshShellState }: { count: number; refreshShellState: () => Promise<ShellState | null> }) {
-  useEffect(() => {
-    function refreshCount() {
-      void refreshShellState();
-    }
-    window.addEventListener("bedo:approvals-changed", refreshCount);
-    return () => {
-      window.removeEventListener("bedo:approvals-changed", refreshCount);
-    };
-  }, [refreshShellState]);
-
-  return (
-    <Link href="/approvals" className="focus-ring relative rounded-md border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" title="Approvals">
-      <ClipboardCheck className="h-5 w-5" />
-      {count > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-slate-950">{count}</span>}
-    </Link>
-  );
-}
-
-function UserMenu({ session }: { session: BedoUserContext }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5">
-      <Link href="/profile" className="hidden items-center gap-2 text-sm font-bold text-slate-700 hover:text-slate-950 sm:flex">
-        <UserCircle className="h-4 w-4" />
-        <span className="max-w-40 truncate">{displayName(session)}</span>
-      </Link>
-      {isAdminUser(session) && <Shield className="h-4 w-4 text-amber-600" />}
-      <form action="/api/auth/logout" method="post">
-        <button className="focus-ring rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-950" title="Log out" type="submit">
-          <LogOut className="h-4 w-4" />
-        </button>
-      </form>
-    </div>
   );
 }
 

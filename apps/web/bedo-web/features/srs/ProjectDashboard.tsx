@@ -25,7 +25,7 @@ export function ProjectDashboard({ session, initialProjects, mode }: DashboardPr
   const dashboardLabel = isGm ? "GM Support Office" : mode === "srs" ? "Strategic R&D Sector" : mode === "ard" ? "Applied R&D" : "Command Center";
   const dashboardTitle = isGm ? "GM Support Office Dashboard" : mode === "srs" ? "SRS Dashboard" : mode === "ard" ? "ARD Dashboard" : "Command Center Dashboard";
   const dashboardDescription = isGm
-    ? "Project completion is calculated from SRS-completed trainer items."
+    ? "Executive lifecycle view. SRS completion is shown as evidence, not final project completion."
     : mode === "srs"
       ? "Projects visible to your SRS role and assignments."
       : mode === "ard"
@@ -36,8 +36,8 @@ export function ProjectDashboard({ session, initialProjects, mode }: DashboardPr
 
   const buckets = useMemo(() => projects.projects.map(toProjectBucket), [projects]);
   const drafts = buckets.filter((project) => project.draft);
-  const ongoing = buckets.filter((project) => !project.draft && !project.done);
-  const done = buckets.filter((project) => project.done);
+  const ongoing = buckets.filter((project) => !project.draft && (isGm || !project.done));
+  const done = isGm ? [] : buckets.filter((project) => project.done);
   const completionPercentage = buckets.length ? Math.round((done.length / buckets.length) * 100) : 0;
 
   async function refresh() {
@@ -132,8 +132,8 @@ export function ProjectDashboard({ session, initialProjects, mode }: DashboardPr
 
       {isGm && (
         <ProjectTable
-          title="Done Projects"
-          description="Projects where all trainer items are complete."
+          title="Lifecycle Complete Projects"
+          description="Shown only when existing data proves every required active department is complete."
           projects={done}
           mode={mode}
           baseRoute={baseRoute}
@@ -154,7 +154,7 @@ function ProjectCompletionVisual({ doneCount, ongoingCount, draftCount, percenta
   return (
     <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
-        <div className="text-xs font-black uppercase tracking-wide text-slate-500">Completion</div>
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">Lifecycle Completion</div>
         <div className="mt-4 flex items-end gap-2">
           <span className="text-5xl font-black text-slate-950">{percentage}</span>
           <span className="pb-2 text-lg font-black text-slate-500">%</span>
@@ -165,8 +165,8 @@ function ProjectCompletionVisual({ doneCount, ongoingCount, draftCount, percenta
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Metric label="Draft Projects" value={draftCount} tone="blue" />
-        <Metric label="Done Projects" value={doneCount} tone="green" />
-        <Metric label="Ongoing Projects" value={ongoingCount} tone="amber" />
+        <Metric label="Lifecycle Complete" value={doneCount} tone="green" />
+        <Metric label="Lifecycle In Progress" value={ongoingCount} tone="amber" />
       </div>
     </section>
   );
