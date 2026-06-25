@@ -49,8 +49,10 @@ export function Dialog({
   const generatedTitleId = useId();
   const titleId = labelledBy || generatedTitleId;
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  onCloseRef.current = onClose;
 
   useEffect(() => setMounted(true), []);
 
@@ -69,7 +71,7 @@ export function Dialog({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key === "Tab") {
@@ -103,7 +105,7 @@ export function Dialog({
       document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus();
     };
-  }, [initialFocus, mounted, onClose]);
+  }, [initialFocus, mounted]);
 
   if (!mounted) return null;
 
@@ -127,7 +129,7 @@ export function Dialog({
               <h2 id={titleId} className="mt-1 text-xl font-black text-slate-950">{title}</h2>
               {description && <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{description}</p>}
             </div>
-            <button ref={closeRef} className="focus-ring rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={onClose} aria-label="Close">
+            <button ref={closeRef} className="focus-ring rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={() => onCloseRef.current()} aria-label="Close">
               <X className="h-5 w-5" />
             </button>
           </div>

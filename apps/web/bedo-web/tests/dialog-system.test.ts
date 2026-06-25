@@ -33,6 +33,16 @@ test("dialog backdrop cannot close while users interact with modal controls", ()
   assert.match(dialog, /relative z-10 flex max-h-\[92vh\]/);
 });
 
+test("dialog focus setup is stable across parent rerenders", () => {
+  const dialog = source("components", "ui", "Dialog.tsx");
+
+  assert.match(dialog, /onCloseRef = useRef\(onClose\)/);
+  assert.match(dialog, /onCloseRef\.current = onClose/);
+  assert.match(dialog, /onCloseRef\.current\(\)/);
+  assert.doesNotMatch(dialog, /\[initialFocus, mounted, onClose\]/);
+  assert.match(dialog, /\[initialFocus, mounted\]/);
+});
+
 test("workflow dialogs and confirmation dialogs reuse the permanent dialog primitive", () => {
   assert.match(source("components", "workflow", "WorkflowActionDialog.tsx"), /from "@\/components\/ui\/Dialog"/);
   assert.match(source("features", "approvals", "ApprovalsPage.tsx"), /from "@\/components\/ui\/Dialog"/);
