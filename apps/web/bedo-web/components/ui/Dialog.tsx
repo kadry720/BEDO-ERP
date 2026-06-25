@@ -111,9 +111,6 @@ export function Dialog({
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4"
       data-dialog-backdrop
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
     >
       <div
         ref={panelRef}

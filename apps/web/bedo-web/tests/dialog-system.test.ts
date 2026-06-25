@@ -23,12 +23,13 @@ test("permanent dialog primitive uses a document-body portal and focus/scroll ma
   assert.match(dialog, /event\.key === "Escape"/);
 });
 
-test("dialog backdrop does not use a competing full-screen button over modal controls", () => {
+test("dialog backdrop cannot close while users interact with modal controls", () => {
   const dialog = source("components", "ui", "Dialog.tsx");
 
   assert.doesNotMatch(dialog, /<button className="absolute inset-0 cursor-default"/);
   assert.match(dialog, /data-dialog-backdrop/);
-  assert.match(dialog, /event\.target === event\.currentTarget/);
+  assert.doesNotMatch(dialog, /onMouseDown=/);
+  assert.doesNotMatch(dialog, /event\.target === event\.currentTarget/);
   assert.match(dialog, /relative z-10 flex max-h-\[92vh\]/);
 });
 
