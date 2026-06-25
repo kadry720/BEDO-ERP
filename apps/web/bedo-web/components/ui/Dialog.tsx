@@ -108,15 +108,20 @@ export function Dialog({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4">
-      <button className="absolute inset-0 cursor-default" type="button" aria-label="Close dialog" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4"
+      data-dialog-backdrop
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative flex max-h-[92vh] w-full ${widthBySize[size]} flex-col rounded-lg border border-slate-200 bg-white shadow-2xl outline-none`}
+        className={`relative z-10 flex max-h-[92vh] w-full ${widthBySize[size]} flex-col rounded-lg border border-slate-200 bg-white shadow-2xl outline-none`}
       >
         <div className="border-b border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
           <div className="flex items-start justify-between gap-4">

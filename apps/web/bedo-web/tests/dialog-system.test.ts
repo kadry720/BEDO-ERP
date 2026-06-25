@@ -23,6 +23,15 @@ test("permanent dialog primitive uses a document-body portal and focus/scroll ma
   assert.match(dialog, /event\.key === "Escape"/);
 });
 
+test("dialog backdrop does not use a competing full-screen button over modal controls", () => {
+  const dialog = source("components", "ui", "Dialog.tsx");
+
+  assert.doesNotMatch(dialog, /<button className="absolute inset-0 cursor-default"/);
+  assert.match(dialog, /data-dialog-backdrop/);
+  assert.match(dialog, /event\.target === event\.currentTarget/);
+  assert.match(dialog, /relative z-10 flex max-h-\[92vh\]/);
+});
+
 test("workflow dialogs and confirmation dialogs reuse the permanent dialog primitive", () => {
   assert.match(source("components", "workflow", "WorkflowActionDialog.tsx"), /from "@\/components\/ui\/Dialog"/);
   assert.match(source("features", "approvals", "ApprovalsPage.tsx"), /from "@\/components\/ui\/Dialog"/);

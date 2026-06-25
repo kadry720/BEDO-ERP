@@ -7,6 +7,7 @@ import pytest
 from bedo_platform.constants import (
     ALL_ROLE_NAMES,
     INITIAL_USERS,
+    ROLE_CATALOG,
     ROLE_DEPARTMENT_KEY,
     SRS_ELECTRONICS_SECTION_HEAD_ROLE,
     VISIBLE_BUSINESS_ROLE_NAMES,
@@ -23,6 +24,12 @@ def test_electronics_capability_role_is_seeded_without_becoming_primary_departme
     electronics_head = next(user for user in INITIAL_USERS if user["username"] == "srselectronicshead")
     assert "SRS Section Head" in electronics_head["roles"]
     assert SRS_ELECTRONICS_SECTION_HEAD_ROLE in electronics_head["roles"]
+
+
+def test_seeded_role_catalog_categories_match_bedo_role_catalog_options():
+    allowed_categories = {"Platform", "Department", "Team"}
+
+    assert {role["role_category"] for role in ROLE_CATALOG} <= allowed_categories
 
 
 def test_electronics_capability_patch_is_registered():

@@ -244,7 +244,7 @@ ROLE_CATALOG.append(
         "role_name": SRS_ELECTRONICS_SECTION_HEAD_ROLE,
         "frappe_role": SRS_ELECTRONICS_SECTION_HEAD_ROLE,
         "department_key": "",
-        "role_category": "Capability",
+        "role_category": "Platform",
         "is_managerial": 0,
         "is_active": 1,
         "description": "Capability role for SRS Electronics heads handling ARD electronics interruption cases.",
