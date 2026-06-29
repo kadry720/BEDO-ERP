@@ -27,3 +27,4 @@ public/files/
 local_config.py
 .DS_Store
 Thumbs.db
+.vercel

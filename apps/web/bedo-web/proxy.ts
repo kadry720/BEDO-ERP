@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { rejectUnsafeMutation } from "@/lib/api-guard";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/health"];
+const publicPaths = ["/login", "/api/auth/login", "/api/admin/sessions", "/api/health"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
